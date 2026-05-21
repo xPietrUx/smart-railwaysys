@@ -1,0 +1,3 @@
+FastAPI
+neo4j
+uvicorn[standard]
