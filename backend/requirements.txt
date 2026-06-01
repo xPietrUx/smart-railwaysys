@@ -1,3 +1,5 @@
 FastAPI
 neo4j
 uvicorn[standard]
+python-dotenv
+os
