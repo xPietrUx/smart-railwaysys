@@ -50,11 +50,13 @@ TRACKS = [
     ("SOS", "CHO", 161, 13.8, 80,  1, 17),
 ]
 
+# segment_id jest wspólne dla obu kierunków tego samego odcinka,
+# dzięki czemu blokadę zakłada się jednym zapytaniem na cały tor.
 TRACK_QUERY = """
 MATCH (a:Station {id:$from}), (b:Station {id:$to})
-CREATE (a)-[:TRACK {line:$line, dist_km:$dist, vmax:$vmax,
+CREATE (a)-[:TRACK {segment_id:$seg, line:$line, dist_km:$dist, vmax:$vmax,
        rail_tracks:$rail, travel_min:$min, status:'active'}]->(b),
-       (b)-[:TRACK {line:$line, dist_km:$dist, vmax:$vmax,
+       (b)-[:TRACK {segment_id:$seg, line:$line, dist_km:$dist, vmax:$vmax,
        rail_tracks:$rail, travel_min:$min, status:'active'}]->(a)
 """
 
@@ -93,9 +95,12 @@ def load_data(session):
     session.run(STATIONS)
     print("✓ Stacje utworzone")
 
-    # 2. Relacje torów — każda osobno (MATCH wymaga istniejących węzłów)
-    for frm, to, line, dist, vmax, rail, mins in TRACKS:
+    # 2. Relacje torów — każda osobno (MATCH wymaga istniejących węzłów).
+    #    enumerate nadaje obu kierunkom to samo segment_id (SEG01..SEG12).
+    for idx, (frm, to, line, dist, vmax, rail, mins) in enumerate(TRACKS, start=1):
+        seg_id = f"SEG{idx:02d}"
         session.run(TRACK_QUERY, **{
+            "seg": seg_id,
             "from": frm, "to": to, "line": line,
             "dist": dist, "vmax": vmax, "rail": rail, "min": mins
         })
