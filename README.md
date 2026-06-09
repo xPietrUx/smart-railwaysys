@@ -4,12 +4,12 @@ Interaktywna aplikacja webowa do symulacji i monitorowania wirtualnego ruchu kol
 
 ## Stos technologiczny
 
-| Warstwa | Technologia | Port |
-|---|---|---|
-| Frontend | SvelteKit + TypeScript + Tailwind CSS | 5173 |
-| Backend | Python 3.12 + FastAPI | 8000 |
-| Baza danych | Memgraph (graf in-memory) | 7687 (Bolt) |
-| GUI bazy | Memgraph Lab | 3000 |
+| Warstwa     | Technologia                           | Port        |
+| ----------- | ------------------------------------- | ----------- |
+| Frontend    | SvelteKit + TypeScript + Tailwind CSS | 5173        |
+| Backend     | Python 3.12 + FastAPI                 | 8000        |
+| Baza danych | Memgraph (graf in-memory)             | 7687 (Bolt) |
+| GUI bazy    | Memgraph Lab                          | 3000        |
 
 ---
 
@@ -17,10 +17,6 @@ Interaktywna aplikacja webowa do symulacji i monitorowania wirtualnego ruchu kol
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) — jedyna rzecz, którą trzeba zainstalować
 - Git
-
-Opcjonalnie do lokalnego developmentu bez Dockera:
-- Python 3.12+
-- Node.js 20+
 
 ---
 
@@ -51,6 +47,7 @@ docker compose up
 ```
 
 Poczekaj aż w konsoli pojawi się:
+
 ```
 backend-1   | INFO:     Application startup complete.
 frontend-1  | Local:   http://localhost:5173/
@@ -63,6 +60,7 @@ docker compose exec backend python db/seed.py
 ```
 
 Oczekiwany wynik:
+
 ```
 ✓ Baza wyczyszczona, constrainty gotowe
 ✓ Stacje utworzone
@@ -77,6 +75,7 @@ Oczekiwany wynik:
 
 ```bash
 docker compose up --watch
+docker compose exec backend python db/seed.py
 ```
 
 Tryb `--watch` = hot-reload: zmiany w plikach `.svelte`, `.py` są od razu widoczne bez restartu kontenerów. Zatrzymanie: `Ctrl+C`.
@@ -96,8 +95,9 @@ curl http://localhost:8000/api/hello
 ```
 
 Oczekiwana odpowiedź:
+
 ```json
-{"message": "Połączenie z backendem udane"}
+{ "message": "Połączenie z backendem udane" }
 ```
 
 Interaktywna dokumentacja API (Swagger): [http://localhost:8000/docs](http://localhost:8000/docs)
@@ -106,41 +106,6 @@ Interaktywna dokumentacja API (Swagger): [http://localhost:8000/docs](http://loc
 
 Otwórz [http://localhost:5173](http://localhost:5173) — powinna załadować się strona aplikacji.
 
-### 3. Dane w bazie (Memgraph Lab)
-
-Otwórz [http://localhost:3000](http://localhost:3000) → kliknij **Connect** (dane połączenia są wypełnione automatycznie).
-
-W zakładce **Query** wklej i uruchom:
-
-```cypher
--- Podgląd całego grafu (stacje + tory)
-MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 50
-```
-
-```cypher
--- Lista stacji
-MATCH (s:Station) RETURN s.id, s.name, s.type ORDER BY s.name
-```
-
-```cypher
--- Lista pociągów z aktualną pozycją
-MATCH (t:Train) RETURN t.id, t.name, t.type, t.status, t.current_from, t.current_to, t.progress
-```
-
-Powinno zwrócić 10 stacji, 12 par torów (24 relacje), 4 pociągi.
-
----
-
-## Ponowne wczytanie danych (reset bazy)
-
-Seed jest **idempotentny** — czyści bazę przed załadowaniem, więc można go uruchamiać wielokrotnie:
-
-```bash
-docker compose exec backend python db/seed.py
-```
-
----
-
 ## Zatrzymanie projektu
 
 ```bash
@@ -148,6 +113,7 @@ docker compose exec backend python db/seed.py
 docker compose down
 
 # Zatrzymuje kontenery i usuwa wszystkie dane (czysty start)
+# NIE WYKONYWAĆ JEŚLI NIE MA PROBLEMÓW!!!
 docker compose down -v
 ```
 
@@ -181,24 +147,3 @@ smart-railwaysys/
 ├── .env.example             # Szablon zmiennych środowiskowych
 └── .env                     # Twój lokalny config (nie commitować!)
 ```
-
----
-
-## Częste problemy
-
-**`docker compose up` kończy się błędem portu:**
-Inny program zajmuje port 5173, 8000 lub 3000. Zamknij inne projekty lub sprawdź `docker ps`.
-
-**Seed kończy się błędem połączenia:**
-Memgraph jeszcze się uruchamia. Poczekaj 10–15 sekund i spróbuj ponownie.
-
-**Zmiany w kodzie nie są widoczne:**
-Upewnij się, że uruchomiono `docker compose up --watch`, a nie samo `docker compose up`.
-
-**Chcę uruchomić backend lokalnie (bez Dockera):**
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-Wymaga działającego kontenera Memgraph: `docker compose up memgraph-db`.
