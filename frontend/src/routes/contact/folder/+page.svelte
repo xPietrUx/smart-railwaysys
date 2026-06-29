@@ -1,1 +1,0 @@
-i jest kolejny
