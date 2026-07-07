@@ -1,0 +1,1248 @@
+{
+    "n": {
+        "id": 38,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 450,
+            "id": "KAT",
+            "lat": 50.2576,
+            "lon": 19.0175,
+            "name": "Katowice",
+            "platforms": 6,
+            "tracks": 14,
+            "type": "węzeł"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 53,
+        "start": 38,
+        "end": 41,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 8.4,
+            "line": 137,
+            "rail_tracks": 2,
+            "segment_id": "SEG03",
+            "status": "active",
+            "travel_min": 6,
+            "vmax": 120
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 41,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 120,
+            "id": "CHO",
+            "lat": 50.2936,
+            "lon": 18.9419,
+            "name": "Chorzów Batory",
+            "platforms": 2,
+            "tracks": 5,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 38,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 450,
+            "id": "KAT",
+            "lat": 50.2576,
+            "lon": 19.0175,
+            "name": "Katowice",
+            "platforms": 6,
+            "tracks": 14,
+            "type": "węzeł"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 54,
+        "start": 38,
+        "end": 42,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 7.2,
+            "line": 1,
+            "rail_tracks": 2,
+            "segment_id": "SEG04",
+            "status": "active",
+            "travel_min": 5,
+            "vmax": 160
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 42,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 280,
+            "id": "SOS",
+            "lat": 50.2748,
+            "lon": 19.1231,
+            "name": "Sosnowiec Główny",
+            "platforms": 4,
+            "tracks": 9,
+            "type": "węzeł"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 38,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 450,
+            "id": "KAT",
+            "lat": 50.2576,
+            "lon": 19.0175,
+            "name": "Katowice",
+            "platforms": 6,
+            "tracks": 14,
+            "type": "węzeł"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 58,
+        "start": 38,
+        "end": 47,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 9.5,
+            "line": 179,
+            "rail_tracks": 2,
+            "segment_id": "SEG06",
+            "status": "active",
+            "travel_min": 9,
+            "vmax": 100
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 47,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 80,
+            "id": "MYS",
+            "lat": 50.2212,
+            "lon": 19.1465,
+            "name": "Mysłowice",
+            "platforms": 2,
+            "tracks": 4,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 38,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 450,
+            "id": "KAT",
+            "lat": 50.2576,
+            "lon": 19.0175,
+            "name": "Katowice",
+            "platforms": 6,
+            "tracks": 14,
+            "type": "węzeł"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 62,
+        "start": 38,
+        "end": 44,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 11.4,
+            "line": 164,
+            "rail_tracks": 1,
+            "segment_id": "SEG08",
+            "status": "active",
+            "travel_min": 14,
+            "vmax": 80
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 44,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 150,
+            "id": "BYT",
+            "lat": 50.3474,
+            "lon": 18.935,
+            "name": "Bytom",
+            "platforms": 3,
+            "tracks": 6,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 38,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 450,
+            "id": "KAT",
+            "lat": 50.2576,
+            "lon": 19.0175,
+            "name": "Katowice",
+            "platforms": 6,
+            "tracks": 14,
+            "type": "węzeł"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 68,
+        "start": 38,
+        "end": 46,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 16.2,
+            "line": 139,
+            "rail_tracks": 1,
+            "segment_id": "SEG11",
+            "status": "active",
+            "travel_min": 19,
+            "vmax": 80
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 46,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 100,
+            "id": "TYC",
+            "lat": 50.1282,
+            "lon": 18.998,
+            "name": "Tychy",
+            "platforms": 2,
+            "tracks": 4,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 39,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 320,
+            "id": "GLI",
+            "lat": 50.2977,
+            "lon": 18.6714,
+            "name": "Gliwice",
+            "platforms": 5,
+            "tracks": 12,
+            "type": "węzeł"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 48,
+        "start": 39,
+        "end": 40,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 9.8,
+            "line": 137,
+            "rail_tracks": 2,
+            "segment_id": "SEG01",
+            "status": "active",
+            "travel_min": 7,
+            "vmax": 120
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 40,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 180,
+            "id": "ZAB",
+            "lat": 50.3058,
+            "lon": 18.7776,
+            "name": "Zabrze",
+            "platforms": 3,
+            "tracks": 6,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 39,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 320,
+            "id": "GLI",
+            "lat": 50.2977,
+            "lon": 18.6714,
+            "name": "Gliwice",
+            "platforms": 5,
+            "tracks": 12,
+            "type": "węzeł"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 66,
+        "start": 39,
+        "end": 45,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 28.6,
+            "line": 140,
+            "rail_tracks": 2,
+            "segment_id": "SEG10",
+            "status": "active",
+            "travel_min": 28,
+            "vmax": 100
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 45,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 110,
+            "id": "RYB",
+            "lat": 50.0976,
+            "lon": 18.5466,
+            "name": "Rybnik",
+            "platforms": 3,
+            "tracks": 5,
+            "type": "końcowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 40,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 180,
+            "id": "ZAB",
+            "lat": 50.3058,
+            "lon": 18.7776,
+            "name": "Zabrze",
+            "platforms": 3,
+            "tracks": 6,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 49,
+        "start": 40,
+        "end": 39,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 9.8,
+            "line": 137,
+            "rail_tracks": 2,
+            "segment_id": "SEG01",
+            "status": "active",
+            "travel_min": 7,
+            "vmax": 120
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 39,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 320,
+            "id": "GLI",
+            "lat": 50.2977,
+            "lon": 18.6714,
+            "name": "Gliwice",
+            "platforms": 5,
+            "tracks": 12,
+            "type": "węzeł"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 40,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 180,
+            "id": "ZAB",
+            "lat": 50.3058,
+            "lon": 18.7776,
+            "name": "Zabrze",
+            "platforms": 3,
+            "tracks": 6,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 50,
+        "start": 40,
+        "end": 41,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 12.1,
+            "line": 137,
+            "rail_tracks": 2,
+            "segment_id": "SEG02",
+            "status": "active",
+            "travel_min": 9,
+            "vmax": 120
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 41,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 120,
+            "id": "CHO",
+            "lat": 50.2936,
+            "lon": 18.9419,
+            "name": "Chorzów Batory",
+            "platforms": 2,
+            "tracks": 5,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 40,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 180,
+            "id": "ZAB",
+            "lat": 50.3058,
+            "lon": 18.7776,
+            "name": "Zabrze",
+            "platforms": 3,
+            "tracks": 6,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 65,
+        "start": 40,
+        "end": 44,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 10.9,
+            "line": 164,
+            "rail_tracks": 1,
+            "segment_id": "SEG09",
+            "status": "active",
+            "travel_min": 13,
+            "vmax": 80
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 44,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 150,
+            "id": "BYT",
+            "lat": 50.3474,
+            "lon": 18.935,
+            "name": "Bytom",
+            "platforms": 3,
+            "tracks": 6,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 41,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 120,
+            "id": "CHO",
+            "lat": 50.2936,
+            "lon": 18.9419,
+            "name": "Chorzów Batory",
+            "platforms": 2,
+            "tracks": 5,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 51,
+        "start": 41,
+        "end": 40,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 12.1,
+            "line": 137,
+            "rail_tracks": 2,
+            "segment_id": "SEG02",
+            "status": "active",
+            "travel_min": 9,
+            "vmax": 120
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 40,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 180,
+            "id": "ZAB",
+            "lat": 50.3058,
+            "lon": 18.7776,
+            "name": "Zabrze",
+            "platforms": 3,
+            "tracks": 6,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 41,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 120,
+            "id": "CHO",
+            "lat": 50.2936,
+            "lon": 18.9419,
+            "name": "Chorzów Batory",
+            "platforms": 2,
+            "tracks": 5,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 52,
+        "start": 41,
+        "end": 38,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 8.4,
+            "line": 137,
+            "rail_tracks": 2,
+            "segment_id": "SEG03",
+            "status": "active",
+            "travel_min": 6,
+            "vmax": 120
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 38,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 450,
+            "id": "KAT",
+            "lat": 50.2576,
+            "lon": 19.0175,
+            "name": "Katowice",
+            "platforms": 6,
+            "tracks": 14,
+            "type": "węzeł"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 41,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 120,
+            "id": "CHO",
+            "lat": 50.2936,
+            "lon": 18.9419,
+            "name": "Chorzów Batory",
+            "platforms": 2,
+            "tracks": 5,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 71,
+        "start": 41,
+        "end": 42,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 13.8,
+            "line": 161,
+            "rail_tracks": 1,
+            "segment_id": "SEG12",
+            "status": "active",
+            "travel_min": 17,
+            "vmax": 80
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 42,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 280,
+            "id": "SOS",
+            "lat": 50.2748,
+            "lon": 19.1231,
+            "name": "Sosnowiec Główny",
+            "platforms": 4,
+            "tracks": 9,
+            "type": "węzeł"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 42,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 280,
+            "id": "SOS",
+            "lat": 50.2748,
+            "lon": 19.1231,
+            "name": "Sosnowiec Główny",
+            "platforms": 4,
+            "tracks": 9,
+            "type": "węzeł"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 55,
+        "start": 42,
+        "end": 38,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 7.2,
+            "line": 1,
+            "rail_tracks": 2,
+            "segment_id": "SEG04",
+            "status": "active",
+            "travel_min": 5,
+            "vmax": 160
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 38,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 450,
+            "id": "KAT",
+            "lat": 50.2576,
+            "lon": 19.0175,
+            "name": "Katowice",
+            "platforms": 6,
+            "tracks": 14,
+            "type": "węzeł"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 42,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 280,
+            "id": "SOS",
+            "lat": 50.2748,
+            "lon": 19.1231,
+            "name": "Sosnowiec Główny",
+            "platforms": 4,
+            "tracks": 9,
+            "type": "węzeł"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 56,
+        "start": 42,
+        "end": 43,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 8.9,
+            "line": 1,
+            "rail_tracks": 2,
+            "segment_id": "SEG05",
+            "status": "active",
+            "travel_min": 7,
+            "vmax": 120
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 43,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 90,
+            "id": "DAB",
+            "lat": 50.3259,
+            "lon": 19.1847,
+            "name": "Dąbrowa Górnicza",
+            "platforms": 2,
+            "tracks": 4,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 42,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 280,
+            "id": "SOS",
+            "lat": 50.2748,
+            "lon": 19.1231,
+            "name": "Sosnowiec Główny",
+            "platforms": 4,
+            "tracks": 9,
+            "type": "węzeł"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 61,
+        "start": 42,
+        "end": 47,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 5.3,
+            "line": 179,
+            "rail_tracks": 2,
+            "segment_id": "SEG07",
+            "status": "active",
+            "travel_min": 5,
+            "vmax": 100
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 47,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 80,
+            "id": "MYS",
+            "lat": 50.2212,
+            "lon": 19.1465,
+            "name": "Mysłowice",
+            "platforms": 2,
+            "tracks": 4,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 42,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 280,
+            "id": "SOS",
+            "lat": 50.2748,
+            "lon": 19.1231,
+            "name": "Sosnowiec Główny",
+            "platforms": 4,
+            "tracks": 9,
+            "type": "węzeł"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 70,
+        "start": 42,
+        "end": 41,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 13.8,
+            "line": 161,
+            "rail_tracks": 1,
+            "segment_id": "SEG12",
+            "status": "active",
+            "travel_min": 17,
+            "vmax": 80
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 41,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 120,
+            "id": "CHO",
+            "lat": 50.2936,
+            "lon": 18.9419,
+            "name": "Chorzów Batory",
+            "platforms": 2,
+            "tracks": 5,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 43,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 90,
+            "id": "DAB",
+            "lat": 50.3259,
+            "lon": 19.1847,
+            "name": "Dąbrowa Górnicza",
+            "platforms": 2,
+            "tracks": 4,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 57,
+        "start": 43,
+        "end": 42,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 8.9,
+            "line": 1,
+            "rail_tracks": 2,
+            "segment_id": "SEG05",
+            "status": "active",
+            "travel_min": 7,
+            "vmax": 120
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 42,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 280,
+            "id": "SOS",
+            "lat": 50.2748,
+            "lon": 19.1231,
+            "name": "Sosnowiec Główny",
+            "platforms": 4,
+            "tracks": 9,
+            "type": "węzeł"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 44,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 150,
+            "id": "BYT",
+            "lat": 50.3474,
+            "lon": 18.935,
+            "name": "Bytom",
+            "platforms": 3,
+            "tracks": 6,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 63,
+        "start": 44,
+        "end": 38,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 11.4,
+            "line": 164,
+            "rail_tracks": 1,
+            "segment_id": "SEG08",
+            "status": "active",
+            "travel_min": 14,
+            "vmax": 80
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 38,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 450,
+            "id": "KAT",
+            "lat": 50.2576,
+            "lon": 19.0175,
+            "name": "Katowice",
+            "platforms": 6,
+            "tracks": 14,
+            "type": "węzeł"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 44,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 150,
+            "id": "BYT",
+            "lat": 50.3474,
+            "lon": 18.935,
+            "name": "Bytom",
+            "platforms": 3,
+            "tracks": 6,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 64,
+        "start": 44,
+        "end": 40,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 10.9,
+            "line": 164,
+            "rail_tracks": 1,
+            "segment_id": "SEG09",
+            "status": "active",
+            "travel_min": 13,
+            "vmax": 80
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 40,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 180,
+            "id": "ZAB",
+            "lat": 50.3058,
+            "lon": 18.7776,
+            "name": "Zabrze",
+            "platforms": 3,
+            "tracks": 6,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 45,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 110,
+            "id": "RYB",
+            "lat": 50.0976,
+            "lon": 18.5466,
+            "name": "Rybnik",
+            "platforms": 3,
+            "tracks": 5,
+            "type": "końcowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 67,
+        "start": 45,
+        "end": 39,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 28.6,
+            "line": 140,
+            "rail_tracks": 2,
+            "segment_id": "SEG10",
+            "status": "active",
+            "travel_min": 28,
+            "vmax": 100
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 39,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 320,
+            "id": "GLI",
+            "lat": 50.2977,
+            "lon": 18.6714,
+            "name": "Gliwice",
+            "platforms": 5,
+            "tracks": 12,
+            "type": "węzeł"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 46,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 100,
+            "id": "TYC",
+            "lat": 50.1282,
+            "lon": 18.998,
+            "name": "Tychy",
+            "platforms": 2,
+            "tracks": 4,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 69,
+        "start": 46,
+        "end": 38,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 16.2,
+            "line": 139,
+            "rail_tracks": 1,
+            "segment_id": "SEG11",
+            "status": "active",
+            "travel_min": 19,
+            "vmax": 80
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 38,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 450,
+            "id": "KAT",
+            "lat": 50.2576,
+            "lon": 19.0175,
+            "name": "Katowice",
+            "platforms": 6,
+            "tracks": 14,
+            "type": "węzeł"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 47,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 80,
+            "id": "MYS",
+            "lat": 50.2212,
+            "lon": 19.1465,
+            "name": "Mysłowice",
+            "platforms": 2,
+            "tracks": 4,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 59,
+        "start": 47,
+        "end": 38,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 9.5,
+            "line": 179,
+            "rail_tracks": 2,
+            "segment_id": "SEG06",
+            "status": "active",
+            "travel_min": 9,
+            "vmax": 100
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 38,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 450,
+            "id": "KAT",
+            "lat": 50.2576,
+            "lon": 19.0175,
+            "name": "Katowice",
+            "platforms": 6,
+            "tracks": 14,
+            "type": "węzeł"
+        },
+        "type": "node"
+    }
+}
+{
+    "n": {
+        "id": 47,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 80,
+            "id": "MYS",
+            "lat": 50.2212,
+            "lon": 19.1465,
+            "name": "Mysłowice",
+            "platforms": 2,
+            "tracks": 4,
+            "type": "przelotowa"
+        },
+        "type": "node"
+    },
+    "r": {
+        "id": 60,
+        "start": 47,
+        "end": 42,
+        "label": "TRACK",
+        "properties": {
+            "dist_km": 5.3,
+            "line": 179,
+            "rail_tracks": 2,
+            "segment_id": "SEG07",
+            "status": "active",
+            "travel_min": 5,
+            "vmax": 100
+        },
+        "type": "relationship"
+    },
+    "m": {
+        "id": 42,
+        "labels": [
+            "Station"
+        ],
+        "properties": {
+            "daily_trains": 280,
+            "id": "SOS",
+            "lat": 50.2748,
+            "lon": 19.1231,
+            "name": "Sosnowiec Główny",
+            "platforms": 4,
+            "tracks": 9,
+            "type": "węzeł"
+        },
+        "type": "node"
+    }
+}

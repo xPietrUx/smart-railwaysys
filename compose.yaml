@@ -58,6 +58,10 @@ services:
       - backend
     ports:
       - "5173:5173"
+    env_file:
+      - .env
+    environment:
+      PUBLIC_API_BASE_URL: http://backend:8000
     networks:
       - frontend-net
       - backend-net
