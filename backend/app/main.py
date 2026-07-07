@@ -9,18 +9,19 @@ from neo4j.exceptions import ServiceUnavailable
 from db.seed import URI, AUTH, load_data
 
 
-def connect_with_retry(retries: int = 10, delay: int = 2):
+def connect_with_retry(delay: int = 2):
     """Czeka, aż Memgraph będzie gotowy (depends_on nie gwarantuje gotowości)."""
-    for attempt in range(1, retries + 1):
+    attempt = 1
+    while True:
         try:
             driver = GraphDatabase.driver(URI, auth=AUTH)
             driver.verify_connectivity()
             print("✓ Połączono z Memgraph")
             return driver
         except ServiceUnavailable:
-            print(f"Memgraph niedostępny (próba {attempt}/{retries})...")
+            print(f"Memgraph niedostępny (próba {attempt})...")
             time.sleep(delay)
-    raise RuntimeError("Nie udało się połączyć z Memgraph po wielu próbach")
+            attempt += 1
 
 
 @asynccontextmanager
