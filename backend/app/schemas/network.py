@@ -30,3 +30,14 @@ class NetworkGraphResponse(BaseModel):
 	stations: list[StationNode]
 	segments: list[TrackSegment]
 	relationshipCount: int
+
+
+class SegmentStatusUpdate(BaseModel):
+	status: str
+
+
+class SegmentStatusResponse(BaseModel):
+	segmentId: str
+	status: str
+	success: bool
+

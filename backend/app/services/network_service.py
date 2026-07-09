@@ -62,3 +62,31 @@ def fetch_network_graph(session: Session) -> NetworkGraphResponse:
 		segments=list(segments_by_id.values()),
 		relationshipCount=relationship_count,
 	)
+
+
+def update_segment_status(session, segment_id: str, status: str) -> bool:
+	result = session.run(
+		"""
+		MATCH ()-[r:TRACK {segment_id: $segment_id}]->()
+		SET r.status = $status
+		RETURN count(r) AS updated_count
+		""",
+		segment_id=segment_id,
+		status=status,
+	)
+	record = result.single()
+	return record is not None and record["updated_count"] > 0
+
+
+def reset_all_segments_status(session) -> int:
+	result = session.run(
+		"""
+		MATCH ()-[r:TRACK]->()
+		SET r.status = 'active'
+		RETURN count(r) AS updated_count
+		"""
+	)
+	record = result.single()
+	return record["updated_count"] if record else 0
+
+

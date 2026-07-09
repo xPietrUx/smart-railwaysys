@@ -1,9 +1,12 @@
 <script lang="ts">
 	import type { NetworkGraph, StationNode, TrackSegment } from '$lib/types/network';
 	import type { FastestRouteResponse } from '$lib/types/routing';
+	import { updateSegmentStatus } from '$lib/services/network';
 	import RouteControlPanel from './RouteControlPanel.svelte';
+	import BreakdownControlPanel from './BreakdownControlPanel.svelte';
 
 	export let graph: NetworkGraph;
+
 
 	type Selected = { kind: 'station'; id: string } | { kind: 'segment'; id: string };
 
@@ -144,6 +147,27 @@
 	function pickSegment(id: string) {
 		selectedState = { kind: 'segment', id };
 	}
+
+	let togglingStatus = false;
+	async function toggleSegmentStatus(segment: TrackSegment) {
+		if (togglingStatus) return;
+		togglingStatus = true;
+		try {
+			const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+			const newStatus = segment.status === 'active' ? 'blocked' : 'active';
+			await updateSegmentStatus(fetch, baseUrl, segment.segmentId, newStatus);
+			graph.segments = graph.segments.map((s) =>
+				s.segmentId === segment.segmentId ? { ...s, status: newStatus } : s
+			);
+			if (selectedSegment && selectedSegment.segmentId === segment.segmentId) {
+				selectedSegment = { ...selectedSegment, status: newStatus };
+			}
+		} catch (err) {
+			alert('Nie udało się zmienić statusu toru: ' + (err instanceof Error ? err.message : err));
+		} finally {
+			togglingStatus = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -181,8 +205,18 @@
 		</div>
 	</section>
 
-	<section class="route-controls">
+	<section class="controls-grid-section">
 		<RouteControlPanel {stations} bind:activeRoute onRouteFound={(r) => (activeRoute = r)} />
+		<BreakdownControlPanel
+			{stations}
+			segments={uniqueSegments}
+			onSegmentUpdated={(id, status) => {
+				graph.segments = graph.segments.map((s) => (s.segmentId === id ? { ...s, status } : s));
+			}}
+			onResetAll={() => {
+				graph.segments = graph.segments.map((s) => ({ ...s, status: 'active' }));
+			}}
+		/>
 	</section>
 
 	<section class="content">
@@ -215,6 +249,7 @@
 						{@const source = positionById.get(segment.source)}
 						{@const target = positionById.get(segment.target)}
 						{@const isActive = segment.status === 'active'}
+						{@const isBlocked = segment.status === 'blocked'}
 						{@const isSelected = selectedSegmentEdgeIds.has(segment.id)}
 						{@const isOnRoute = routeSegmentIds.has(segment.segmentId)}
 						{@const midX = source && target ? (source.x + target.x) / 2 : 0}
@@ -225,8 +260,9 @@
 								y1={source.y}
 								x2={target.x}
 								y2={target.y}
-								stroke={isOnRoute ? '#10b981' : isSelected ? '#f59e0b' : isActive ? '#2563eb' : '#64748b'}
+								stroke={isBlocked ? '#ef4444' : isOnRoute ? '#10b981' : isSelected ? '#f59e0b' : '#2563eb'}
 								stroke-width={isOnRoute ? edgeStrokeWidth(segment) + 3.5 : isSelected ? edgeStrokeWidth(segment) + 1.5 : edgeStrokeWidth(segment)}
+								stroke-dasharray={isBlocked ? '8,6' : undefined}
 								stroke-linecap="round"
 								filter={isOnRoute ? 'url(#glow)' : undefined}
 								opacity={isOnRoute ? 1 : selectedKind === 'segment' && !isSelected ? 0.18 : 0.72}
@@ -380,6 +416,25 @@
 					</div>
 				</div>
 
+				<div class="status-toggle-section">
+					<button
+						type="button"
+						class="status-toggle-btn"
+						class:btn-block={selectedSegment.status === 'active'}
+						class:btn-unblock={selectedSegment.status === 'blocked'}
+						on:click={() => selectedSegment && toggleSegmentStatus(selectedSegment)}
+						disabled={togglingStatus}
+					>
+						{#if togglingStatus}
+							Zmiana statusu...
+						{:else if selectedSegment.status === 'active'}
+							🚧 Zablokuj odcinek (Symuluj awarię)
+						{:else}
+							✅ Odblokuj odcinek (Wznowienie ruchu)
+						{/if}
+					</button>
+				</div>
+
 				<div class="section">
 					<h3>Łączy</h3>
 					<ul class="connections">
@@ -503,9 +558,13 @@
 		align-items: start;
 	}
 
-	.route-controls {
-		margin-bottom: 20px;
+	.controls-grid-section {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+		gap: 18px;
+		margin-bottom: 24px;
 	}
+
 
 	.panel {
 		padding: 20px;
@@ -667,6 +726,47 @@
 		border-radius: 14px;
 		background: rgba(30, 41, 59, 0.72);
 		color: #cbd5e1;
+	}
+
+	.status-toggle-section {
+		margin-top: 16px;
+	}
+
+	.status-toggle-btn {
+		width: 100%;
+		padding: 12px;
+		border-radius: 8px;
+		font-weight: 600;
+		font-size: 0.9rem;
+		cursor: pointer;
+		border: none;
+		transition: all 0.2s;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+	}
+
+	.btn-block {
+		background: rgba(239, 68, 68, 0.2);
+		border: 1px solid #ef4444;
+		color: #fca5a5;
+	}
+
+	.btn-block:hover:not(:disabled) {
+		background: rgba(239, 68, 68, 0.35);
+		color: #ffffff;
+	}
+
+	.btn-unblock {
+		background: rgba(16, 185, 129, 0.2);
+		border: 1px solid #10b981;
+		color: #6ee7b7;
+	}
+
+	.btn-unblock:hover:not(:disabled) {
+		background: rgba(16, 185, 129, 0.35);
+		color: #ffffff;
 	}
 
 	@media (max-width: 1100px) {
