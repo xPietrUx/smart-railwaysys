@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.health import router as health_router
 from app.api.routes.network import router as network_router
+from app.api.routes.routing import router as routing_router
 from app.core.config import ALLOWED_ORIGINS
 from app.core.lifespan import lifespan
 
@@ -22,3 +23,4 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(network_router)
+app.include_router(routing_router)

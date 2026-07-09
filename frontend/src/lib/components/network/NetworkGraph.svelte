@@ -1,9 +1,12 @@
 <script lang="ts">
 	import type { NetworkGraph, StationNode, TrackSegment } from '$lib/types/network';
+	import type { FastestRouteResponse } from '$lib/types/routing';
+	import RouteControlPanel from './RouteControlPanel.svelte';
 
 	export let graph: NetworkGraph;
 
 	type Selected = { kind: 'station'; id: string } | { kind: 'segment'; id: string };
+
 
 	const padding = 56;
 	const graphWidth = 1000;
@@ -86,6 +89,14 @@
 	let selectedStationIds = new Set<string>();
 	let selectedSegmentNodeIds = new Set<string>();
 	let selectedSegmentEdgeIds = new Set<string>();
+	let activeRoute: FastestRouteResponse | null = null;
+
+	$: routeStationIds = new Set<string>(
+		activeRoute?.found ? activeRoute.path.map((s) => s.id) : []
+	);
+	$: routeSegmentIds = new Set<string>(
+		activeRoute?.found ? activeRoute.segments.map((s) => s.segmentId) : []
+	);
 
 	$: selectedKind = selectedState?.kind ?? null;
 	$: if (stations.length > 0 && (!selectedState || selectedState.kind === 'station' && !stationById.has(selectedState.id))) {
@@ -170,6 +181,10 @@
 		</div>
 	</section>
 
+	<section class="route-controls">
+		<RouteControlPanel {stations} bind:activeRoute onRouteFound={(r) => (activeRoute = r)} />
+	</section>
+
 	<section class="content">
 		<div class="panel graph-panel">
 			<div class="panel-header">
@@ -201,6 +216,7 @@
 						{@const target = positionById.get(segment.target)}
 						{@const isActive = segment.status === 'active'}
 						{@const isSelected = selectedSegmentEdgeIds.has(segment.id)}
+						{@const isOnRoute = routeSegmentIds.has(segment.segmentId)}
 						{@const midX = source && target ? (source.x + target.x) / 2 : 0}
 						{@const midY = source && target ? (source.y + target.y) / 2 : 0}
 						{#if source && target}
@@ -209,11 +225,12 @@
 								y1={source.y}
 								x2={target.x}
 								y2={target.y}
-								stroke={isSelected ? '#f59e0b' : isActive ? '#2563eb' : '#64748b'}
-								stroke-width={isSelected ? edgeStrokeWidth(segment) + 1.5 : edgeStrokeWidth(segment)}
+								stroke={isOnRoute ? '#10b981' : isSelected ? '#f59e0b' : isActive ? '#2563eb' : '#64748b'}
+								stroke-width={isOnRoute ? edgeStrokeWidth(segment) + 3.5 : isSelected ? edgeStrokeWidth(segment) + 1.5 : edgeStrokeWidth(segment)}
 								stroke-linecap="round"
-								opacity={selectedKind === 'segment' && !isSelected ? 0.18 : 0.72}
-								class:dimmed={selectedKind === 'station' && !selectedStationIds.has(segment.source) && !selectedStationIds.has(segment.target)}
+								filter={isOnRoute ? 'url(#glow)' : undefined}
+								opacity={isOnRoute ? 1 : selectedKind === 'segment' && !isSelected ? 0.18 : 0.72}
+								class:dimmed={!isOnRoute && selectedKind === 'station' && !selectedStationIds.has(segment.source) && !selectedStationIds.has(segment.target)}
 								on:click={() => pickSegment(segment.segmentId)}
 								role="button"
 								tabindex="0"
@@ -238,6 +255,7 @@
 					{#each stations as station}
 						{@const point = positionById.get(station.id)}
 						{@const selected = selectedStation?.id === station.id}
+						{@const isRouteStation = routeStationIds.has(station.id)}
 						{@const dimmed = selectedKind === 'segment' && !selectedSegmentNodeIds.has(station.id)}
 						{#if point}
 							<g
@@ -250,10 +268,19 @@
 								aria-label={`Stacja ${station.name}`}
 								on:keydown={(event) => handleKeydown(event, () => pickStation(station.id))}
 							>
+								{#if isRouteStation}
+									<circle
+										r={stationRadius(station) + 7}
+										stroke="#10b981"
+										stroke-width="3"
+										fill="none"
+										filter="url(#glow)"
+									/>
+								{/if}
 								<circle
 									r={stationRadius(station)}
 									fill={station.type === 'węzeł' ? '#2563eb' : station.type === 'końcowa' ? '#f59e0b' : '#10b981'}
-									filter={selected ? 'url(#glow)' : undefined}
+									filter={selected || isRouteStation ? 'url(#glow)' : undefined}
 								/>
 								<circle r={stationRadius(station) + 5} fill="transparent" />
 								<text class="station-code" y="-18">{station.code}</text>
@@ -474,6 +501,10 @@
 		grid-template-columns: minmax(0, 1.65fr) minmax(300px, 0.9fr);
 		gap: 18px;
 		align-items: start;
+	}
+
+	.route-controls {
+		margin-bottom: 20px;
 	}
 
 	.panel {
