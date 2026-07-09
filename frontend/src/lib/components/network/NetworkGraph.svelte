@@ -1,9 +1,13 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
 	import type { NetworkGraph, StationNode, TrackSegment } from '$lib/types/network';
 	import type { FastestRouteResponse } from '$lib/types/routing';
+	import type { TrainState } from '$lib/types/simulation';
 	import { updateSegmentStatus } from '$lib/services/network';
+	import { fetchTrains, tickSimulation } from '$lib/services/simulation';
 	import RouteControlPanel from './RouteControlPanel.svelte';
 	import BreakdownControlPanel from './BreakdownControlPanel.svelte';
+	import TrainControlPanel from './TrainControlPanel.svelte';
 
 	export let graph: NetworkGraph;
 
@@ -168,6 +172,46 @@
 			togglingStatus = false;
 		}
 	}
+
+	let activeTrains: TrainState[] = [];
+	let isSimRunning = true;
+	let simInterval: ReturnType<typeof setInterval> | null = null;
+	const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+
+	async function pollSimulationTick() {
+		if (!isSimRunning) return;
+		try {
+			const res = await tickSimulation(fetch, baseUrl, 1.0, 60.0);
+			activeTrains = res.trains;
+		} catch {
+			// cichy ign
+		}
+	}
+
+	onMount(async () => {
+		try {
+			const res = await fetchTrains(fetch, baseUrl);
+			activeTrains = res.trains;
+		} catch {
+			// cichy ign
+		}
+		simInterval = setInterval(pollSimulationTick, 1000);
+	});
+
+	onDestroy(() => {
+		if (simInterval) clearInterval(simInterval);
+	});
+
+	function getTrainPosition(t: TrainState): { x: number; y: number } | null {
+		const source = positionById.get(t.currentStationId);
+		const target = positionById.get(t.nextStationId || t.currentStationId);
+		if (!source) return null;
+		if (!target) return { x: source.x, y: source.y };
+		return {
+			x: source.x + (target.x - source.x) * t.progress,
+			y: source.y + (target.y - source.y) * t.progress
+		};
+	}
 </script>
 
 <svelte:head>
@@ -216,6 +260,20 @@
 			onResetAll={() => {
 				graph.segments = graph.segments.map((s) => ({ ...s, status: 'active' }));
 			}}
+		/>
+		<TrainControlPanel
+			{stations}
+			trains={activeTrains}
+			isRunning={isSimRunning}
+			onTrainsUpdated={(t) => (activeTrains = t)}
+			onSelectTrainRoute={(t) => {
+				if (t && t.route) {
+					activeRoute = t.route;
+				} else {
+					activeRoute = null;
+				}
+			}}
+			onToggleRunning={() => (isSimRunning = !isSimRunning)}
 		/>
 	</section>
 
@@ -321,6 +379,33 @@
 								<circle r={stationRadius(station) + 5} fill="transparent" />
 								<text class="station-code" y="-18">{station.code}</text>
 								<text class="station-name" y={stationRadius(station) + 18}>{station.name}</text>
+							</g>
+						{/if}
+					{/each}
+
+					<!-- Rysowanie żywych pociągów na mapie -->
+					{#each activeTrains as train}
+						{@const pos = getTrainPosition(train)}
+						{#if pos}
+							<g
+								transform={`translate(${pos.x}, ${pos.y})`}
+								class="train-marker-g"
+								on:click={() => {
+									if (train.route) activeRoute = train.route;
+								}}
+								role="button"
+								tabindex="0"
+							>
+								<!-- Glow wokół pociągu -->
+								<circle r="16" fill={train.status === 'rerouted' ? '#f59e0b' : '#3b82f6'} opacity="0.3" filter="url(#glow)">
+									<animate attributeName="r" values="14;18;14" dur="1.5s" repeatCount="indefinite" />
+								</circle>
+								<!-- Główne koło pociągu -->
+								<circle r="11" fill={train.status === 'rerouted' ? '#f59e0b' : '#2563eb'} stroke="#ffffff" stroke-width="2.5" />
+								<!-- Etykieta z nazwą -->
+								<text y="-18" class="train-label" text-anchor="middle" fill="#ffffff">
+									{train.name}
+								</text>
 							</g>
 						{/if}
 					{/each}
@@ -767,6 +852,18 @@
 	.btn-unblock:hover:not(:disabled) {
 		background: rgba(16, 185, 129, 0.35);
 		color: #ffffff;
+	}
+
+	.train-marker-g {
+		cursor: pointer;
+		transition: transform 0.8s linear;
+	}
+
+	.train-label {
+		font-size: 0.72rem;
+		font-weight: 700;
+		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+		pointer-events: none;
 	}
 
 	@media (max-width: 1100px) {
