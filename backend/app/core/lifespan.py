@@ -1,3 +1,5 @@
+import asyncio
+import random
 import time
 from contextlib import asynccontextmanager
 
@@ -5,6 +7,9 @@ from fastapi import FastAPI
 from neo4j import GraphDatabase
 from neo4j.exceptions import ServiceUnavailable
 
+from app.core import config
+from app.core.ws_manager import ConnectionManager
+from app.services import simulation_engine
 from db.seed import AUTH, URI, load_data
 
 
@@ -34,6 +39,17 @@ async def lifespan(app: FastAPI):
 		else:
 			print(f"Graf już zasilony ({count} stacji) — pomijam seed.")
 	app.state.driver = driver
+
+	app.state.ws_manager = ConnectionManager()
+	app.state.sim_lock = asyncio.Lock()
+	app.state.next_event_at = time.time() + random.expovariate(
+		1.0 / config.SIM_EVENT_MEAN_INTERVAL_REAL_S
+	)
+	simulation_engine.start_simulation(app)
+	print("✓ Autonomiczna symulacja pociągów uruchomiona")
+
 	yield
+
+	await simulation_engine.stop_simulation(app)
 	driver.close()
 	print("✓ Połączenie z Memgraph zamknięte")

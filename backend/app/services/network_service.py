@@ -1,6 +1,11 @@
 from neo4j import Session
 
-from app.schemas.network import NetworkGraphResponse, StationNode, TrackSegment
+from app.schemas.network import (
+	DirectionalState,
+	NetworkGraphResponse,
+	StationNode,
+	TrackSegment,
+)
 
 
 def station_payload(node) -> StationNode:
@@ -17,18 +22,11 @@ def station_payload(node) -> StationNode:
 	)
 
 
-def segment_payload(start_node, relationship, end_node) -> TrackSegment:
-	return TrackSegment(
-		id=str(relationship.id),
-		source=start_node["id"],
-		target=end_node["id"],
-		segmentId=relationship["segment_id"],
-		line=relationship["line"],
-		distKm=relationship["dist_km"],
-		travelMin=relationship["travel_min"],
-		vmax=relationship["vmax"],
-		railTracks=relationship["rail_tracks"],
+def directional_state_payload(relationship) -> DirectionalState:
+	return DirectionalState(
 		status=relationship["status"],
+		restrictedVmax=relationship.get("restricted_vmax"),
+		activeEventId=relationship.get("active_event_id"),
 	)
 
 
@@ -44,18 +42,41 @@ def fetch_network_graph(session: Session) -> NetworkGraphResponse:
 		"""
 	)
 
-	segments_by_id = {}
+	# Każdy fizyczny odcinek ma w bazie dwie skierowane relacje (tam i z powrotem)
+	# dzielące to samo segment_id. Łączymy je w jeden TrackSegment z osobnym stanem
+	# per kierunek — "forward" to zawsze kierunek alfabetycznie mniejszy -> większy id,
+	# niezależnie od kolejności, w jakiej wiersze przyjdą z bazy.
+	segments_by_id: dict[str, TrackSegment] = {}
 	relationship_count = 0
 	for record in relationship_records:
 		relationship_count += 1
-		relationship = record["r"]
+		n_node, relationship, m_node = record["n"], record["r"], record["m"]
 		segment_id = relationship["segment_id"]
-		if segment_id not in segments_by_id:
-			segments_by_id[segment_id] = segment_payload(
-				record["n"],
-				relationship,
-				record["m"],
+		is_forward = n_node["id"] < m_node["id"]
+		state = directional_state_payload(relationship)
+
+		segment = segments_by_id.get(segment_id)
+		if segment is None:
+			forward_source, forward_target = (
+				(n_node["id"], m_node["id"]) if is_forward else (m_node["id"], n_node["id"])
 			)
+			segment = TrackSegment(
+				segmentId=segment_id,
+				source=forward_source,
+				target=forward_target,
+				line=relationship["line"],
+				distKm=relationship["dist_km"],
+				travelMin=relationship["travel_min"],
+				vmax=relationship["vmax"],
+				railTracks=relationship["rail_tracks"],
+				forward=state if is_forward else DirectionalState(status="active"),
+				backward=state if not is_forward else DirectionalState(status="active"),
+			)
+			segments_by_id[segment_id] = segment
+		elif is_forward:
+			segment.forward = state
+		else:
+			segment.backward = state
 
 	return NetworkGraphResponse(
 		stations=stations,

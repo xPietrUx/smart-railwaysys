@@ -10,17 +10,23 @@ export type StationNode = {
 	dailyTrains: number;
 };
 
+export type DirectionalState = {
+	status: string; // 'active' | 'blocked' | 'restricted'
+	restrictedVmax: number | null;
+	activeEventId: string | null;
+};
+
 export type TrackSegment = {
-	id: string;
+	segmentId: string;
 	source: string;
 	target: string;
-	segmentId: string;
 	line: number;
 	distKm: number;
 	travelMin: number;
 	vmax: number;
 	railTracks: number;
-	status: string;
+	forward: DirectionalState; // stan relacji source -> target
+	backward: DirectionalState; // stan relacji target -> source
 };
 
 export type NetworkGraph = {
