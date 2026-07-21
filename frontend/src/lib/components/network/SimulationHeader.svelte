@@ -1,12 +1,27 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import type { ConnectionStatus, LiveSnapshot } from '$lib/services/live';
-	import type { NetworkGraph } from '$lib/types/network';
+	import type { HighlightFilter } from '$lib/types/selection';
+	import type { TrainStatus } from '$lib/types/train';
 
-	export let graph: NetworkGraph;
 	export let snapshot: LiveSnapshot;
 	export let status: ConnectionStatus;
 	export let apiBaseUrl: string;
+	export let highlight: HighlightFilter | null = null;
+
+	function toggleTrainFilter(trainStatus: TrainStatus) {
+		highlight =
+			highlight?.kind === 'train-status' && highlight.status === trainStatus
+				? null
+				: { kind: 'train-status', status: trainStatus };
+	}
+
+	function toggleIncidentFilter() {
+		highlight = highlight?.kind === 'incidents' ? null : { kind: 'incidents' };
+	}
+
+	$: activeTrainStatus = highlight?.kind === 'train-status' ? highlight.status : null;
+	$: incidentsActive = highlight?.kind === 'incidents';
 
 	$: debugMode = $page.url.searchParams.get('debug') === '1';
 
@@ -48,106 +63,234 @@
 	}
 </script>
 
-<section class="hero">
-	<div class="hero-title">
+<header class="bar">
+	<div class="title">
 		<p class="eyebrow">Smart Railway System</p>
 		<h1>Autonomiczna sieć kolejowa Śląska</h1>
-		<p class="lede">
-			Każdy pociąg kursuje samodzielnie między swoją stacją początkową i końcową, robi
-			przerwę po dotarciu, a potem rusza w drogę powrotną. Losowe awarie linii, wykolejenia
-			i ograniczenia prędkości pociągi obsługują same -- zatrzymują się albo automatycznie
-			przeliczają trasę. Dane na żywo z Memgraph.
-		</p>
 	</div>
 
-	<div class="status-strip">
-		<span class="status-dot {statusDotClass[status]}"></span>
-		<span class="status-label">{statusLabels[status]}</span>
-		<span class="status-time">aktualizacja {lastUpdateLabel}</span>
-	</div>
-
-	<div class="hero-cards">
-		<div class="metric">
-			<span>Stacje</span>
-			<strong>{graph.stations.length}</strong>
-		</div>
-		<div class="metric">
-			<span>Odcinki</span>
-			<strong>{graph.segments.length}</strong>
-		</div>
-		<div class="metric">
-			<span>W drodze</span>
-			<strong>{runningCount}</strong>
-		</div>
-		<div class="metric">
-			<span>Na przerwie</span>
-			<strong>{dwellingCount}</strong>
-		</div>
-		<div class="metric" class:metric-warning={waitingCount > 0}>
-			<span>Zatrzymane</span>
-			<strong>{waitingCount}</strong>
-		</div>
-		<div class="metric" class:metric-danger={derailedCount > 0}>
-			<span>Wykolejone</span>
-			<strong>{derailedCount}</strong>
-		</div>
-		<div class="metric" class:metric-danger={activeIncidents > 0}>
-			<span>Aktywne incydenty</span>
-			<strong>{activeIncidents}</strong>
-		</div>
-	</div>
-
-	{#if debugMode}
-		<div class="debug-panel">
-			<button type="button" on:click={triggerRandomEvent} disabled={triggering}>
-				{triggering ? 'Wywoływanie…' : '🎲 Wymuś losowe zdarzenie'}
+	<div class="right">
+		<div class="metrics">
+			<button
+				type="button"
+				class="metric metric-ok"
+				class:active={activeTrainStatus === 'running'}
+				aria-pressed={activeTrainStatus === 'running'}
+				on:click={() => toggleTrainFilter('running')}
+				title={activeTrainStatus === 'running'
+					? 'Kliknij, aby wyłączyć filtr'
+					: 'Podświetl pociągi w drodze'}
+			>
+				<span>W drodze</span>
+				<strong>{runningCount}</strong>
+				{#if activeTrainStatus === 'running'}<span class="clear-mark">×</span>{/if}
 			</button>
-			<span class="debug-hint">tryb testowy (?debug=1) -- normalnie zdarzenia losują się same</span>
+			<button
+				type="button"
+				class="metric"
+				class:active={activeTrainStatus === 'dwelling'}
+				aria-pressed={activeTrainStatus === 'dwelling'}
+				on:click={() => toggleTrainFilter('dwelling')}
+				title={activeTrainStatus === 'dwelling'
+					? 'Kliknij, aby wyłączyć filtr'
+					: 'Podświetl pociągi na przerwie'}
+			>
+				<span>Przerwa</span>
+				<strong>{dwellingCount}</strong>
+				{#if activeTrainStatus === 'dwelling'}<span class="clear-mark">×</span>{/if}
+			</button>
+			<button
+				type="button"
+				class="metric"
+				class:metric-warning={waitingCount > 0}
+				class:active={activeTrainStatus === 'waiting'}
+				aria-pressed={activeTrainStatus === 'waiting'}
+				on:click={() => toggleTrainFilter('waiting')}
+				title={activeTrainStatus === 'waiting'
+					? 'Kliknij, aby wyłączyć filtr'
+					: 'Podświetl pociągi zatrzymane'}
+			>
+				<span>Zatrzymane</span>
+				<strong>{waitingCount}</strong>
+				{#if activeTrainStatus === 'waiting'}<span class="clear-mark">×</span>{/if}
+			</button>
+			<button
+				type="button"
+				class="metric"
+				class:metric-danger={derailedCount > 0}
+				class:active={activeTrainStatus === 'derailed'}
+				aria-pressed={activeTrainStatus === 'derailed'}
+				on:click={() => toggleTrainFilter('derailed')}
+				title={activeTrainStatus === 'derailed'
+					? 'Kliknij, aby wyłączyć filtr'
+					: 'Podświetl pociągi wykolejone'}
+			>
+				<span>Wykolejone</span>
+				<strong>{derailedCount}</strong>
+				{#if activeTrainStatus === 'derailed'}<span class="clear-mark">×</span>{/if}
+			</button>
+			<button
+				type="button"
+				class="metric"
+				class:metric-danger={activeIncidents > 0}
+				class:active={incidentsActive}
+				aria-pressed={incidentsActive}
+				on:click={toggleIncidentFilter}
+				title={incidentsActive
+					? 'Kliknij, aby wyłączyć filtr'
+					: 'Podświetl incydenty i dotknięte nimi elementy'}
+			>
+				<span>Incydenty</span>
+				<strong>{activeIncidents}</strong>
+				{#if incidentsActive}<span class="clear-mark">×</span>{/if}
+			</button>
 		</div>
-	{/if}
-</section>
+
+		<div
+			class="status-strip"
+			title="Stan połączenia z symulacją — ostatnia aktualizacja {lastUpdateLabel}"
+		>
+			<span class="status-dot {statusDotClass[status]}"></span>
+			<span class="status-label">{statusLabels[status]}</span>
+			<span class="status-time">{lastUpdateLabel}</span>
+		</div>
+
+		{#if debugMode}
+			<button type="button" class="debug-btn" on:click={triggerRandomEvent} disabled={triggering}>
+				{triggering ? 'Wywoływanie…' : '🎲 Zdarzenie'}
+			</button>
+		{/if}
+	</div>
+</header>
 
 <style>
-	.hero {
+	.bar {
 		display: flex;
-		flex-direction: column;
-		gap: 18px;
-		margin-bottom: 24px;
+		justify-content: space-between;
+		align-items: center;
+		gap: 14px;
+		flex-wrap: wrap;
+		padding: 10px 16px;
+		border-radius: 16px;
+		background: rgba(15, 23, 42, 0.82);
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		box-shadow: 0 24px 60px rgba(15, 23, 42, 0.45);
+		backdrop-filter: blur(12px);
 	}
 
 	.eyebrow {
-		margin: 0 0 8px;
+		margin: 0;
 		text-transform: uppercase;
 		letter-spacing: 0.14em;
-		font-size: 0.75rem;
+		font-size: 0.62rem;
 		color: #93c5fd;
 	}
 
 	h1 {
-		margin: 0 0 12px;
-		font-size: clamp(2rem, 4vw, 3.2rem);
-		line-height: 1.05;
+		margin: 0;
+		font-size: 1.1rem;
+		line-height: 1.25;
 	}
 
-	.lede {
-		margin: 0;
-		max-width: 74ch;
-		color: #cbd5e1;
-		font-size: 1.02rem;
-		line-height: 1.6;
+	.right {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-wrap: wrap;
+	}
+
+	.metrics {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.metric {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 6px;
+		background: rgba(30, 41, 59, 0.72);
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		border-radius: 10px;
+		padding: 5px 10px;
+		font: inherit;
+		color: inherit;
+		cursor: pointer;
+		transition:
+			border-color 0.3s,
+			background 0.3s,
+			box-shadow 0.3s;
+	}
+
+	.metric:hover {
+		border-color: rgba(96, 165, 250, 0.55);
+	}
+
+	.metric.active {
+		border-color: rgba(96, 165, 250, 0.9);
+		background: rgba(37, 99, 235, 0.28);
+		box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.5);
+	}
+
+	.clear-mark {
+		color: #93c5fd;
+		font-weight: 700;
+		font-size: 0.85rem;
+		line-height: 1;
+		margin-left: 2px;
+	}
+
+	.metric.active:hover .clear-mark {
+		color: #f8fafc;
+	}
+
+	.metric span {
+		color: #94a3b8;
+		font-size: 0.72rem;
+	}
+
+	.metric strong {
+		font-size: 0.98rem;
+		line-height: 1;
+	}
+
+	.metric-ok strong {
+		color: #6ee7b7;
+	}
+
+	.metric-warning {
+		border-color: rgba(245, 158, 11, 0.45);
+	}
+
+	.metric-warning strong {
+		color: #fbbf24;
+	}
+
+	.metric-danger {
+		border-color: rgba(239, 68, 68, 0.5);
+		background: rgba(127, 29, 29, 0.28);
+	}
+
+	.metric-danger strong {
+		color: #fca5a5;
 	}
 
 	.status-strip {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		font-size: 0.9rem;
+		gap: 7px;
+		font-size: 0.8rem;
 		color: #cbd5e1;
+		padding: 6px 12px;
+		border-radius: 999px;
+		background: rgba(30, 41, 59, 0.72);
+		border: 1px solid rgba(148, 163, 184, 0.18);
+		white-space: nowrap;
 	}
 
 	.status-dot {
-		width: 10px;
-		height: 10px;
+		width: 8px;
+		height: 8px;
 		border-radius: 999px;
 		display: inline-block;
 		box-shadow: 0 0 8px currentColor;
@@ -188,85 +331,23 @@
 		color: #64748b;
 	}
 
-	.hero-cards {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-		gap: 12px;
-	}
-
-	.metric {
-		background: rgba(15, 23, 42, 0.72);
-		border: 1px solid rgba(148, 163, 184, 0.18);
-		box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
-		backdrop-filter: blur(10px);
-		border-radius: 20px;
-		padding: 16px;
-		transition:
-			border-color 0.3s,
-			background 0.3s;
-	}
-
-	.metric span {
-		display: block;
-		color: #94a3b8;
-		font-size: 0.85rem;
-	}
-
-	.metric strong {
-		display: block;
-		font-size: 1.6rem;
-		margin-top: 8px;
-	}
-
-	.metric-warning {
-		border-color: rgba(245, 158, 11, 0.45);
-	}
-
-	.metric-warning strong {
-		color: #fbbf24;
-	}
-
-	.metric-danger {
-		border-color: rgba(239, 68, 68, 0.5);
-		background: rgba(127, 29, 29, 0.28);
-	}
-
-	.metric-danger strong {
-		color: #fca5a5;
-	}
-
-	.debug-panel {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 12px 16px;
-		border-radius: 14px;
-		border: 1px dashed rgba(148, 163, 184, 0.35);
-		background: rgba(30, 41, 59, 0.5);
-		width: fit-content;
-	}
-
-	.debug-panel button {
-		padding: 8px 14px;
+	.debug-btn {
+		padding: 6px 12px;
 		border-radius: 10px;
-		border: 1px solid rgba(148, 163, 184, 0.3);
+		border: 1px dashed rgba(148, 163, 184, 0.4);
 		background: rgba(51, 65, 85, 0.8);
 		color: #f8fafc;
 		font-weight: 600;
+		font-size: 0.8rem;
 		cursor: pointer;
 	}
 
-	.debug-panel button:hover:not(:disabled) {
+	.debug-btn:hover:not(:disabled) {
 		border-color: rgba(96, 165, 250, 0.6);
 	}
 
-	.debug-panel button:disabled {
+	.debug-btn:disabled {
 		opacity: 0.6;
 		cursor: default;
-	}
-
-	.debug-hint {
-		font-size: 0.78rem;
-		color: #64748b;
 	}
 </style>

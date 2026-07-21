@@ -1,14 +1,21 @@
 <script lang="ts">
-	import { SvelteMap } from 'svelte/reactivity';
+	import {
+		EVENT_ICON,
+		EVENT_LABEL,
+		trainEndpoints,
+		trainStatusLabel,
+		trainTargetId
+	} from '$lib/services/labels';
 	import type { RailEventNode } from '$lib/types/event';
-	import type { DirectionalState, NetworkGraph, StationNode, TrackSegment } from '$lib/types/network';
+	import type { DirectionalState, NetworkGraph, StationNode } from '$lib/types/network';
+	import type { HighlightFilter, Selected } from '$lib/types/selection';
 	import type { TrainNode } from '$lib/types/train';
 
 	export let graph: NetworkGraph;
 	export let trains: TrainNode[] = [];
 	export let events: RailEventNode[] = [];
-
-	type Selected = { kind: 'station'; id: string } | { kind: 'segment'; id: string };
+	export let selected: Selected | null = null;
+	export let highlight: HighlightFilter | null = null;
 
 	const padding = 56;
 	const graphWidth = 1000;
@@ -17,6 +24,199 @@
 	const plotHeight = graphHeight - padding * 2;
 	const TRACK_OFFSET = 3.2;
 
+	// --- Pan & zoom (poprzez viewBox SVG) ---
+	const MAX_ZOOM = 8;
+	// Poniżej 1× mapa jest mniejsza niż kadr — pozwala oddalić widok i zobaczyć
+	// całą sieć z zapasem, a nie tylko przybliżać.
+	const MIN_ZOOM = 0.5;
+	const ASPECT = graphHeight / graphWidth;
+	// O ile (jako część bieżącego widoku) można wysunąć widok poza obrys grafu.
+	// Bez tego marginesu przy pełnym oddaleniu zakres przesuwu wynosi zero
+	// i mapy nie da się przesuwać, dopóki się jej nie przybliży.
+	const PAN_MARGIN_RATIO = 0.35;
+
+	let view = { x: 0, y: 0, w: graphWidth, h: graphHeight };
+	let svgEl: SVGSVGElement;
+	let pointerActive = false;
+	let wasDragged = false;
+	let activePointerId: number | null = null;
+	let lastPointer = { x: 0, y: 0 };
+	let downPointer = { x: 0, y: 0 };
+
+	$: zoom = graphWidth / view.w;
+	$: markerScale = 1 / Math.sqrt(zoom);
+
+	function clampView(v: { x: number; y: number; w: number; h: number }) {
+		const w = Math.min(Math.max(v.w, graphWidth / MAX_ZOOM), graphWidth / MIN_ZOOM);
+		const h = w * ASPECT;
+		const marginX = w * PAN_MARGIN_RATIO;
+		const marginY = h * PAN_MARGIN_RATIO;
+		return {
+			w,
+			h,
+			x: Math.min(Math.max(v.x, -marginX), graphWidth - w + marginX),
+			y: Math.min(Math.max(v.y, -marginY), graphHeight - h + marginY)
+		};
+	}
+
+	// --- Animowany dojazd kamery (np. po kliknięciu incydentu na liście) ---
+	const FOCUS_ZOOM = 2.4;
+	let focusRaf: number | null = null;
+
+	function cancelFocusAnimation() {
+		if (focusRaf !== null) {
+			cancelAnimationFrame(focusRaf);
+			focusRaf = null;
+		}
+	}
+
+	function animateViewTo(target: { x: number; y: number; w: number; h: number }, duration = 500) {
+		cancelFocusAnimation();
+		const from = { ...view };
+		const t0 = performance.now();
+		const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+		const step = (now: number) => {
+			const progress = Math.min(1, (now - t0) / duration);
+			const k = ease(progress);
+			view = {
+				x: from.x + (target.x - from.x) * k,
+				y: from.y + (target.y - from.y) * k,
+				w: from.w + (target.w - from.w) * k,
+				h: from.h + (target.h - from.h) * k
+			};
+			focusRaf = progress < 1 ? requestAnimationFrame(step) : null;
+		};
+		focusRaf = requestAnimationFrame(step);
+	}
+
+	/** Płynnie centruje i przybliża widok na wybrany element mapy. */
+	export function focusOn(target: Selected) {
+		let point: { x: number; y: number } | null = null;
+		if (target.kind === 'station') {
+			point = positionById.get(target.id) ?? null;
+		} else if (target.kind === 'segment') {
+			const segment = segmentById.get(target.id);
+			const source = segment ? positionById.get(segment.source) : null;
+			const targetPos = segment ? positionById.get(segment.target) : null;
+			if (source && targetPos) {
+				point = { x: (source.x + targetPos.x) / 2, y: (source.y + targetPos.y) / 2 };
+			}
+		} else {
+			const train = trains.find((item) => item.id === target.id);
+			point = train ? getTrainPosition(train, positionById) : null;
+		}
+		if (!point) return;
+		// Nie oddalamy, jeśli użytkownik już przybliżył mocniej niż docelowy poziom.
+		const targetZoom = Math.min(Math.max(zoom, FOCUS_ZOOM), MAX_ZOOM);
+		const w = graphWidth / targetZoom;
+		const h = w * ASPECT;
+		animateViewTo(clampView({ w, h, x: point.x - w / 2, y: point.y - h / 2 }));
+	}
+
+	function applyZoom(cx: number, cy: number, factor: number) {
+		cancelFocusAnimation();
+		const newW = Math.min(Math.max(view.w / factor, graphWidth / MAX_ZOOM), graphWidth / MIN_ZOOM);
+		const realFactor = view.w / newW;
+		view = clampView({
+			w: newW,
+			h: newW * ASPECT,
+			x: cx - (cx - view.x) / realFactor,
+			y: cy - (cy - view.y) / realFactor
+		});
+	}
+
+	// getScreenCTM uwzględnia letterboxing preserveAspectRatio, więc przeliczenie
+	// współrzędnych działa też przy pełnoekranowym SVG o innych proporcjach niż viewBox.
+	function svgPointFromClient(clientX: number, clientY: number) {
+		const ctm = svgEl?.getScreenCTM();
+		if (!ctm) return { x: view.x + view.w / 2, y: view.y + view.h / 2 };
+		const point = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse());
+		return { x: point.x, y: point.y };
+	}
+
+	function handleWheel(event: WheelEvent) {
+		event.preventDefault();
+		const point = svgPointFromClient(event.clientX, event.clientY);
+		applyZoom(point.x, point.y, event.deltaY < 0 ? 1.25 : 0.8);
+	}
+
+	function handleDblClick(event: MouseEvent) {
+		const point = svgPointFromClient(event.clientX, event.clientY);
+		applyZoom(point.x, point.y, 1.6);
+	}
+
+	function handlePointerDown(event: PointerEvent) {
+		if (event.button !== 0) return;
+		cancelFocusAnimation();
+		pointerActive = true;
+		wasDragged = false;
+		activePointerId = event.pointerId;
+		downPointer = { x: event.clientX, y: event.clientY };
+		lastPointer = { x: event.clientX, y: event.clientY };
+		// UWAGA: nie przechwytujemy wskaźnika tutaj -- setPointerCapture w pointerdown
+		// sprawia, że późniejszy 'click' celuje w SVG zamiast w stację/pociąg pod
+		// kursorem i klikanie elementów mapy przestaje działać. Przechwytujemy dopiero
+		// w pointermove, gdy naprawdę zaczyna się przeciąganie.
+	}
+
+	function handlePointerMove(event: PointerEvent) {
+		if (!pointerActive || event.pointerId !== activePointerId) return;
+		if (!wasDragged) {
+			const moved = Math.hypot(event.clientX - downPointer.x, event.clientY - downPointer.y);
+			if (moved < 4) return;
+			wasDragged = true;
+			svgEl.setPointerCapture(event.pointerId);
+		}
+		const from = svgPointFromClient(lastPointer.x, lastPointer.y);
+		const to = svgPointFromClient(event.clientX, event.clientY);
+		view = clampView({ ...view, x: view.x - (to.x - from.x), y: view.y - (to.y - from.y) });
+		lastPointer = { x: event.clientX, y: event.clientY };
+	}
+
+	function handlePointerUp(event: PointerEvent) {
+		if (!pointerActive || event.pointerId !== activePointerId) return;
+		pointerActive = false;
+		activePointerId = null;
+		if (svgEl.hasPointerCapture(event.pointerId)) {
+			svgEl.releasePointerCapture(event.pointerId);
+		}
+		// Klik przychodzi tuż po pointerup -- czyścimy flagę dopiero po nim,
+		// żeby przeciągnięcie mapy nie wybrało przypadkiem elementu pod kursorem.
+		setTimeout(() => {
+			wasDragged = false;
+		}, 0);
+	}
+
+	function handleBackgroundClick(event: MouseEvent) {
+		if (wasDragged) return;
+		// Klik w pustkę (cel = sam SVG, nie stacja/odcinek/pociąg) czyści wybór i filtr.
+		if (event.target === svgEl) {
+			selected = null;
+			highlight = null;
+		}
+	}
+
+	function handleSvgKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape') {
+			selected = null;
+			highlight = null;
+		}
+	}
+
+	function zoomInStep() {
+		applyZoom(view.x + view.w / 2, view.y + view.h / 2, 1.4);
+	}
+
+	function zoomOutStep() {
+		applyZoom(view.x + view.w / 2, view.y + view.h / 2, 1 / 1.4);
+	}
+
+	function resetView() {
+		cancelFocusAnimation();
+		view = { x: 0, y: 0, w: graphWidth, h: graphHeight };
+	}
+
+	// --- Rzutowanie geograficzne na płótno ---
 	function normalize(value: number, min: number, max: number) {
 		if (max === min) return 0.5;
 		return (value - min) / (max - min);
@@ -48,39 +248,14 @@
 		return 'through';
 	}
 
-	function formatLine(segment: TrackSegment) {
-		return `Linia ${segment.line}`;
+	function stationName(id: string | null | undefined) {
+		if (!id) return '—';
+		return stationById.get(id)?.name ?? id;
 	}
 
-	function formatStationType(type: string) {
-		return type.charAt(0).toUpperCase() + type.slice(1);
-	}
-
-	function directionStatusLabel(status: string) {
-		if (status === 'blocked') return 'Zablokowany';
-		if (status === 'restricted') return 'Ograniczenie prędkości';
-		return 'Aktywny';
-	}
-
-	function trainStatusLabel(status: string) {
-		if (status === 'running') return 'w drodze';
-		if (status === 'dwelling') return 'na przerwie';
-		if (status === 'waiting') return 'zatrzymany';
-		if (status === 'derailed') return 'wykolejony';
-		return status;
-	}
-
-	function trainTypeLabel(type: string) {
-		if (type === 'IC') return 'InterCity';
-		if (type === 'REGIONAL') return 'Regionalny';
-		if (type === 'FREIGHT') return 'Towarowy';
-		return type;
-	}
-
-	function directionLabel(train: TrainNode) {
-		return train.direction === 'outbound'
-			? `${train.originStationId} → ${train.destinationStationId}`
-			: `${train.destinationStationId} → ${train.originStationId}`;
+	function relationLabel(train: TrainNode) {
+		const { fromId, toId } = trainEndpoints(train);
+		return `${stationName(fromId)} → ${stationName(toId)}`;
 	}
 
 	function handleKeydown(event: KeyboardEvent, action: () => void) {
@@ -148,113 +323,141 @@
 		stations.map((station) => [station.id, bounds ? project(station, bounds) : { x: 0, y: 0 }])
 	);
 	$: stationById = new Map(stations.map((station) => [station.id, station]));
-	$: degreeByStation = (() => {
-		const map = new SvelteMap<string, number>();
-		for (const segment of segments) {
-			map.set(segment.source, (map.get(segment.source) ?? 0) + 1);
-			map.set(segment.target, (map.get(segment.target) ?? 0) + 1);
-		}
-		return map;
-	})();
-	$: busiestStation = stations.reduce(
-		(best, station) => {
-			if (!best) return station;
-			const currentDegree = degreeByStation.get(station.id) ?? 0;
-			const bestDegree = degreeByStation.get(best.id) ?? 0;
-			return currentDegree > bestDegree ? station : best;
-		},
-		null as StationNode | null
-	);
+	$: segmentById = new Map(segments.map((segment) => [segment.segmentId, segment]));
 
 	$: stationsWithSignalFailure = new Set(
 		events
-			.filter((event) => event.status === 'active' && event.type === 'signal_failure' && event.stationId)
+			.filter(
+				(event) => event.status === 'active' && event.type === 'signal_failure' && event.stationId
+			)
 			.map((event) => event.stationId as string)
 	);
 
-	$: trainsByStation = (() => {
-		const map = new SvelteMap<string, TrainNode[]>();
-		for (const train of trains) {
-			if (train.status === 'running') continue;
-			const list = map.get(train.currentStationId) ?? [];
-			list.push(train);
-			map.set(train.currentStationId, list);
-		}
-		return map;
-	})();
-
-	// selectedState jest jedynym realnie mutowanym stanem (klik użytkownika /
-	// auto-wybór poniżej) -- reszta to czyste pochodne przeliczane w blokach $:,
-	// więc nie potrzebują własnej początkowej wartości.
-	let selectedState: Selected | null = null;
-	let selectedKind: Selected['kind'] | null;
-	let selectedStation: StationNode | null;
-	let selectedSegment: TrackSegment | null;
-	let connectedSegments: TrackSegment[];
-	let selectedStationIds: Set<string>;
-	let selectedSegmentNodeIds: Set<string>;
-
-	$: selectedKind = selectedState?.kind ?? null;
-	$: if (
-		stations.length > 0 &&
-		(!selectedState || (selectedState.kind === 'station' && !stationById.has(selectedState.id)))
-	) {
-		selectedState = { kind: 'station', id: busiestStation?.id ?? stations[0].id };
-	}
-	$: selectedStation =
-		selectedState?.kind === 'station' ? (stationById.get(selectedState.id) ?? null) : null;
+	// --- Wybór (dwukierunkowo związany z rodzicem) ---
 	$: {
-		if (selectedState?.kind === 'segment') {
-			const segmentId = selectedState.id;
-			selectedSegment = segments.find((segment) => segment.segmentId === segmentId) ?? null;
-		} else {
-			selectedSegment = null;
+		// Gdy wybrany element przestaje istnieć (np. pociąg znikł ze snapshotu),
+		// czyścimy wybór zamiast pokazywać nieaktualne dane.
+		if (selected && stations.length > 0) {
+			const sel = selected;
+			const valid =
+				sel.kind === 'station'
+					? stationById.has(sel.id)
+					: sel.kind === 'segment'
+						? segmentById.has(sel.id)
+						: trains.length === 0 || trains.some((train) => train.id === sel.id);
+			if (!valid) selected = null;
 		}
 	}
-	$: connectedSegments = selectedStation
-		? segments.filter(
-				(segment) => segment.source === selectedStation?.id || segment.target === selectedStation?.id
-			)
-		: [];
+
+	$: selectedKind = selected?.kind ?? null;
+	$: selectedStation = selected?.kind === 'station' ? (stationById.get(selected.id) ?? null) : null;
+	$: selectedSegmentId = selected?.kind === 'segment' ? selected.id : null;
+	let selectedTrain: TrainNode | null;
+	$: {
+		if (selected?.kind === 'train') {
+			const trainId = selected.id;
+			selectedTrain = trains.find((train) => train.id === trainId) ?? null;
+		} else {
+			selectedTrain = null;
+		}
+	}
+
 	$: selectedStationIds = new Set<string>(
 		selectedStation
-			? connectedSegments.flatMap((segment) => [segment.source, segment.target]).concat(selectedStation.id)
+			? segments
+					.filter(
+						(segment) =>
+							segment.source === selectedStation?.id || segment.target === selectedStation?.id
+					)
+					.flatMap((segment) => [segment.source, segment.target])
+					.concat(selectedStation.id)
 			: []
 	);
-	$: selectedSegmentNodeIds = new Set<string>(
-		selectedSegment ? [selectedSegment.source, selectedSegment.target] : []
-	);
-	$: trainsOnSelectedSegment = selectedSegment
-		? trains.filter((train) => train.currentSegmentId === selectedSegment?.segmentId)
-		: [];
+	$: selectedSegmentNodeIds = (() => {
+		const segment = selectedSegmentId ? segmentById.get(selectedSegmentId) : null;
+		return new Set<string>(segment ? [segment.source, segment.target] : []);
+	})();
+	$: selectedTrainRouteSegments = new Set<string>(selectedTrain?.routeSegmentIds ?? []);
+	$: selectedTrainRouteStations = new Set<string>(selectedTrain?.routeStationIds ?? []);
+	$: selectedTrainTargetId = selectedTrain ? trainTargetId(selectedTrain) : null;
+
+	// --- Znaczniki incydentów na mapie ---
+	type IncidentBadge = { event: RailEventNode; x: number; y: number; atStation: boolean };
+	$: incidentBadges = events
+		.filter((event) => event.status === 'active')
+		.map((event): IncidentBadge | null => {
+			if (event.type === 'signal_failure' && event.stationId) {
+				const point = positionById.get(event.stationId);
+				return point ? { event, x: point.x, y: point.y, atStation: true } : null;
+			}
+			if (event.segmentId) {
+				const segment = segmentById.get(event.segmentId);
+				if (!segment) return null;
+				const source = positionById.get(segment.source);
+				const target = positionById.get(segment.target);
+				if (!source || !target) return null;
+				return {
+					event,
+					x: (source.x + target.x) / 2,
+					y: (source.y + target.y) / 2,
+					atStation: false
+				};
+			}
+			return null;
+		})
+		.filter((badge): badge is IncidentBadge => badge !== null);
 
 	function pickStation(id: string) {
-		selectedState = { kind: 'station', id };
+		if (wasDragged) return;
+		selected = { kind: 'station', id };
 	}
 
 	function pickSegment(id: string) {
-		selectedState = { kind: 'segment', id };
+		if (wasDragged) return;
+		selected = { kind: 'segment', id };
+	}
+
+	function pickTrain(id: string) {
+		if (wasDragged) return;
+		selected = { kind: 'train', id };
+	}
+
+	function pickIncident(badge: IncidentBadge) {
+		if (wasDragged) return;
+		const { event } = badge;
+		if (event.type === 'derailment' && event.trainId) {
+			selected = { kind: 'train', id: event.trainId };
+		} else if (event.stationId) {
+			selected = { kind: 'station', id: event.stationId };
+		} else if (event.segmentId) {
+			selected = { kind: 'segment', id: event.segmentId };
+		}
 	}
 </script>
 
-<div class="panel graph-panel">
-	<div class="panel-header">
-		<div>
-			<p class="panel-label">Wizualizacja sieci</p>
-			<h2>Połączenia kolejowe</h2>
-		</div>
-		<div class="legend">
-			<span><i class="legend-shape hub"></i>węzeł</span>
-			<span><i class="legend-shape through"></i>przelotowa</span>
-			<span><i class="legend-shape terminus"></i>końcowa</span>
-			<span><i class="legend-line active"></i>aktywny</span>
-			<span><i class="legend-line restricted"></i>ograniczenie</span>
-			<span><i class="legend-line blocked"></i>zablokowany</span>
-		</div>
-	</div>
-
+<div class="map-root">
 	{#if stations.length > 0 && bounds}
-		<svg viewBox={`0 0 ${graphWidth} ${graphHeight}`} class="graph" role="img" aria-label="Graf stacji kolejowych">
+		<!-- Mapa to interaktywny widżet (role="application"): pan/zoom wskaźnikiem,
+		     Escape czyści wybór, a elementy mapy mają własne role button. -->
+		<!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
+		<svg
+			bind:this={svgEl}
+			viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
+			class="graph"
+			class:panning={pointerActive && wasDragged}
+			class:names-hidden={zoom < 1.35}
+			role="application"
+			tabindex="0"
+			aria-label="Interaktywna mapa sieci kolejowej — przewiń, aby przybliżyć, przeciągnij, aby przesunąć, Escape czyści wybór"
+			on:wheel|nonpassive={handleWheel}
+			on:dblclick={handleDblClick}
+			on:pointerdown={handlePointerDown}
+			on:pointermove={handlePointerMove}
+			on:pointerup={handlePointerUp}
+			on:pointercancel={handlePointerUp}
+			on:click={handleBackgroundClick}
+			on:keydown={handleSvgKeydown}
+		>
 			<defs>
 				<filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
 					<feGaussianBlur stdDeviation="3" result="blur" />
@@ -268,389 +471,319 @@
 			{#each segments as segment (segment.segmentId)}
 				{@const source = positionById.get(segment.source)}
 				{@const target = positionById.get(segment.target)}
-				{@const isSelected = selectedState?.kind === 'segment' && selectedState.id === segment.segmentId}
+				{@const isSelected = selectedSegmentId === segment.segmentId}
 				{@const isDouble = segment.railTracks >= 2}
+				{@const onTrainRoute =
+					selectedKind === 'train' && selectedTrainRouteSegments.has(segment.segmentId)}
+				{@const hasIncident =
+					segment.forward.activeEventId !== null || segment.backward.activeEventId !== null}
 				{@const dimmed =
-					selectedKind === 'station' &&
-					!selectedStationIds.has(segment.source) &&
-					!selectedStationIds.has(segment.target)}
+					(selectedKind === 'station' &&
+						!selectedStationIds.has(segment.source) &&
+						!selectedStationIds.has(segment.target)) ||
+					(selectedKind === 'train' && !onTrainRoute) ||
+					(highlight?.kind === 'incidents' && !hasIncident)}
 				{@const label = `Segment ${segment.segmentId}: ${stationById.get(segment.source)?.name} - ${stationById.get(segment.target)?.name}`}
 				{#if source && target}
 					{#if isDouble}
 						{@const offset = perpendicularOffset(source, target, TRACK_OFFSET)}
 						<line
+							class="track"
 							x1={source.x + offset.px}
 							y1={source.y + offset.py}
 							x2={target.x + offset.px}
 							y2={target.y + offset.py}
 							stroke={segmentColor(segment.forward)}
-							stroke-width={isSelected ? 3.6 : 2.4}
+							stroke-width={isSelected ? 3.4 : onTrainRoute ? 3 : 2.2}
 							stroke-dasharray={segmentDashArray(segment.forward)}
 							stroke-linecap="round"
-							opacity={dimmed ? 0.18 : 0.85}
-							on:click={() => pickSegment(segment.segmentId)}
-							role="button"
-							tabindex="0"
-							aria-label={label}
-							on:keydown={(event) => handleKeydown(event, () => pickSegment(segment.segmentId))}
+							vector-effect="non-scaling-stroke"
+							opacity={dimmed ? 0.15 : 0.85}
 						/>
 						<line
+							class="track"
 							x1={source.x - offset.px}
 							y1={source.y - offset.py}
 							x2={target.x - offset.px}
 							y2={target.y - offset.py}
 							stroke={segmentColor(segment.backward)}
-							stroke-width={isSelected ? 3.6 : 2.4}
+							stroke-width={isSelected ? 3.4 : onTrainRoute ? 3 : 2.2}
 							stroke-dasharray={segmentDashArray(segment.backward)}
 							stroke-linecap="round"
-							opacity={dimmed ? 0.18 : 0.85}
-							on:click={() => pickSegment(segment.segmentId)}
-							role="button"
-							tabindex="0"
-							aria-label={label}
-							on:keydown={(event) => handleKeydown(event, () => pickSegment(segment.segmentId))}
+							vector-effect="non-scaling-stroke"
+							opacity={dimmed ? 0.15 : 0.85}
 						/>
 					{:else}
 						<line
+							class="track"
 							x1={source.x}
 							y1={source.y}
 							x2={target.x}
 							y2={target.y}
 							stroke={segmentColor(segment.forward)}
-							stroke-width={isSelected ? 4.6 : 3.2}
+							stroke-width={isSelected ? 4.4 : onTrainRoute ? 4 : 3}
 							stroke-dasharray={segmentDashArray(segment.forward)}
 							stroke-linecap="round"
-							opacity={dimmed ? 0.18 : 0.85}
-							on:click={() => pickSegment(segment.segmentId)}
-							role="button"
-							tabindex="0"
-							aria-label={label}
-							on:keydown={(event) => handleKeydown(event, () => pickSegment(segment.segmentId))}
+							vector-effect="non-scaling-stroke"
+							opacity={dimmed ? 0.15 : 0.85}
 						/>
 					{/if}
+					<!-- Szerokość w jednostkach mapy (bez non-scaling-stroke), żeby przy dużym
+					     zoomie obszar klikania nadal pokrywał odsunięte tory dwutorowe. -->
+					<line
+						class="hit-line"
+						x1={source.x}
+						y1={source.y}
+						x2={target.x}
+						y2={target.y}
+						stroke="transparent"
+						stroke-width="12"
+						on:click={() => pickSegment(segment.segmentId)}
+						role="button"
+						tabindex="0"
+						aria-label={label}
+						on:keydown={(event) => handleKeydown(event, () => pickSegment(segment.segmentId))}
+					/>
 				{/if}
 			{/each}
 
 			{#each stations as station (station.id)}
 				{@const point = positionById.get(station.id)}
-				{@const selected = selectedStation?.id === station.id}
-				{@const dimmed = selectedKind === 'segment' && !selectedSegmentNodeIds.has(station.id)}
+				{@const isStationSelected = selectedStation?.id === station.id}
+				{@const isTrainTarget = selectedTrainTargetId === station.id}
 				{@const shape = stationShape(station.type)}
 				{@const hasSignalFailure = stationsWithSignalFailure.has(station.id)}
+				{@const dimmed =
+					(selectedKind === 'segment' && !selectedSegmentNodeIds.has(station.id)) ||
+					(selectedKind === 'train' &&
+						!selectedTrainRouteStations.has(station.id) &&
+						!isTrainTarget) ||
+					(highlight?.kind === 'incidents' && !hasSignalFailure)}
 				{#if point}
 					<g
+						class="station"
 						transform={`translate(${point.x}, ${point.y})`}
-						class:selected
+						class:selected={isStationSelected}
 						class:dimmed
+						class:route-target={isTrainTarget}
 						on:click={() => pickStation(station.id)}
 						role="button"
 						tabindex="0"
 						aria-label={`Stacja ${station.name}`}
 						on:keydown={(event) => handleKeydown(event, () => pickStation(station.id))}
 					>
-						{#if hasSignalFailure}
-							<circle
-								r={stationRadius(station) + 7}
-								stroke="#f59e0b"
-								stroke-width="2.5"
-								fill="none"
-								class="signal-ring"
-							/>
-						{/if}
-						{#if shape === 'hub'}
-							<rect
-								x={-stationRadius(station) * 0.8}
-								y={-stationRadius(station) * 0.8}
-								width={stationRadius(station) * 1.6}
-								height={stationRadius(station) * 1.6}
-								rx="3"
-								transform="rotate(45)"
-								fill="#2563eb"
-								filter={selected ? 'url(#glow)' : undefined}
-							/>
-						{:else if shape === 'terminus'}
-							<circle r={stationRadius(station)} fill="#f59e0b" filter={selected ? 'url(#glow)' : undefined} />
-							<circle r={stationRadius(station) * 0.4} fill="#0f172a" />
-						{:else}
-							<circle r={stationRadius(station)} fill="#10b981" filter={selected ? 'url(#glow)' : undefined} />
-						{/if}
-						<circle r={stationRadius(station) + 5} fill="transparent" />
-						<text class="station-code" y="-18">{station.code}</text>
-						<text class="station-name" y={stationRadius(station) + 18}>{station.name}</text>
+						<g transform={`scale(${markerScale})`}>
+							{#if hasSignalFailure}
+								<circle
+									r={stationRadius(station) + 7}
+									stroke="#f59e0b"
+									stroke-width="2.5"
+									fill="none"
+									class="signal-ring"
+								/>
+							{/if}
+							{#if isTrainTarget}
+								<circle
+									r={stationRadius(station) + 9}
+									stroke="#38bdf8"
+									stroke-width="2.5"
+									stroke-dasharray="6,5"
+									fill="none"
+									class="target-ring"
+								/>
+							{/if}
+							{#if shape === 'hub'}
+								<rect
+									class="marker"
+									x={-stationRadius(station) * 0.8}
+									y={-stationRadius(station) * 0.8}
+									width={stationRadius(station) * 1.6}
+									height={stationRadius(station) * 1.6}
+									rx="3"
+									transform="rotate(45)"
+									fill="#2563eb"
+									filter={isStationSelected ? 'url(#glow)' : undefined}
+								/>
+							{:else if shape === 'terminus'}
+								<circle
+									class="marker"
+									r={stationRadius(station)}
+									fill="#f59e0b"
+									filter={isStationSelected ? 'url(#glow)' : undefined}
+								/>
+								<circle r={stationRadius(station) * 0.4} fill="#0f172a" />
+							{:else}
+								<circle
+									class="marker"
+									r={stationRadius(station)}
+									fill="#10b981"
+									filter={isStationSelected ? 'url(#glow)' : undefined}
+								/>
+							{/if}
+							<circle r={stationRadius(station) + 5} fill="transparent" />
+							<text class="station-code" y="-18">{station.code}</text>
+							<text class="station-name" y={stationRadius(station) + 18}>{station.name}</text>
+						</g>
 					</g>
 				{/if}
 			{/each}
 
 			{#each trains as train (train.id)}
 				{@const pos = getTrainPosition(train, positionById)}
+				{@const isTrainSelected = selected?.kind === 'train' && selected.id === train.id}
+				{@const isHighlighted =
+					highlight !== null &&
+					(highlight.kind === 'train-status'
+						? train.status === highlight.status
+						: train.delayedByEventId !== null || train.status === 'derailed')}
+				{@const dimmed =
+					(selectedKind === 'train' && !isTrainSelected) || (highlight !== null && !isHighlighted)}
 				{#if pos}
 					<g
 						transform={`translate(${pos.x}, ${pos.y})`}
 						class="train-marker"
 						class:running={train.status === 'running'}
 						class:derailed={train.status === 'derailed'}
-						on:click={() => pickStation(train.currentStationId)}
+						class:selected={isTrainSelected}
+						class:highlighted={isHighlighted}
+						class:dimmed
+						on:click={() => pickTrain(train.id)}
 						role="button"
 						tabindex="0"
-						aria-label={`Pociąg ${train.name}, ${trainStatusLabel(train.status)}`}
-						on:keydown={(event) => handleKeydown(event, () => pickStation(train.currentStationId))}
+						aria-label={`Pociąg ${train.name}, ${trainStatusLabel(train.status)}, relacja ${relationLabel(train)}`}
+						on:keydown={(event) => handleKeydown(event, () => pickTrain(train.id))}
 					>
-						{#if train.status === 'running'}
-							<circle r={trainRadius(train) + 5} fill={trainColor(train)} opacity="0.3" class="train-pulse" />
-						{/if}
-						<circle r={trainRadius(train)} fill={trainColor(train)} stroke="#ffffff" stroke-width="2" />
-						{#if train.status === 'derailed'}
-							<text y="4" text-anchor="middle" class="train-warning">!</text>
-						{/if}
-						<text y={-trainRadius(train) - 7} class="train-label" text-anchor="middle">{train.name}</text>
+						<g transform={`scale(${markerScale})`}>
+							{#if isHighlighted}
+								<circle r={trainRadius(train) + 8} class="highlight-ring" />
+							{/if}
+							{#if isTrainSelected}
+								<circle r={trainRadius(train) + 6} class="selected-ring" />
+							{/if}
+							{#if train.status === 'running'}
+								<circle
+									r={trainRadius(train) + 5}
+									fill={trainColor(train)}
+									opacity="0.3"
+									class="train-pulse"
+								/>
+							{/if}
+							<circle
+								r={trainRadius(train)}
+								fill={trainColor(train)}
+								stroke="#ffffff"
+								stroke-width="2"
+							/>
+							{#if train.status === 'derailed'}
+								<text y="4" text-anchor="middle" class="train-warning">!</text>
+							{/if}
+							<text y={-trainRadius(train) - 7} class="train-label" text-anchor="middle"
+								>{train.name}</text
+							>
+						</g>
 					</g>
 				{/if}
 			{/each}
+
+			{#each incidentBadges as badge (badge.event.id)}
+				<g
+					class="incident-badge severity-{badge.event.severity}"
+					transform={`translate(${badge.x}, ${badge.y}) scale(${markerScale})`}
+					on:click={() => pickIncident(badge)}
+					role="button"
+					tabindex="0"
+					aria-label={`${EVENT_LABEL[badge.event.type]}: ${badge.event.message}`}
+					on:keydown={(event) => handleKeydown(event, () => pickIncident(badge))}
+				>
+					<g transform={badge.atStation ? 'translate(17, -17)' : ''}>
+						<circle r="11.5" class="badge-bg" />
+						<text y="4" text-anchor="middle" class="badge-icon">{EVENT_ICON[badge.event.type]}</text
+						>
+					</g>
+				</g>
+			{/each}
 		</svg>
+
+		<div class="zoom-controls">
+			<button type="button" on:click={zoomInStep} aria-label="Przybliż" title="Przybliż">+</button>
+			<button type="button" on:click={zoomOutStep} aria-label="Oddal" title="Oddal">−</button>
+			<button type="button" on:click={resetView} aria-label="Resetuj widok" title="Resetuj widok"
+				>⟲</button
+			>
+		</div>
+
+		<div class="map-legend">
+			<span><i class="legend-shape hub"></i>węzeł</span>
+			<span><i class="legend-shape through"></i>przelotowa</span>
+			<span><i class="legend-shape terminus"></i>końcowa</span>
+			<span class="legend-divider"></span>
+			<span><i class="legend-line active"></i>aktywny</span>
+			<span><i class="legend-line restricted"></i>ograniczenie</span>
+			<span><i class="legend-line blocked"></i>zablokowany</span>
+			<span class="legend-divider"></span>
+			<span class="legend-hint">scroll = zoom · przeciągnij = przesuń · klik w tło = odznacz</span>
+		</div>
 	{:else}
 		<div class="empty-state">Brak danych z Memgraph.</div>
 	{/if}
 </div>
 
-<aside class="panel details">
-	<div class="panel-header">
-		<div>
-			<p class="panel-label">Szczegóły</p>
-			<h2>
-				{#if selectedKind === 'station'}
-					{selectedStation?.name}
-				{:else}
-					{selectedSegment?.segmentId}
-				{/if}
-			</h2>
-		</div>
-	</div>
-
-	{#if selectedKind === 'station' && selectedStation}
-		<div class="detail-grid">
-			<div><span>Kod</span><strong>{selectedStation.code}</strong></div>
-			<div><span>Typ</span><strong>{formatStationType(selectedStation.type)}</strong></div>
-			<div><span>Perony</span><strong>{selectedStation.platforms}</strong></div>
-			<div><span>Tory</span><strong>{selectedStation.tracks}</strong></div>
-			<div><span>Pociągi/dzień</span><strong>{selectedStation.dailyTrains}</strong></div>
-			<div><span>Połączenia</span><strong>{degreeByStation.get(selectedStation.id) ?? 0}</strong></div>
-		</div>
-
-		{#if (trainsByStation.get(selectedStation.id) ?? []).length > 0}
-			<div class="section">
-				<h3>Pociągi na stacji</h3>
-				<ul class="connections">
-					{#each trainsByStation.get(selectedStation.id) ?? [] as train (train.id)}
-						<li class="train-chip status-{train.status}">
-							<div>
-								<strong>{train.name}</strong>
-								<span>{trainTypeLabel(train.type)} · {directionLabel(train)}</span>
-							</div>
-							<small>{trainStatusLabel(train.status)}</small>
-						</li>
-					{/each}
-				</ul>
-			</div>
-		{/if}
-
-		<div class="section">
-			<h3>Najbliższe połączenia</h3>
-			<ul class="connections">
-				{#each connectedSegments as segment (segment.segmentId)}
-					<li>
-						<button type="button" on:click={() => pickSegment(segment.segmentId)}>
-							<div>
-								<strong>{segment.segmentId}</strong>
-								<span>{formatLine(segment)} · {segment.distKm} km</span>
-							</div>
-							<small>{stationById.get(segment.source)?.name} → {stationById.get(segment.target)?.name}</small>
-						</button>
-					</li>
-				{/each}
-			</ul>
-		</div>
-	{:else if selectedKind === 'segment' && selectedSegment}
-		<div class="detail-grid">
-			<div><span>Linia</span><strong>{selectedSegment.line}</strong></div>
-			<div><span>Długość</span><strong>{selectedSegment.distKm} km</strong></div>
-			<div><span>Czas przejazdu</span><strong>{selectedSegment.travelMin} min</strong></div>
-			<div><span>Vmax</span><strong>{selectedSegment.vmax} km/h</strong></div>
-			<div><span>Tory</span><strong>{selectedSegment.railTracks}</strong></div>
-		</div>
-
-		<div class="section">
-			<h3>Stan wg kierunku</h3>
-			<div class="direction-grid">
-				<div class="direction-card status-{selectedSegment.forward.status}">
-					<span>{stationById.get(selectedSegment.source)?.name} → {stationById.get(selectedSegment.target)?.name}</span>
-					<strong>{directionStatusLabel(selectedSegment.forward.status)}</strong>
-					{#if selectedSegment.forward.restrictedVmax}
-						<small>do {selectedSegment.forward.restrictedVmax} km/h</small>
-					{/if}
-				</div>
-				<div class="direction-card status-{selectedSegment.backward.status}">
-					<span>{stationById.get(selectedSegment.target)?.name} → {stationById.get(selectedSegment.source)?.name}</span>
-					<strong>{directionStatusLabel(selectedSegment.backward.status)}</strong>
-					{#if selectedSegment.backward.restrictedVmax}
-						<small>do {selectedSegment.backward.restrictedVmax} km/h</small>
-					{/if}
-				</div>
-			</div>
-		</div>
-
-		{#if trainsOnSelectedSegment.length > 0}
-			<div class="section">
-				<h3>Pociągi na odcinku</h3>
-				<ul class="connections">
-					{#each trainsOnSelectedSegment as train (train.id)}
-						<li class="train-chip status-{train.status}">
-							<div>
-								<strong>{train.name}</strong>
-								<span>{trainTypeLabel(train.type)}</span>
-							</div>
-							<small>{Math.round(train.progress * 100)}%</small>
-						</li>
-					{/each}
-				</ul>
-			</div>
-		{/if}
-
-		<div class="section">
-			<h3>Łączy</h3>
-			<ul class="connections">
-				<li>
-					<button type="button" on:click={() => pickStation(selectedSegment?.source ?? '')}>
-						<div>
-							<strong>{stationById.get(selectedSegment?.source ?? '')?.name}</strong>
-							<span>{selectedSegment?.source}</span>
-						</div>
-						<small>Stacja A</small>
-					</button>
-				</li>
-				<li>
-					<button type="button" on:click={() => pickStation(selectedSegment?.target ?? '')}>
-						<div>
-							<strong>{stationById.get(selectedSegment?.target ?? '')?.name}</strong>
-							<span>{selectedSegment?.target}</span>
-						</div>
-						<small>Stacja B</small>
-					</button>
-				</li>
-			</ul>
-		</div>
-	{/if}
-</aside>
-
 <style>
-	.panel {
-		background: rgba(15, 23, 42, 0.72);
-		border: 1px solid rgba(148, 163, 184, 0.18);
-		box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
-		backdrop-filter: blur(10px);
-		border-radius: 20px;
-		padding: 20px;
-	}
-
-	.panel-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		gap: 16px;
-		margin-bottom: 16px;
-	}
-
-	.panel-label {
-		margin: 0 0 8px;
-		text-transform: uppercase;
-		letter-spacing: 0.14em;
-		font-size: 0.75rem;
-		color: #93c5fd;
-	}
-
-	h2,
-	h3,
-	p {
-		margin: 0;
-	}
-
-	.legend {
-		display: flex;
-		gap: 12px;
-		flex-wrap: wrap;
-		color: #cbd5e1;
-		font-size: 0.85rem;
-	}
-
-	.legend span {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-	}
-
-	.legend-shape {
-		width: 11px;
-		height: 11px;
-		display: inline-block;
-	}
-
-	.legend-shape.hub {
-		background: #2563eb;
-		transform: rotate(45deg);
-		border-radius: 2px;
-	}
-
-	.legend-shape.through {
-		background: #10b981;
-		border-radius: 999px;
-	}
-
-	.legend-shape.terminus {
-		background: #f59e0b;
-		border-radius: 999px;
-	}
-
-	.legend-line {
-		width: 16px;
-		height: 3px;
-		display: inline-block;
-		border-radius: 2px;
-	}
-
-	.legend-line.active {
-		background: #2563eb;
-	}
-
-	.legend-line.restricted {
-		background: #f59e0b;
-	}
-
-	.legend-line.blocked {
-		background: #ef4444;
+	.map-root {
+		position: relative;
+		width: 100%;
+		height: 100%;
 	}
 
 	.graph {
+		position: absolute;
+		inset: 0;
 		width: 100%;
-		height: auto;
+		height: 100%;
 		display: block;
+		cursor: grab;
+		touch-action: none;
+		outline: none;
 	}
 
-	.graph :global(line),
-	.graph :global(g) {
+	.graph.panning,
+	.graph.panning :global(*) {
+		cursor: grabbing !important;
+	}
+
+	.graph :global(.hit-line),
+	.graph :global(g.station),
+	.graph :global(g.train-marker),
+	.graph :global(g.incident-badge) {
 		cursor: pointer;
 	}
 
-	.graph :global(g.selected circle:first-child),
-	.graph :global(g.selected rect) {
+	.graph :global(g.station.selected .marker) {
 		stroke: #f8fafc;
 		stroke-width: 3px;
 	}
 
-	.graph :global(g.dimmed) {
+	.graph :global(g.station.dimmed) {
 		opacity: 0.18;
+	}
+
+	.graph :global(g.train-marker.dimmed) {
+		opacity: 0.3;
+	}
+
+	/* Przy oddalonym widoku pełne nazwy stacji nakładałyby się na siebie --
+	   pokazujemy je dopiero po przybliżeniu (albo dla wybranej / wskazanej stacji). */
+	.graph.names-hidden
+		:global(g.station:not(.selected):not(.route-target):not(:hover) .station-name) {
+		display: none;
 	}
 
 	.signal-ring {
 		animation: signal-pulse 1.6s ease-in-out infinite;
+	}
+
+	.target-ring {
+		animation: signal-pulse 2s ease-in-out infinite;
 	}
 
 	@keyframes signal-pulse {
@@ -684,6 +817,30 @@
 
 	.train-marker {
 		transition: transform 0.9s linear;
+	}
+
+	.train-marker .selected-ring {
+		fill: none;
+		stroke: #f8fafc;
+		stroke-width: 2.5;
+		stroke-dasharray: 4, 4;
+	}
+
+	.train-marker .highlight-ring {
+		fill: none;
+		stroke: #7dd3fc;
+		stroke-width: 2.5;
+		animation: highlight-pulse 1.4s ease-in-out infinite;
+	}
+
+	@keyframes highlight-pulse {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.35;
+		}
 	}
 
 	.train-marker.running .train-pulse {
@@ -736,198 +893,152 @@
 		fill: #ffffff;
 	}
 
-	.details {
-		position: sticky;
-		top: 18px;
+	.incident-badge .badge-bg {
+		fill: rgba(15, 23, 42, 0.92);
+		stroke-width: 2;
 	}
 
-	.detail-grid {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 12px;
+	.incident-badge.severity-major .badge-bg {
+		stroke: #ef4444;
 	}
 
-	.detail-grid > div {
-		background: rgba(30, 41, 59, 0.72);
-		border-radius: 14px;
-		padding: 12px;
+	.incident-badge.severity-minor .badge-bg {
+		stroke: #f59e0b;
 	}
 
-	.detail-grid span,
-	.connections small {
-		display: block;
-		color: #94a3b8;
-		font-size: 0.85rem;
+	.incident-badge {
+		animation: badge-pulse 1.8s ease-in-out infinite;
 	}
 
-	.detail-grid strong {
-		display: block;
-		margin-top: 6px;
-		font-size: 1rem;
-	}
-
-	.section {
-		margin-top: 18px;
-	}
-
-	.section h3 {
-		margin-bottom: 12px;
-		font-size: 1rem;
-	}
-
-	.direction-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-		gap: 10px;
-	}
-
-	.direction-card {
-		border-radius: 14px;
-		padding: 12px;
-		background: rgba(30, 41, 59, 0.72);
-		border: 1px solid rgba(148, 163, 184, 0.14);
-	}
-
-	.direction-card span {
-		display: block;
-		font-size: 0.78rem;
-		color: #94a3b8;
-	}
-
-	.direction-card strong {
-		display: block;
-		margin-top: 6px;
-		font-size: 0.95rem;
-	}
-
-	.direction-card small {
-		display: block;
-		margin-top: 4px;
-		color: #fbbf24;
-	}
-
-	.direction-card.status-active strong {
-		color: #6ee7b7;
-	}
-
-	.direction-card.status-restricted {
-		border-color: rgba(245, 158, 11, 0.4);
-	}
-
-	.direction-card.status-restricted strong {
-		color: #fbbf24;
-	}
-
-	.direction-card.status-blocked {
-		border-color: rgba(239, 68, 68, 0.45);
-	}
-
-	.direction-card.status-blocked strong {
-		color: #fca5a5;
-	}
-
-	.connections {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: grid;
-		gap: 10px;
-	}
-
-	.connections button {
-		width: 100%;
-		text-align: left;
-		border: 1px solid rgba(148, 163, 184, 0.14);
-		background: rgba(30, 41, 59, 0.72);
-		color: inherit;
-		padding: 12px;
-		border-radius: 14px;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 12px;
-		cursor: pointer;
-	}
-
-	.connections button:hover {
-		border-color: rgba(59, 130, 246, 0.5);
-		transform: translateY(-1px);
-	}
-
-	.connections strong {
-		display: block;
-	}
-
-	.connections span {
-		display: block;
-		color: #cbd5e1;
-		font-size: 0.85rem;
-		margin-top: 2px;
-	}
-
-	.train-chip {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 12px;
-		padding: 12px;
-		border-radius: 14px;
-		background: rgba(30, 41, 59, 0.72);
-		border: 1px solid rgba(148, 163, 184, 0.14);
-	}
-
-	.train-chip strong {
-		display: block;
-	}
-
-	.train-chip span {
-		display: block;
-		color: #cbd5e1;
-		font-size: 0.82rem;
-		margin-top: 2px;
-	}
-
-	.train-chip small {
-		font-weight: 700;
-		white-space: nowrap;
-	}
-
-	.train-chip.status-waiting {
-		border-color: rgba(245, 158, 11, 0.4);
-	}
-
-	.train-chip.status-waiting small {
-		color: #fbbf24;
-	}
-
-	.train-chip.status-derailed {
-		border-color: rgba(239, 68, 68, 0.45);
-	}
-
-	.train-chip.status-derailed small {
-		color: #fca5a5;
-	}
-
-	.train-chip.status-dwelling small {
-		color: #94a3b8;
-	}
-
-	.empty-state {
-		padding: 24px;
-		border-radius: 14px;
-		background: rgba(30, 41, 59, 0.72);
-		color: #cbd5e1;
-	}
-
-	@media (max-width: 1100px) {
-		.details {
-			position: static;
+	@keyframes badge-pulse {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.55;
 		}
 	}
 
-	@media (max-width: 720px) {
-		.detail-grid {
-			grid-template-columns: 1fr;
+	.badge-icon {
+		font-size: 0.72rem;
+	}
+
+	.zoom-controls {
+		position: absolute;
+		right: 16px;
+		bottom: 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.zoom-controls button {
+		width: 36px;
+		height: 36px;
+		border-radius: 10px;
+		border: 1px solid rgba(148, 163, 184, 0.3);
+		background: rgba(15, 23, 42, 0.85);
+		color: #e2e8f0;
+		font-size: 1.15rem;
+		font-weight: 700;
+		line-height: 1;
+		cursor: pointer;
+	}
+
+	.zoom-controls button:hover {
+		border-color: rgba(96, 165, 250, 0.6);
+		background: rgba(30, 41, 59, 0.95);
+	}
+
+	.map-legend {
+		position: absolute;
+		left: 50%;
+		transform: translateX(-50%);
+		bottom: 16px;
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 10px;
+		padding: 8px 14px;
+		border-radius: 12px;
+		background: rgba(15, 23, 42, 0.85);
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		backdrop-filter: blur(8px);
+		color: #cbd5e1;
+		font-size: 0.78rem;
+		max-width: min(90vw, 760px);
+	}
+
+	.map-legend span {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+	}
+
+	.legend-hint {
+		color: #64748b;
+	}
+
+	.legend-divider {
+		width: 1px;
+		height: 14px;
+		background: rgba(148, 163, 184, 0.35);
+	}
+
+	.legend-shape {
+		width: 10px;
+		height: 10px;
+		display: inline-block;
+	}
+
+	.legend-shape.hub {
+		background: #2563eb;
+		transform: rotate(45deg);
+		border-radius: 2px;
+	}
+
+	.legend-shape.through {
+		background: #10b981;
+		border-radius: 999px;
+	}
+
+	.legend-shape.terminus {
+		background: #f59e0b;
+		border-radius: 999px;
+	}
+
+	.legend-line {
+		width: 14px;
+		height: 3px;
+		display: inline-block;
+		border-radius: 2px;
+	}
+
+	.legend-line.active {
+		background: #2563eb;
+	}
+
+	.legend-line.restricted {
+		background: #f59e0b;
+	}
+
+	.legend-line.blocked {
+		background: #ef4444;
+	}
+
+	.empty-state {
+		position: absolute;
+		inset: 0;
+		display: grid;
+		place-items: center;
+		color: #cbd5e1;
+	}
+
+	@media (max-width: 900px) {
+		.map-legend {
+			display: none;
 		}
 	}
 </style>

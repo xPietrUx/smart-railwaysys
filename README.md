@@ -156,15 +156,23 @@ Najważniejsze zmienne:
 - `MEMGRAPH_USER`
 - `MEMGRAPH_PASSWORD`
 - `PUBLIC_API_BASE_URL`
+- `API_INTERNAL_URL`
 
-### Co oznacza `PUBLIC_API_BASE_URL`
+### Co oznaczają `PUBLIC_API_BASE_URL` i `API_INTERNAL_URL`
 
-To adres backendu widziany przez frontend.
+Frontend potrzebuje adresu backendu w **dwóch różnych kontekstach**, dlatego są to dwie zmienne:
 
-- lokalnie: `http://localhost:8000`
-- w Dockerze: `http://backend:8000`
+- `PUBLIC_API_BASE_URL` — adres backendu widziany **przez przeglądarkę** (WebSocket `/ws/live`
+  i polling fallback). Zawsze `http://localhost:8000`, bo przeglądarka działa na komputerze
+  hosta i nie zna dockerowej nazwy `backend`.
+- `API_INTERNAL_URL` — adres backendu widziany **przez frontend podczas SSR** (pierwsze
+  renderowanie strony po stronie serwera). W Dockerze to `http://backend:8000`, bo `localhost`
+  w kontenerze oznacza **sam ten kontener**, a nie komputer hosta. Lokalnie (bez Dockera)
+  można ją pominąć — wtedy SSR używa `PUBLIC_API_BASE_URL`.
 
-Dlaczego? Bo `localhost` w kontenerze oznacza **sam ten kontener**, a nie komputer hosta.
+Jeśli obie zmienne wskazują na `http://backend:8000`, strona załaduje się poprawnie (SSR działa),
+ale **aktualizacje na żywo nie będą docierać** — przeglądarka nie rozwiąże hosta `backend`
+i mapa zmieni się dopiero po odświeżeniu strony.
 
 ---
 
@@ -178,7 +186,7 @@ Jeśli chcesz zrozumieć projekt krok po kroku, czytaj w tej kolejności:
 4. `backend/app/services/train_service.py` — silnik ruchu pociągów (dysponowanie, cykl dojazd/przerwa/powrót)
 5. `backend/app/services/event_service.py` — losowe zdarzenia i ich obsługa
 6. `backend/app/core/lifespan.py` — jak i kiedy odpala się autonomiczna pętla symulacji
-7. `frontend/src/routes/+page.ts` — jak frontend pobiera dane startowe
+7. `frontend/src/routes/+page.server.ts` — jak frontend pobiera dane startowe
 8. `frontend/src/lib/services/live.ts` — jak frontend odbiera dane na żywo (WebSocket + fallback)
 9. `frontend/src/lib/components/network/NetworkGraph.svelte` — jak dane są rysowane
 

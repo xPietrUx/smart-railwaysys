@@ -61,7 +61,11 @@ services:
     env_file:
       - .env
     environment:
-      PUBLIC_API_BASE_URL: http://backend:8000
+      # Adres backendu widziany PRZEZ PRZEGLĄDARKĘ (WebSocket + polling).
+      # Musi być osiągalny z komputera hosta, dlatego localhost, nie "backend".
+      PUBLIC_API_BASE_URL: http://localhost:8000
+      # Adres backendu widziany przez frontend PODCZAS SSR (wewnątrz sieci Dockera).
+      API_INTERNAL_URL: http://backend:8000
     networks:
       - frontend-net
       - backend-net
