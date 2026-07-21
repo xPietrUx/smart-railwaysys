@@ -111,21 +111,43 @@ To bardzo ważne, bo dzięki temu każda część ma jedną odpowiedzialność.
 
 ### `GET /api/hello`
 
-Prosty health check.
-
-Używany do sprawdzenia, czy backend działa.
+Prosty health check. Używany do sprawdzenia, czy backend działa.
 
 ### `GET /api/network`
 
-Zwraca aktualny graf z Memgraph.
+Zwraca aktualny graf z Memgraph: stacje, odcinki torów (ze stanem **osobnym dla
+każdego kierunku** — `forward`/`backward`) i liczbę relacji w bazie.
 
-Wynik zawiera:
+### `GET /api/trains`
 
-- listę stacji
-- listę unikalnych segmentów
-- liczbę relacji w bazie
+Zwraca aktualny stan wszystkich pociągów (pozycja, status, kierunek, trasa).
 
-Frontend korzysta właśnie z tego endpointu.
+### `GET /api/events`
+
+Zwraca listę zdarzeń losowych (`?status=active` albo `?status=resolved`, żeby
+przefiltrować). Zdarzenia to: `line_failure`, `derailment`, `speed_restriction`,
+`signal_failure`.
+
+### `POST /api/simulation/events/trigger`
+
+Debugowe/demonstracyjne wymuszenie zdarzenia (opcjonalnie `?eventType=...`), poza
+normalnym losowym harmonogramem. Idzie przez tę samą logikę co scheduler — nie ma
+osobnej ścieżki mutującej stan torów. Wyłączane przez `SIM_DEBUG_ENDPOINTS_ENABLED=false`.
+
+### `GET /api/route/fastest`
+
+Liczy najszybszą trasę A* między dwiema stacjami (`?from_station=&to_station=&train_type=`).
+Ten sam algorytm, którego backend używa wewnętrznie do dysponowania pociągów.
+
+### `WS /ws/live`
+
+Główny kanał na żywo. Po połączeniu wysyła pełny snapshot, potem broadcastuje
+zaktualizowany stan po każdym kroku symulacji (ok. raz na sekundę). Frontend
+korzysta z tego jako podstawowego źródła danych, z automatycznym fallbackiem na
+odpytywanie REST (`/api/trains` + `/api/events`), jeśli WebSocket nie działa.
+
+Frontend korzysta z tych endpointów łącznie — `/api/network` + `/api/trains` +
+`/api/events` przy pierwszym załadowaniu strony, potem `/ws/live` na bieżąco.
 
 ---
 
@@ -149,13 +171,32 @@ Bo w Docker Compose serwisy uruchamiają się równolegle.
 
 ---
 
+## Silnik symulacji
+
+Po starcie (`app/core/lifespan.py`) backend uruchamia w tle autonomiczną pętlę
+(`app/services/simulation_engine.py`), niezależną od tego, czy ktoś ma otwartą
+przeglądarkę:
+
+1. `app/services/train_service.py` — rdzeń: przesuwanie pociągów po torach,
+   dysponowanie/przeliczanie trasy (A* z `routing_service.py`), cykl
+   dojazd -> przerwa -> odwrócenie kierunku -> powrót.
+2. `app/services/event_service.py` — losowe zdarzenia (proces Poissona, nie rzut
+   monetą co tick): awarie linii i wykolejenia blokują odcinek (jednotorowy w obu
+   kierunkach, dwutorowy tylko w jednym — na podstawie `rail_tracks`), ograniczenia
+   prędkości i awarie sterowania tylko obniżają efektywne vmax.
+3. Co krok stan jest zapisywany do Memgraph (Memgraph to baza in-memory, więc to
+   tanie) i rozgłaszany przez `/ws/live`.
+
+Tempo symulacji steruje się zmiennymi środowiskowymi (patrz `app/core/config.py`),
+m.in. `SIM_TICK_INTERVAL_S`, `SIM_TIME_SCALE`, `SIM_EVENT_MEAN_INTERVAL_REAL_S`.
+
 ## Seed danych
 
 Plik `backend/db/seed.py` odpowiada za:
 
-- utworzenie stacji
-- utworzenie relacji `TRACK`
-- dodanie pociągów
+- utworzenie stacji (ok. 30, całe województwo śląskie)
+- utworzenie relacji `TRACK` (obie skierowane, z osobnym stanem per kierunek)
+- dodanie pociągów (ok. 16, każdy ze stałą parą stacji start/koniec, startują jako `waiting` — pierwszy tick sam je dysponuje)
 - wyczyszczenie bazy przed ponownym załadowaniem
 
 Seed jest przydatny, gdy:
@@ -173,15 +214,23 @@ backend/
 ├── app/
 │   ├── main.py
 │   ├── core/
-│   │   ├── config.py
-│   │   └── lifespan.py
+│   │   ├── config.py       # w tym zmienne SIM_* sterujące symulacją
+│   │   ├── lifespan.py      # start/stop pętli symulacji
+│   │   ├── ws_manager.py    # broadcast do klientów WebSocket
+│   │   └── haversine.py     # heurystyka dla A*
 │   ├── api/
 │   │   ├── dependencies.py
-│   │   └── routes/
+│   │   └── routes/          # network, trains, events, live (WS), routing, health
 │   ├── services/
+│   │   ├── network_service.py
+│   │   ├── routing_service.py     # A*
+│   │   ├── train_service.py       # silnik ruchu pociągów + tick
+│   │   ├── event_service.py       # losowe zdarzenia
+│   │   └── simulation_engine.py   # pętla asyncio
 │   └── schemas/
 ├── db/
 │   └── seed.py
+├── tests/
 ├── Dockerfile
 └── requirements.txt
 ```
@@ -207,10 +256,12 @@ Jeśli dodajesz nową funkcję:
 ## Gdzie szukać konkretów
 
 - `app/main.py` — składanie aplikacji
-- `app/core/lifespan.py` — start i stop backendu
-- `app/api/routes/network.py` — endpoint grafu
-- `app/services/network_service.py` — query do Memgraph
-- `app/schemas/network.py` — format odpowiedzi
+- `app/core/lifespan.py` — start i stop backendu oraz pętli symulacji
+- `app/services/train_service.py` — silnik ruchu pociągów i orkiestracja ticka
+- `app/services/event_service.py` — losowe zdarzenia (awarie, wykolejenia...)
+- `app/services/routing_service.py` — A*, świadome kierunku blokad
+- `app/api/routes/live.py` — WebSocket na żywo
+- `app/schemas/network.py` — format odpowiedzi (w tym `forward`/`backward` per odcinek)
 - `db/seed.py` — dane startowe
 
 ---
@@ -223,10 +274,13 @@ Jeśli dodajesz nową funkcję:
 
 ### Najważniejsze zmienne
 
-- `MEMGRAPH_HOST`
-- `MEMGRAPH_PORT`
-- `MEMGRAPH_USER`
-- `MEMGRAPH_PASSWORD`
+- `MEMGRAPH_HOST`, `MEMGRAPH_PORT`, `MEMGRAPH_USER`, `MEMGRAPH_PASSWORD`
+- `SIM_TICK_INTERVAL_S` (domyślnie `1.0`) — co ile realnych sekund krok symulacji
+- `SIM_TIME_SCALE` (domyślnie `60.0`) — ile symulowanych sekund ruchu na 1 realną sekundę
+- `SIM_EVENT_MEAN_INTERVAL_REAL_S` (domyślnie `45.0`) — średni odstęp losowych zdarzeń
+- `SIM_DEBUG_ENDPOINTS_ENABLED` (domyślnie `true`) — czy `POST /api/simulation/events/trigger` jest dostępne
+
+Pełna lista w `app/core/config.py`.
 
 ---
 

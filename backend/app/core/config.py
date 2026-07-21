@@ -7,3 +7,34 @@ ALLOWED_ORIGINS = [
 	for origin in getenv("FRONTEND_ORIGINS", DEFAULT_ORIGINS).split(",")
 	if origin.strip()
 ]
+
+# --- Silnik symulacji pociągów ---
+# Realny czas vs. czas symulacji: timery przerwy (dwell) i zdarzeń losowych liczone
+# są w realnych sekundach (obserwator zawsze widzi efekt w rozsądnym czasie),
+# a jedynie postęp pociągu na odcinku jest skalowany przez SIM_TIME_SCALE.
+
+SIM_TICK_INTERVAL_S = float(getenv("SIM_TICK_INTERVAL_S", "1.0"))
+SIM_TIME_SCALE = float(getenv("SIM_TIME_SCALE", "60.0"))
+
+SIM_DWELL_REAL_SECONDS_MIN = float(getenv("SIM_DWELL_REAL_SECONDS_MIN", "5.0"))
+SIM_DWELL_REAL_SECONDS_MAX = float(getenv("SIM_DWELL_REAL_SECONDS_MAX", "15.0"))
+
+SIM_EVENT_MEAN_INTERVAL_REAL_S = float(getenv("SIM_EVENT_MEAN_INTERVAL_REAL_S", "45.0"))
+SIM_EVENT_DURATION_REAL_S_MIN = float(getenv("SIM_EVENT_DURATION_REAL_S_MIN", "20.0"))
+SIM_EVENT_DURATION_REAL_S_MAX = float(getenv("SIM_EVENT_DURATION_REAL_S_MAX", "60.0"))
+
+SIM_SPEED_RESTRICTION_FACTOR = float(getenv("SIM_SPEED_RESTRICTION_FACTOR", "0.5"))
+
+SIM_DEBUG_ENDPOINTS_ENABLED = getenv("SIM_DEBUG_ENDPOINTS_ENABLED", "true").strip().lower() in (
+	"1",
+	"true",
+	"yes",
+)
+
+# Wagi typów zdarzeń losowych (suma nie musi być 1.0 — losowanie ważone).
+SIM_EVENT_TYPE_WEIGHTS = {
+	"line_failure": 0.4,
+	"derailment": 0.15,
+	"speed_restriction": 0.3,
+	"signal_failure": 0.15,
+}

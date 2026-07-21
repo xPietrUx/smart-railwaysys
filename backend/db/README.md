@@ -66,25 +66,35 @@ Stacje mają m.in.:
 
 ### Relacje `TRACK`
 
-Relacje opisują odcinek między stacjami:
+Każdy fizyczny odcinek to **dwie** skierowane relacje (tam i z powrotem) dzielące
+to samo `segment_id` — dzięki temu stan można zmieniać osobno per kierunek
+(jednotorowy odcinek: awaria blokuje obie relacje naraz; dwutorowy: tylko jedną).
 
-- `segment_id`
-- `line`
-- `dist_km`
-- `vmax`
-- `rail_tracks`
-- `travel_min`
-- `status`
+- `segment_id`, `line`, `dist_km`, `vmax`, `rail_tracks`, `travel_min`
+- `status` — `active` / `blocked` / `restricted`
+- `restricted_vmax` — obniżone vmax, gdy `status='restricted'`
+- `active_event_id` — powiązanie z węzłem `RailEvent`, który to spowodował
 
 ### Węzły `Train`
 
-Pociągi są osobnym elementem grafu i pokazują stan ruchu:
+Pociągi żyją w grafie i są na bieżąco aktualizowane przez silnik symulacji
+(`app/services/train_service.py`), nie tylko wczytywane raz przy starcie:
 
-- identyfikator
-- typ
-- prędkość
-- pozycja
-- status
+- `origin_station_id` / `destination_station_id` — stała para, między którą pociąg kursuje tam i z powrotem
+- `direction` (`outbound` / `return`), `current_station_id`, `next_station_id`, `current_segment_id`, `progress`
+- `status` — `running` / `dwelling` (przerwa po dotarciu) / `waiting` (brak trasy, próbuje ponownie co tick) / `derailed`
+- `route_station_ids`, `route_segment_ids`, `route_index` — aktualnie zaplanowana trasa (A*)
+- `vmax`, `priority`, `mass_tonnes`, `length_m`, `accel`, `decel`, `dwell_until`, `delayed_by_event_id`
+
+### Węzły `RailEvent`
+
+Historia i aktywny stan losowych zdarzeń (`app/services/event_service.py`):
+
+- `type` — `line_failure` / `derailment` / `speed_restriction` / `signal_failure`
+- `severity` (`minor`/`major`), `status` (`active`/`resolved`)
+- kontekst zależny od typu: `segment_id`+`from_station_id`+`to_station_id`, `station_id`, `train_id`, `restricted_vmax`
+- `message` (czytelny opis PL), `started_at`, `resolves_at`, `resolved_at`
+- relacja `(:RailEvent)-[:AFFECTS]->(:Train)` dla wykolejeń
 
 ---
 

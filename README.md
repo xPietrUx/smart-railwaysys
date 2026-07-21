@@ -11,31 +11,36 @@ Jeśli widzisz ten projekt pierwszy raz, najważniejsza rzecz jest taka:
 
 ## Co ten projekt pokazuje
 
-Projekt prezentuje:
+Projekt prezentuje autonomiczną symulację ruchu pociągów na sieci kolejowej województwa śląskiego:
 
-- stacje kolejowe jako węzły grafu
-- połączenia między stacjami jako relacje `TRACK`
-- szczegóły stacji, takie jak liczba torów, peronów i przejazdów
-- aktualny graf pobrany z Memgraph na żywo
+- ok. 30 stacji kolejowych jako węzły grafu (konurbacja katowicka + Częstochowa, Zagłębie Dąbrowskie, korytarz rybnicko-raciborski, Podbeskidzie)
+- połączenia między stacjami jako relacje `TRACK`, ze stanem liczonym **osobno dla każdego kierunku** (jednotorowy odcinek blokuje oba kierunki naraz, dwutorowy tylko jeden)
+- pociągi, które same kursują między swoją stacją początkową i końcową, robią przerwę po dotarciu, a potem wracają — bez ingerencji człowieka
+- losowe zdarzenia (awarie linii, wykolejenia, ograniczenia prędkości, awarie sterowania), które pociągi same obsługują: zatrzymują się albo automatycznie przeliczają trasę (algorytm A\*)
+- wszystko na żywo przez WebSocket, z podglądem bieżącego stanu grafu w Memgraph
 
-To nie jest tylko statyczna strona. Dane pochodzą z bazy, więc po zmianie grafu frontend może od razu pokazać nowy stan.
+To nie jest tylko statyczna strona. Silnik symulacji działa po stronie backendu niezależnie od tego, czy ktoś ma otwartą przeglądarkę — dane w Memgraph zmieniają się same, na bieżąco.
 
 ---
 
 ## Jak działa całość
 
-Przepływ danych wygląda tak:
+Dwa równoległe przepływy:
 
+**Pierwsze załadowanie strony (SSR):**
 1. Użytkownik otwiera stronę w przeglądarce.
-2. Frontend woła backend pod `GET /api/network`.
-3. Backend łączy się z Memgraph.
-4. Backend pobiera stacje i relacje.
-5. Backend zwraca gotowy JSON.
-6. Frontend rysuje graf i pokazuje szczegóły.
+2. Frontend (server-side) woła równolegle `GET /api/network`, `GET /api/trains`, `GET /api/events`.
+3. Backend pobiera stan z Memgraph i zwraca gotowy JSON.
+4. Frontend rysuje graf, pociągi i incydenty w ich aktualnym stanie.
+
+**Życie na żywo (po załadowaniu):**
+1. Backend ma własną, autonomiczną pętlę symulacji (co ok. 1s): przesuwa pociągi, rozwiązuje zdarzenia, którym minął czas, i czasem losuje nowe zdarzenie (awaria linii, wykolejenie, ograniczenie prędkości, awaria sterowania).
+2. Każdy krok jest od razu zapisywany do Memgraph i rozgłaszany do wszystkich podłączonych klientów przez `WS /ws/live`.
+3. Frontend aktualizuje widok na bieżąco, bez przeładowania strony (z automatycznym fallbackiem na odpytywanie REST, jeśli WebSocket nie działa).
 
 Czyli:
 
-**Memgraph -> backend -> frontend -> użytkownik**
+**Memgraph <-> backend (silnik symulacji) <-> WebSocket -> frontend -> użytkownik**
 
 ---
 
@@ -57,18 +62,22 @@ smart-railwaysys/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py
-│   │   ├── core/
-│   │   ├── api/
-│   │   ├── services/
+│   │   ├── core/          # config, lifespan (start/stop pętli symulacji), WS manager
+│   │   ├── api/routes/    # network, trains, events, live (WS), routing, health
+│   │   ├── services/      # network/routing/train/event serwisy + silnik ticka
 │   │   └── schemas/
 │   ├── db/
-│   │   └── seed.py
+│   │   └── seed.py        # stacje, tory, pociągi (stan startowy)
+│   ├── tests/
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
 │   │   ├── routes/
 │   │   ├── lib/
+│   │   │   ├── components/network/  # NetworkGraph, SimulationHeader, IncidentFeed
+│   │   │   ├── services/            # network.ts, live.ts (WebSocket + fallback)
+│   │   │   └── types/
 │   │   └── app.html
 │   └── Dockerfile
 ├── compose.yaml
@@ -147,15 +156,23 @@ Najważniejsze zmienne:
 - `MEMGRAPH_USER`
 - `MEMGRAPH_PASSWORD`
 - `PUBLIC_API_BASE_URL`
+- `API_INTERNAL_URL`
 
-### Co oznacza `PUBLIC_API_BASE_URL`
+### Co oznaczają `PUBLIC_API_BASE_URL` i `API_INTERNAL_URL`
 
-To adres backendu widziany przez frontend.
+Frontend potrzebuje adresu backendu w **dwóch różnych kontekstach**, dlatego są to dwie zmienne:
 
-- lokalnie: `http://localhost:8000`
-- w Dockerze: `http://backend:8000`
+- `PUBLIC_API_BASE_URL` — adres backendu widziany **przez przeglądarkę** (WebSocket `/ws/live`
+  i polling fallback). Zawsze `http://localhost:8000`, bo przeglądarka działa na komputerze
+  hosta i nie zna dockerowej nazwy `backend`.
+- `API_INTERNAL_URL` — adres backendu widziany **przez frontend podczas SSR** (pierwsze
+  renderowanie strony po stronie serwera). W Dockerze to `http://backend:8000`, bo `localhost`
+  w kontenerze oznacza **sam ten kontener**, a nie komputer hosta. Lokalnie (bez Dockera)
+  można ją pominąć — wtedy SSR używa `PUBLIC_API_BASE_URL`.
 
-Dlaczego? Bo `localhost` w kontenerze oznacza **sam ten kontener**, a nie komputer hosta.
+Jeśli obie zmienne wskazują na `http://backend:8000`, strona załaduje się poprawnie (SSR działa),
+ale **aktualizacje na żywo nie będą docierać** — przeglądarka nie rozwiąże hosta `backend`
+i mapa zmieni się dopiero po odświeżeniu strony.
 
 ---
 
@@ -166,15 +183,20 @@ Jeśli chcesz zrozumieć projekt krok po kroku, czytaj w tej kolejności:
 1. `backend/app/main.py` — jak składana jest aplikacja
 2. `backend/app/api/routes/network.py` — skąd pochodzi endpoint grafu
 3. `backend/app/services/network_service.py` — jak czytane są dane z Memgraph
-4. `frontend/src/routes/+page.ts` — jak frontend pobiera dane
-5. `frontend/src/lib/components/network/NetworkGraph.svelte` — jak dane są rysowane
+4. `backend/app/services/train_service.py` — silnik ruchu pociągów (dysponowanie, cykl dojazd/przerwa/powrót)
+5. `backend/app/services/event_service.py` — losowe zdarzenia i ich obsługa
+6. `backend/app/core/lifespan.py` — jak i kiedy odpala się autonomiczna pętla symulacji
+7. `frontend/src/routes/+page.server.ts` — jak frontend pobiera dane startowe
+8. `frontend/src/lib/services/live.ts` — jak frontend odbiera dane na żywo (WebSocket + fallback)
+9. `frontend/src/lib/components/network/NetworkGraph.svelte` — jak dane są rysowane
 
 ---
 
 ## Ważne adresy
 
-- Frontend: `http://localhost:5173`
+- Frontend: `http://localhost:5173` (dodaj `?debug=1`, żeby zobaczyć przycisk ręcznego wywołania zdarzenia losowego)
 - Backend API: `http://localhost:8000`
+- Backend WebSocket (na żywo): `ws://localhost:8000/ws/live`
 - Swagger: `http://localhost:8000/docs`
 - Memgraph Lab: `http://localhost:3000`
 
