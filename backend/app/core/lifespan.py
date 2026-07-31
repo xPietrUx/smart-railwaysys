@@ -9,7 +9,7 @@ from neo4j.exceptions import ServiceUnavailable
 
 from app.core import config
 from app.core.ws_manager import ConnectionManager
-from app.services import simulation_engine
+from app.services import scenario_service, simulation_engine
 from db.seed import AUTH, URI, load_data
 
 
@@ -38,10 +38,16 @@ async def lifespan(app: FastAPI):
 			load_data(session)
 		else:
 			print(f"Graf już zasilony ({count} stacji) — pomijam seed.")
+		created = scenario_service.ensure_starter_scenarios(session, time.time())
+		if created:
+			print(f"✓ Utworzono {created} startowych scenariuszy rozkładu")
 	app.state.driver = driver
 
 	app.state.ws_manager = ConnectionManager()
 	app.state.sim_lock = asyncio.Lock()
+	app.state.scenario = None
+	app.state.sim_paused = False
+	app.state.pause_started_at = None
 	app.state.next_event_at = time.time() + random.expovariate(
 		1.0 / config.SIM_EVENT_MEAN_INTERVAL_REAL_S
 	)

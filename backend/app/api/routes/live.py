@@ -4,7 +4,7 @@ import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.core.config import ALLOWED_ORIGINS
-from app.services import event_service, train_service
+from app.services import event_service, scenario_service, train_service
 
 router = APIRouter(tags=["live"])
 
@@ -39,6 +39,9 @@ async def live(websocket: WebSocket):
 	await manager.connect(websocket)
 	try:
 		snapshot = await asyncio.to_thread(_load_snapshot_sync, websocket.app.state.driver)
+		info = scenario_service.active_info(websocket.app.state)
+		snapshot["scenario"] = info.model_dump() if info is not None else None
+		snapshot["paused"] = getattr(websocket.app.state, "sim_paused", False)
 		await websocket.send_json(snapshot)
 		while True:
 			# Klient nic nie musi wysyłać — jedyny cel to wykrycie rozłączenia.

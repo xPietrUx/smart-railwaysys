@@ -302,3 +302,148 @@ i `frontend/README.md` zostawiono bez zmian.)
 6. Panel administracyjny z bramką auth do ręcznego sterowania podczas prezentacji
 7. Statystyki ticka (`/api/simulation/stats`)
 8. Historia incydentów 24h jako raport/wykres — `RailEvent` już to przechowuje
+
+---
+
+# Scenariusze utrudnień (branch `feature/scenariusze-kolei`)
+
+Nowa funkcja: panel po prawej stronie z 5 gotowymi scenariuszami utrudnień
+oraz kreatorem własnych scenariuszy (zapisywanych w Memgraph).
+
+## Co to jest scenariusz
+
+Nazwana sekwencja kroków-zdarzeń (awaria linii, ograniczenie prędkości,
+awaria sterowania, wykolejenie) z opóźnieniami względem startu i czasem
+trwania per krok. Kroki celują w konkretne odcinki/stacje — dobrane tak,
+żeby odcinały główne korytarze i zmuszały pociągi do skomplikowanych
+objazdów (przeliczanie tras A* na żywo).
+
+## Jak to działa
+
+- **Jedna ścieżka mutacji stanu torów**: kroki scenariusza przechodzą przez
+  `event_service.create_targeted_event` — ten sam mechanizm co zdarzenia
+  losowe (blokady per kierunek, auto-rozwiązywanie po czasie, reroute
+  dotkniętych pociągów).
+- Aktywacja (`POST /api/scenarios/{id}/run`) tylko zapisuje kroki w
+  `app.state.scenario`; właściwe zdarzenia tworzy pętla symulacji
+  (`scenario_service.apply_due_actions` w `run_tick_sync`).
+- Na czas scenariusza **losowe zdarzenia są wstrzymane**, a przy starcie
+  wcześniejsze aktywne zdarzenia są wygaszane — przebieg ma być powtarzalny.
+- Kolejność kroków ma znaczenie: blokady konkretnych odcinków idą pierwsze,
+  awaria sterowania (zajmuje wszystkie wolne tory przy stacji) ostatnia —
+  inaczej późniejsze kroki nie znajdą wolnego celu i zostaną pominięte.
+- Status aktywnego scenariusza (krok X/Y, koniec za...) idzie w każdej ramce
+  WS (`payload.scenario`) — wszyscy podłączeni klienci widzą go na żywo.
+
+## API
+
+- `GET /api/scenarios` — lista (wbudowane + własne)
+- `POST /api/scenarios` — nowy własny scenariusz (walidacja odcinków/stacji,
+  422 z czytelnym komunikatem)
+- `DELETE /api/scenarios/{id}` — usunięcie własnego (403 dla wbudowanych,
+  409 gdy w trakcie)
+- `POST /api/scenarios/{id}/run` — start (409 gdy inny aktywny)
+- `POST /api/scenarios/stop` — przerwanie (wygasza zdarzenia scenariusza)
+- `GET /api/scenarios/active` — bieżący status
+
+## Wbudowane scenariusze
+
+1. **Paraliż węzła Katowice** — blokady KAT–CHB i KAT–KAS, pełzanie przez
+   Ligotę, awaria sterowania w Chorzowie Batorym
+2. **Odcięta magistrala północna** — ZAW–CZE przerwana, objazd przez
+   Lubliniec z ograniczeniami, awaria sterowania w Tarnowskich Górach
+3. **Kaskada beskidzka** — PSZ–TYC pada, objazd przez Żory ograniczony,
+   awaria w Czechowicach + wykolejenie
+4. **Objazd raciborski** — RAC–RYT i LES–RYB zablokowane, pociągi do
+   Raciborza kluczą przez Wodzisław/Rudyszwałd
+5. **Burza nad aglomeracją** — 6 kroków kaskadowo w sercu GOP
+
+## Frontend
+
+- `ScenarioPanel.svelte` w prawym docku (nad nim panel szczegółów, gdy coś
+  zaznaczone; oba dzielą wysokość docka)
+- Karta aktywnego scenariusza: nazwa, kroki X/Y, odliczanie, pasek postępu,
+  przycisk Zatrzymaj
+- Kreator: nazwa/opis + kroki (typ, odcinek/stacja z list rozwijanych,
+  vmax dla ograniczeń, start po / czas trwania), do 20 kroków
+- W trybie odpytywania REST status scenariusza pochodzi z odpowiedzi `/run`
+  (WS go nadpisuje, gdy wróci)
+
+## Weryfikacja
+
+- backend: 34 testy pytest (28 istniejących + 6 nowych dla
+  `scenario_service`), wszystkie zielone
+- e2e na działającym stacku: pełny cykl run→kroki 1-4→objazdy pociągów→stop,
+  cykl życia własnego scenariusza (walidacja 422, create 201, run 200,
+  konflikt 409, delete aktywnego 409, delete wbudowanego 403)
+- UI (Playwright): uruchomienie i zatrzymanie z panelu, kreator end-to-end
+  (zapis → pojawia się w "Twoje scenariusze" → usunięcie)
+- `svelte-check` 0 błędów, eslint czysty
+
+## Iteracja 2: edycja scenariuszy + planowanie rozkładu pociągów
+
+- **Edycja własnych scenariuszy**: `PUT /api/scenarios/{id}` (403 dla
+  wbudowanych, 409 gdy scenariusz w trakcie, 404 gdy nie istnieje). W panelu
+  przycisk ✏️ otwiera kreator wypełniony danymi scenariusza; zapis nadpisuje.
+- **Klonowanie wbudowanych**: przycisk 📋 otwiera kreator z kopią wbudowanego
+  scenariusza ("... (kopia)") do zapisania jako własny — jedyna sensowna forma
+  "edycji" scenariuszy zdefiniowanych w kodzie.
+- **Nowy typ kroku `train_run` (Kurs pociągu)** — planowanie rozkladu w
+  scenariuszu: o czasie `delayS` na sieci pojawia się dodatkowy pociąg
+  (nazwa, typ REGIONAL/IC/FREIGHT — parametry fizyczne jak w seed.py,
+  stacja początkowa → docelowa). Kurs jest jednorazowy: pociąg prowadzi ten
+  sam silnik co pozostałe (A*, obsługa blokad, wykolejeń), po dojechaniu
+  znika z grafu; `durationS` pełni rolę maksymalnego czasu życia (failsafe,
+  gdy cel stanie się nieosiągalny). Flagi `scenario_train`/`despawn_at` żyją
+  w grafie, więc sprzątanie przeżywa restart backendu; ręczny stop scenariusza
+  usuwa jego pociągi natychmiast.
+- Dwa wbudowane scenariusze dostały kursy demonstracyjne: „IC Wzmocniony"
+  KAT→BIG w Kaskadzie beskidzkiej i „Zastępczy GLI–KAT" w Burzy nad
+  aglomeracją.
+- Weryfikacja: 40 testów pytest (6 nowych: walidacja train_run, spawn,
+  despawn po dojechaniu/timeout, stop usuwa pociągi, edycja); e2e na stacku
+  (pełny cykl kursu: spawn → jazda → dojazd → despawn; edycja PUT; 403/404/409);
+  UI przez Playwright (formularz kursu, tryb edycji, klonowanie);
+  `svelte-check` 0 błędów.
+
+## Iteracja 3 (pivot): scenariusze rozkładu pociągów + sterowanie symulacją
+
+Na życzenie: panel scenariuszy utrudnień usunięty w całości (razem z backendem
+kroków-zdarzeń i pociągów jednorazowych). Nowy model:
+
+**Scenariusz = rozkład pociągów** — nazwana lista kursów (nazwa, typ
+REGIONAL/IC/FREIGHT, stacja początkowa → docelowa, odjazd po X s od startu).
+Uruchomienie zastępuje WSZYSTKIE pociągi na sieci flotą rozkładu; pociągi
+wjeżdżają o swoich czasach i kursują cyklicznie jak flota bazowa (ten sam
+silnik: A*, blokady, zdarzenia losowe).
+
+- **5 rozkładów startowych** zapisywanych do Memgraph przy pustej bazie
+  scenariuszy (wszystkie w pełni edytowalne/usuwalne): Rozkład bazowy Kolei
+  Śląskich (pełne 52 pociągi z seed.py), Szczyt poranny GOP, Ekspresy
+  dalekobieżne, Korytarz towarowy, Beskidy i południe. Węzły scenariuszy w
+  starym formacie są usuwane przy starcie (migracja).
+- **Panel po prawej** (`TimetablePanel`): lista rozkładów z ▶ Uruchom i
+  Szczegóły; box aktywnego rozkładu (na sieci X/Y pociągów); ➕ Nowy scenariusz.
+- **Modal na środku ekranu** (`TimetableEditorModal`, renderowany na poziomie
+  strony — dock ma backdrop-filter, który uwięziłby position:fixed): tabela
+  pociągów z edycją w miejscu (nazwa, typ, stacje, odjazd), dodawanie/usuwanie
+  wierszy, zapis (create/update), usunięcie scenariusza; Esc/backdrop zamyka.
+- **Sterowanie w nagłówku**: ⏸ Zatrzymaj / ▶ Wznów symulację oraz 🗑 Usuń
+  pociągi (czyści całą flotę bieżącego scenariusza + niewprowadzone wjazdy).
+  Pauza = pętla przestaje mutować stan (broadcast dalej idzie, z paused:true);
+  wznowienie przesuwa wszystkie zegary (dwell, resolves_at zdarzeń, timer
+  losowań, zaplanowane wjazdy) o czas pauzy, więc nic nie "nadrabia" skokowo.
+  Uruchomienie rozkładu podczas pauzy kotwiczy odjazdy w momencie pauzy —
+  rozkład rusza dokładnie od wznowienia.
+- API: `GET/POST /api/scenarios`, `PUT/DELETE /api/scenarios/{id}`,
+  `POST /api/scenarios/{id}/run`, `GET /api/scenarios/active`,
+  `POST /api/simulation/pause|resume`, `POST /api/simulation/trains/clear`.
+  W ramkach WS dodatkowo `scenario` (aktywny rozkład) i `paused`.
+- Usunięte: `create_targeted_event` w event_service (powrót do stanu sprzed
+  scenariuszy utrudnień), kroki zdarzeń, pociągi jednorazowe z despawnem,
+  `ScenarioPanel.svelte`.
+- Weryfikacja: 36 testów pytest (10 dla nowego scenario_service, w tym pauza
+  z przesuwaniem zegarów); e2e na stacku (podmiana floty, zamrożenie progresu
+  w pauzie, wznowienie, CRUD, czyszczenie floty); pełny przepływ UI przez
+  Playwright (modal, edycja pociągów, tworzenie/usuwanie rozkładu, pauza —
+  chip "Wstrzymano", czyszczenie floty); `svelte-check` 0 błędów.

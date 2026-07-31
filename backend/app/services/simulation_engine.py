@@ -11,10 +11,13 @@ logger = logging.getLogger("sim")
 
 
 def _build_broadcast_payload(tick_result: dict) -> dict:
+	scenario = tick_result.get("scenario")
 	return {
 		"type": "tick",
 		"trains": [train.model_dump() for train in tick_result["trains"]],
 		"events": [event.model_dump() for event in tick_result["events"]],
+		"scenario": scenario.model_dump() if scenario is not None else None,
+		"paused": tick_result.get("paused", False),
 		"timestamp": tick_result["timestamp"],
 	}
 
