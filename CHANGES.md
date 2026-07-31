@@ -66,36 +66,36 @@ napisano od nowa pod nową architekturę.
 
 ## Model danych (Memgraph)
 
-| element | zmiana |
-|---|---|
-| `Station` | bez zmian strukturalnych, +20 nowych węzłów |
-| `TRACK` (relacja, nadal 2 skierowane instancje na `segment_id`) | nowe właściwości `restricted_vmax`, `active_event_id`; `status` (`active`/`blocked`/`restricted`) ustawiany **per kierunek**, nie zawsze na oba naraz |
-| `Train` | przeprojektowany: `origin_station_id`/`destination_station_id` (stała para wahadłowa), `direction` (`outbound`/`return`), `status` (`running`/`dwelling`/`waiting`/`derailed` — celowo bez stanu końcowego), `route_station_ids`/`route_segment_ids`/`route_index`, `dwell_until`, `delayed_by_event_id` |
-| `RailEvent` | **nowy węzeł**: `type` (`line_failure`/`derailment`/`speed_restriction`/`signal_failure`), `severity`, `status`, kontekst zależny od typu, `message` (PL), `started_at`/`resolves_at`/`resolved_at`; relacja `-[:AFFECTS]->` do `Train` przy wykolejeniach |
+| element                                                         | zmiana                                                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Station`                                                       | bez zmian strukturalnych, +20 nowych węzłów                                                                                                                                                                                                                                                              |
+| `TRACK` (relacja, nadal 2 skierowane instancje na `segment_id`) | nowe właściwości `restricted_vmax`, `active_event_id`; `status` (`active`/`blocked`/`restricted`) ustawiany **per kierunek**, nie zawsze na oba naraz                                                                                                                                                    |
+| `Train`                                                         | przeprojektowany: `origin_station_id`/`destination_station_id` (stała para wahadłowa), `direction` (`outbound`/`return`), `status` (`running`/`dwelling`/`waiting`/`derailed` — celowo bez stanu końcowego), `route_station_ids`/`route_segment_ids`/`route_index`, `dwell_until`, `delayed_by_event_id` |
+| `RailEvent`                                                     | **nowy węzeł**: `type` (`line_failure`/`derailment`/`speed_restriction`/`signal_failure`), `severity`, `status`, kontekst zależny od typu, `message` (PL), `started_at`/`resolves_at`/`resolved_at`; relacja `-[:AFFECTS]->` do `Train` przy wykolejeniach                                               |
 
 ---
 
 ## Backend — nowe i zmienione pliki
 
-| plik | status | rola |
-|---|---|---|
-| `app/core/haversine.py` | nowy | heurystyka odległości dla A* |
-| `app/core/config.py` | rozszerzony | zmienne `SIM_*` sterujące symulacją |
-| `app/core/ws_manager.py` | nowy | rozgłaszanie stanu do klientów WebSocket |
-| `app/core/lifespan.py` | rozszerzony | start/stop pętli symulacji |
-| `app/schemas/train.py`, `event.py`, `routing.py` | nowe | kontrakty API |
-| `app/schemas/network.py` | zmieniony (breaking) | `TrackSegment.status` → `forward`/`backward` |
-| `app/services/network_service.py` | przepisany | scala obie skierowane relacje w jeden `TrackSegment` |
-| `app/services/routing_service.py` | nowy | A* świadome kierunku i ograniczeń prędkości |
-| `app/services/train_service.py` | nowy | silnik ruchu: dysponowanie, przesuwanie, cykl dojazd→przerwa→powrót, proaktywny rerouting |
-| `app/services/event_service.py` | nowy | losowe zdarzenia (harmonogram Poissona), ich zastosowanie i rozwiązywanie |
-| `app/services/simulation_engine.py` | nowy | pętla `asyncio` z izolacją błędów |
-| `app/api/routes/trains.py`, `events.py`, `live.py`, `routing.py` | nowe | patrz sekcja API niżej |
-| `app/api/routes/network.py` | bez zmian | (usunięcie ręcznego `PATCH` z prototypu — nigdy nie istniał na tym branchu) |
-| `db/seed.py` | rozszerzony | +20 stacji, +26 odcinków, nowy schemat 16 pociągów |
-| `requirements.txt` | rozszerzony | `pytest`, `httpx` |
-| `pytest.ini` | nowy | `pythonpath = .` (żeby `pytest` widział pakiet `app`/`db` niezależnie od sposobu odpalenia) |
-| `tests/*.py` | nowe, 6 plików | patrz sekcja Testy |
+| plik                                                             | status               | rola                                                                                        |
+| ---------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------- |
+| `app/core/haversine.py`                                          | nowy                 | heurystyka odległości dla A\*                                                               |
+| `app/core/config.py`                                             | rozszerzony          | zmienne `SIM_*` sterujące symulacją                                                         |
+| `app/core/ws_manager.py`                                         | nowy                 | rozgłaszanie stanu do klientów WebSocket                                                    |
+| `app/core/lifespan.py`                                           | rozszerzony          | start/stop pętli symulacji                                                                  |
+| `app/schemas/train.py`, `event.py`, `routing.py`                 | nowe                 | kontrakty API                                                                               |
+| `app/schemas/network.py`                                         | zmieniony (breaking) | `TrackSegment.status` → `forward`/`backward`                                                |
+| `app/services/network_service.py`                                | przepisany           | scala obie skierowane relacje w jeden `TrackSegment`                                        |
+| `app/services/routing_service.py`                                | nowy                 | A\* świadome kierunku i ograniczeń prędkości                                                |
+| `app/services/train_service.py`                                  | nowy                 | silnik ruchu: dysponowanie, przesuwanie, cykl dojazd→przerwa→powrót, proaktywny rerouting   |
+| `app/services/event_service.py`                                  | nowy                 | losowe zdarzenia (harmonogram Poissona), ich zastosowanie i rozwiązywanie                   |
+| `app/services/simulation_engine.py`                              | nowy                 | pętla `asyncio` z izolacją błędów                                                           |
+| `app/api/routes/trains.py`, `events.py`, `live.py`, `routing.py` | nowe                 | patrz sekcja API niżej                                                                      |
+| `app/api/routes/network.py`                                      | bez zmian            | (usunięcie ręcznego `PATCH` z prototypu — nigdy nie istniał na tym branchu)                 |
+| `db/seed.py`                                                     | rozszerzony          | +20 stacji, +26 odcinków, nowy schemat 16 pociągów                                          |
+| `requirements.txt`                                               | rozszerzony          | `pytest`, `httpx`                                                                           |
+| `pytest.ini`                                                     | nowy                 | `pythonpath = .` (żeby `pytest` widział pakiet `app`/`db` niezależnie od sposobu odpalenia) |
+| `tests/*.py`                                                     | nowe, 6 plików       | patrz sekcja Testy                                                                          |
 
 ### Nowe/zmienione endpointy
 
@@ -103,7 +103,7 @@ napisano od nowa pod nową architekturę.
 - `GET /api/trains` — snapshot wszystkich pociągów
 - `GET /api/events?status=` — historia i aktywne zdarzenia
 - `POST /api/simulation/events/trigger` — debugowe wymuszenie zdarzenia (gated przez `SIM_DEBUG_ENDPOINTS_ENABLED`)
-- `GET /api/route/fastest` — A* jako samodzielne narzędzie (ten sam kod, którego backend używa wewnętrznie)
+- `GET /api/route/fastest` — A\* jako samodzielne narzędzie (ten sam kod, którego backend używa wewnętrznie)
 - `WS /ws/live` — snapshot na connect + broadcast po każdym ticku; ręczna weryfikacja `Origin` względem `ALLOWED_ORIGINS` (CORS middleware nie obejmuje scope `websocket`)
 
 ---
@@ -125,17 +125,17 @@ Z 10 do **30 stacji** i z 12 do **38 odcinków** (76 skierowanych relacji), w 6 
 
 ## Frontend — nowe i zmienione pliki
 
-| plik | status | rola |
-|---|---|---|
-| `lib/types/train.ts`, `event.ts` | nowe | odbicie TS schematów backendu |
-| `lib/types/network.ts` | zmieniony | `TrackSegment.forward`/`backward` |
-| `lib/services/live.ts` | nowy | store WebSocket z reconnect+backoff i fallbackiem na polling |
-| `lib/components/network/SimulationHeader.svelte` | nowy | zegar/liczniki, status połączenia, ukryty przycisk debug (`?debug=1`) |
-| `lib/components/network/IncidentFeed.svelte` | nowy | lista aktywnych/rozwiązanych zdarzeń z odliczaniem |
-| `lib/components/network/NetworkGraph.svelte` | przeprojektowany | dwutorowe odcinki jako dwie niezależnie kolorowane linie, żywe znaczniki pociągów (kształt/kolor wg typu i statusu), pierścień przy stacji z awarią sterowania |
-| `routes/+page.ts` | zmieniony | SSR-prefetch `/api/network` + `/api/trains` + `/api/events` równolegle |
-| `routes/+page.svelte` | przeprojektowany | nowy układ: pasek telemetrii + mapa + panel incydentów |
-| `.prettierrc` | naprawiony | usunięto martwe odwołanie do nieistniejącego `layout.css` (`prettier-plugin-tailwindcss`), które blokowało `npm run lint` na **całym** projekcie, nie tylko na nowym kodzie |
+| plik                                             | status           | rola                                                                                                                                                                        |
+| ------------------------------------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/types/train.ts`, `event.ts`                 | nowe             | odbicie TS schematów backendu                                                                                                                                               |
+| `lib/types/network.ts`                           | zmieniony        | `TrackSegment.forward`/`backward`                                                                                                                                           |
+| `lib/services/live.ts`                           | nowy             | store WebSocket z reconnect+backoff i fallbackiem na polling                                                                                                                |
+| `lib/components/network/SimulationHeader.svelte` | nowy             | zegar/liczniki, status połączenia, ukryty przycisk debug (`?debug=1`)                                                                                                       |
+| `lib/components/network/IncidentFeed.svelte`     | nowy             | lista aktywnych/rozwiązanych zdarzeń z odliczaniem                                                                                                                          |
+| `lib/components/network/NetworkGraph.svelte`     | przeprojektowany | dwutorowe odcinki jako dwie niezależnie kolorowane linie, żywe znaczniki pociągów (kształt/kolor wg typu i statusu), pierścień przy stacji z awarią sterowania              |
+| `routes/+page.ts`                                | zmieniony        | SSR-prefetch `/api/network` + `/api/trains` + `/api/events` równolegle                                                                                                      |
+| `routes/+page.svelte`                            | przeprojektowany | nowy układ: pasek telemetrii + mapa + panel incydentów                                                                                                                      |
+| `.prettierrc`                                    | naprawiony       | usunięto martwe odwołanie do nieistniejącego `layout.css` (`prettier-plugin-tailwindcss`), które blokowało `npm run lint` na **całym** projekcie, nie tylko na nowym kodzie |
 
 Trzy panele dyspozytorskie z prototypowej gałęzi (`RouteControlPanel`,
 `BreakdownControlPanel`, `TrainControlPanel`) świadomie nie zostały
@@ -149,7 +149,7 @@ nie powielono wzorca ręcznego sterowania (kłóci się z autonomicznością).
 Backend, `pytest` (28/28 przechodzi):
 
 - `test_haversine.py` — poprawność i admissibility heurystyki
-- `test_routing_direction_aware.py` — A* wyklucza tylko zablokowany kierunek, nie oba automatycznie; `restricted` obniża prędkość zamiast wykluczać krawędź
+- `test_routing_direction_aware.py` — A\* wyklucza tylko zablokowany kierunek, nie oba automatycznie; `restricted` obniża prędkość zamiast wykluczać krawędź
 - `test_train_dispatch.py` — cykl dojazd→przerwa→odwrócenie kierunku→powrót; regresja na błąd zahardkodowanego dystansu z prototypu
 - `test_event_service.py` — jednotorowy odcinek blokuje oba kierunki, dwutorowy jeden; guard przed podwójnym przypisaniem zdarzenia; wykolejenie tylko na pociągach w drodze
 - `test_simulation_tick.py` — proaktywny rerouting pociągów już w drodze po nowej blokadzie; pełny tick z realną fizyką ruchu
@@ -260,18 +260,18 @@ już przybliżony mocniej niż domyślny poziom dojazdu).
 
 ### Nowe/zmienione pliki
 
-| plik | status | rola |
-|---|---|---|
-| `compose.yaml`, `.env.example`, `README.md` | zmienione | rozdzielenie `PUBLIC_API_BASE_URL` / `API_INTERNAL_URL` + dokumentacja |
-| `routes/+page.server.ts` | nowy (zastępuje `+page.ts`) | SSR przez adres wewnętrzny, przeglądarka dostaje publiczny |
-| `routes/+page.svelte` | przepisany | pełnoekranowa scena z nakładkami, stan wyboru, `liveGraph` |
-| `lib/types/selection.ts` | nowy | wspólny typ wyboru stacja/odcinek/pociąg |
-| `lib/services/labels.ts` | nowy | wspólne etykiety statusów/typów i ikony zdarzeń |
-| `lib/services/liveNetwork.ts` | nowy | stany torów wyliczane na żywo z aktywnych zdarzeń |
-| `lib/components/network/NetworkGraph.svelte` | przepisany | sama mapa: pan/zoom, wybór, podświetlanie tras, znaczniki incydentów |
-| `lib/components/network/DetailsPanel.svelte` | nowy | szczegóły stacji/odcinka/pociągu wydzielone z mapy, przycisk zamknięcia |
-| `lib/components/network/IncidentFeed.svelte` | przerobiony | pływający panel, klikalne incydenty wskazujące element na mapie |
-| `lib/components/network/SimulationHeader.svelte` | przerobiony | kompaktowy pasek górny zamiast dużego hero |
+| plik                                             | status                      | rola                                                                    |
+| ------------------------------------------------ | --------------------------- | ----------------------------------------------------------------------- |
+| `compose.yaml`, `.env.example`, `README.md`      | zmienione                   | rozdzielenie `PUBLIC_API_BASE_URL` / `API_INTERNAL_URL` + dokumentacja  |
+| `routes/+page.server.ts`                         | nowy (zastępuje `+page.ts`) | SSR przez adres wewnętrzny, przeglądarka dostaje publiczny              |
+| `routes/+page.svelte`                            | przepisany                  | pełnoekranowa scena z nakładkami, stan wyboru, `liveGraph`              |
+| `lib/types/selection.ts`                         | nowy                        | wspólny typ wyboru stacja/odcinek/pociąg                                |
+| `lib/services/labels.ts`                         | nowy                        | wspólne etykiety statusów/typów i ikony zdarzeń                         |
+| `lib/services/liveNetwork.ts`                    | nowy                        | stany torów wyliczane na żywo z aktywnych zdarzeń                       |
+| `lib/components/network/NetworkGraph.svelte`     | przepisany                  | sama mapa: pan/zoom, wybór, podświetlanie tras, znaczniki incydentów    |
+| `lib/components/network/DetailsPanel.svelte`     | nowy                        | szczegóły stacji/odcinka/pociągu wydzielone z mapy, przycisk zamknięcia |
+| `lib/components/network/IncidentFeed.svelte`     | przerobiony                 | pływający panel, klikalne incydenty wskazujące element na mapie         |
+| `lib/components/network/SimulationHeader.svelte` | przerobiony                 | kompaktowy pasek górny zamiast dużego hero                              |
 
 ### Weryfikacja
 
@@ -305,108 +305,7 @@ i `frontend/README.md` zostawiono bez zmian.)
 
 ---
 
-# Scenariusze utrudnień (branch `feature/scenariusze-kolei`)
-
-Nowa funkcja: panel po prawej stronie z 5 gotowymi scenariuszami utrudnień
-oraz kreatorem własnych scenariuszy (zapisywanych w Memgraph).
-
-## Co to jest scenariusz
-
-Nazwana sekwencja kroków-zdarzeń (awaria linii, ograniczenie prędkości,
-awaria sterowania, wykolejenie) z opóźnieniami względem startu i czasem
-trwania per krok. Kroki celują w konkretne odcinki/stacje — dobrane tak,
-żeby odcinały główne korytarze i zmuszały pociągi do skomplikowanych
-objazdów (przeliczanie tras A* na żywo).
-
-## Jak to działa
-
-- **Jedna ścieżka mutacji stanu torów**: kroki scenariusza przechodzą przez
-  `event_service.create_targeted_event` — ten sam mechanizm co zdarzenia
-  losowe (blokady per kierunek, auto-rozwiązywanie po czasie, reroute
-  dotkniętych pociągów).
-- Aktywacja (`POST /api/scenarios/{id}/run`) tylko zapisuje kroki w
-  `app.state.scenario`; właściwe zdarzenia tworzy pętla symulacji
-  (`scenario_service.apply_due_actions` w `run_tick_sync`).
-- Na czas scenariusza **losowe zdarzenia są wstrzymane**, a przy starcie
-  wcześniejsze aktywne zdarzenia są wygaszane — przebieg ma być powtarzalny.
-- Kolejność kroków ma znaczenie: blokady konkretnych odcinków idą pierwsze,
-  awaria sterowania (zajmuje wszystkie wolne tory przy stacji) ostatnia —
-  inaczej późniejsze kroki nie znajdą wolnego celu i zostaną pominięte.
-- Status aktywnego scenariusza (krok X/Y, koniec za...) idzie w każdej ramce
-  WS (`payload.scenario`) — wszyscy podłączeni klienci widzą go na żywo.
-
-## API
-
-- `GET /api/scenarios` — lista (wbudowane + własne)
-- `POST /api/scenarios` — nowy własny scenariusz (walidacja odcinków/stacji,
-  422 z czytelnym komunikatem)
-- `DELETE /api/scenarios/{id}` — usunięcie własnego (403 dla wbudowanych,
-  409 gdy w trakcie)
-- `POST /api/scenarios/{id}/run` — start (409 gdy inny aktywny)
-- `POST /api/scenarios/stop` — przerwanie (wygasza zdarzenia scenariusza)
-- `GET /api/scenarios/active` — bieżący status
-
-## Wbudowane scenariusze
-
-1. **Paraliż węzła Katowice** — blokady KAT–CHB i KAT–KAS, pełzanie przez
-   Ligotę, awaria sterowania w Chorzowie Batorym
-2. **Odcięta magistrala północna** — ZAW–CZE przerwana, objazd przez
-   Lubliniec z ograniczeniami, awaria sterowania w Tarnowskich Górach
-3. **Kaskada beskidzka** — PSZ–TYC pada, objazd przez Żory ograniczony,
-   awaria w Czechowicach + wykolejenie
-4. **Objazd raciborski** — RAC–RYT i LES–RYB zablokowane, pociągi do
-   Raciborza kluczą przez Wodzisław/Rudyszwałd
-5. **Burza nad aglomeracją** — 6 kroków kaskadowo w sercu GOP
-
-## Frontend
-
-- `ScenarioPanel.svelte` w prawym docku (nad nim panel szczegółów, gdy coś
-  zaznaczone; oba dzielą wysokość docka)
-- Karta aktywnego scenariusza: nazwa, kroki X/Y, odliczanie, pasek postępu,
-  przycisk Zatrzymaj
-- Kreator: nazwa/opis + kroki (typ, odcinek/stacja z list rozwijanych,
-  vmax dla ograniczeń, start po / czas trwania), do 20 kroków
-- W trybie odpytywania REST status scenariusza pochodzi z odpowiedzi `/run`
-  (WS go nadpisuje, gdy wróci)
-
-## Weryfikacja
-
-- backend: 34 testy pytest (28 istniejących + 6 nowych dla
-  `scenario_service`), wszystkie zielone
-- e2e na działającym stacku: pełny cykl run→kroki 1-4→objazdy pociągów→stop,
-  cykl życia własnego scenariusza (walidacja 422, create 201, run 200,
-  konflikt 409, delete aktywnego 409, delete wbudowanego 403)
-- UI (Playwright): uruchomienie i zatrzymanie z panelu, kreator end-to-end
-  (zapis → pojawia się w "Twoje scenariusze" → usunięcie)
-- `svelte-check` 0 błędów, eslint czysty
-
-## Iteracja 2: edycja scenariuszy + planowanie rozkładu pociągów
-
-- **Edycja własnych scenariuszy**: `PUT /api/scenarios/{id}` (403 dla
-  wbudowanych, 409 gdy scenariusz w trakcie, 404 gdy nie istnieje). W panelu
-  przycisk ✏️ otwiera kreator wypełniony danymi scenariusza; zapis nadpisuje.
-- **Klonowanie wbudowanych**: przycisk 📋 otwiera kreator z kopią wbudowanego
-  scenariusza ("... (kopia)") do zapisania jako własny — jedyna sensowna forma
-  "edycji" scenariuszy zdefiniowanych w kodzie.
-- **Nowy typ kroku `train_run` (Kurs pociągu)** — planowanie rozkladu w
-  scenariuszu: o czasie `delayS` na sieci pojawia się dodatkowy pociąg
-  (nazwa, typ REGIONAL/IC/FREIGHT — parametry fizyczne jak w seed.py,
-  stacja początkowa → docelowa). Kurs jest jednorazowy: pociąg prowadzi ten
-  sam silnik co pozostałe (A*, obsługa blokad, wykolejeń), po dojechaniu
-  znika z grafu; `durationS` pełni rolę maksymalnego czasu życia (failsafe,
-  gdy cel stanie się nieosiągalny). Flagi `scenario_train`/`despawn_at` żyją
-  w grafie, więc sprzątanie przeżywa restart backendu; ręczny stop scenariusza
-  usuwa jego pociągi natychmiast.
-- Dwa wbudowane scenariusze dostały kursy demonstracyjne: „IC Wzmocniony"
-  KAT→BIG w Kaskadzie beskidzkiej i „Zastępczy GLI–KAT" w Burzy nad
-  aglomeracją.
-- Weryfikacja: 40 testów pytest (6 nowych: walidacja train_run, spawn,
-  despawn po dojechaniu/timeout, stop usuwa pociągi, edycja); e2e na stacku
-  (pełny cykl kursu: spawn → jazda → dojazd → despawn; edycja PUT; 403/404/409);
-  UI przez Playwright (formularz kursu, tryb edycji, klonowanie);
-  `svelte-check` 0 błędów.
-
-## Iteracja 3 (pivot): scenariusze rozkładu pociągów + sterowanie symulacją
+# Scenariusze rozkładu pociągów + sterowanie symulacją
 
 Na życzenie: panel scenariuszy utrudnień usunięty w całości (razem z backendem
 kroków-zdarzeń i pociągów jednorazowych). Nowy model:
@@ -415,7 +314,7 @@ kroków-zdarzeń i pociągów jednorazowych). Nowy model:
 REGIONAL/IC/FREIGHT, stacja początkowa → docelowa, odjazd po X s od startu).
 Uruchomienie zastępuje WSZYSTKIE pociągi na sieci flotą rozkładu; pociągi
 wjeżdżają o swoich czasach i kursują cyklicznie jak flota bazowa (ten sam
-silnik: A*, blokady, zdarzenia losowe).
+silnik: A\*, blokady, zdarzenia losowe).
 
 - **5 rozkładów startowych** zapisywanych do Memgraph przy pustej bazie
   scenariuszy (wszystkie w pełni edytowalne/usuwalne): Rozkład bazowy Kolei
