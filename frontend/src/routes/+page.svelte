@@ -4,8 +4,11 @@
 	import IncidentFeed from '$lib/components/network/IncidentFeed.svelte';
 	import NetworkGraph from '$lib/components/network/NetworkGraph.svelte';
 	import SimulationHeader from '$lib/components/network/SimulationHeader.svelte';
+	import TimetableEditorModal from '$lib/components/network/TimetableEditorModal.svelte';
+	import TimetablePanel from '$lib/components/network/TimetablePanel.svelte';
 	import { createLiveStore } from '$lib/services/live';
 	import { applyEventsToSegments } from '$lib/services/liveNetwork';
+	import type { Scenario } from '$lib/types/scenario';
 	import type { HighlightFilter, Selected } from '$lib/types/selection';
 	import type { PageData } from './$types';
 
@@ -14,6 +17,8 @@
 	const live = createLiveStore(fetch, data.apiBaseUrl, {
 		trains: data.trains,
 		events: data.events,
+		scenario: null,
+		paused: false,
 		timestamp: data.timestamp
 	});
 	const { snapshot, status } = live;
@@ -25,6 +30,27 @@
 	let highlight: HighlightFilter | null = null;
 	let mapComponent: NetworkGraph | undefined;
 
+	// Modal szczegółów rozkładu renderowany na poziomie strony (na środku mapy),
+	// nie w docku — dock ma backdrop-filter, który uwięziłby position:fixed.
+	let editorOpen = false;
+	let editorScenario: Scenario | null = null;
+	let scenariosRefreshKey = 0;
+
+	function openScenarioDetails(scenario: Scenario) {
+		editorScenario = scenario;
+		editorOpen = true;
+	}
+
+	function openScenarioCreate() {
+		editorScenario = null;
+		editorOpen = true;
+	}
+
+	function handleEditorClose(changed: boolean) {
+		editorOpen = false;
+		if (changed) scenariosRefreshKey += 1;
+	}
+
 	// Stany torów (blokady, ograniczenia) wyliczane na żywo z aktywnych zdarzeń --
 	// graf z SSR jest tylko migawką startową i sam by się nie aktualizował.
 	$: liveGraph = {
@@ -33,7 +59,7 @@
 	};
 
 	function handleWindowKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape') {
+		if (event.key === 'Escape' && !editorOpen) {
 			selected = null;
 			highlight = null;
 		}
@@ -80,15 +106,31 @@
 		<IncidentFeed events={$snapshot.events} onSelect={handleIncidentSelect} />
 	</aside>
 
-	{#if selected}
-		<aside class="dock dock-right">
+	<aside class="dock dock-right">
+		{#if selected}
 			<DetailsPanel
 				graph={liveGraph}
 				trains={$snapshot.trains}
 				events={$snapshot.events}
 				bind:selected
 			/>
-		</aside>
+		{/if}
+		<TimetablePanel
+			apiBaseUrl={data.apiBaseUrl}
+			scenario={$snapshot.scenario}
+			refreshKey={scenariosRefreshKey}
+			onDetails={openScenarioDetails}
+			onCreate={openScenarioCreate}
+		/>
+	</aside>
+
+	{#if editorOpen}
+		<TimetableEditorModal
+			apiBaseUrl={data.apiBaseUrl}
+			graph={liveGraph}
+			scenario={editorScenario}
+			onClose={handleEditorClose}
+		/>
 	{/if}
 </main>
 
@@ -147,13 +189,18 @@
 		display: flex;
 		flex-direction: column;
 		align-items: stretch;
+		gap: 12px;
 		pointer-events: none;
 	}
 
+	/* flex-shrink + min-height pozwalają dwóm panelom (szczegóły + scenariusze)
+	   podzielić się wysokością docka zamiast wystawać poza ekran. */
 	.dock > :global(*) {
 		pointer-events: auto;
 		max-height: 100%;
 		overflow-y: auto;
+		flex: 0 1 auto;
+		min-height: 0;
 	}
 
 	.dock-left {

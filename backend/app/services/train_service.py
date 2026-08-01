@@ -5,7 +5,7 @@ from neo4j import Driver, Session
 
 from app.core import config
 from app.schemas.train import TrainNode
-from app.services import event_service
+from app.services import event_service, scenario_service
 from app.services.routing_service import find_fastest_route_astar
 
 
@@ -268,14 +268,29 @@ def load_trains_snapshot(driver: Driver) -> list[TrainNode]:
 
 def run_tick_sync(driver: Driver, app_state) -> dict:
 	"""Wykonuje jeden krok symulacji: (1) rozwiązuje zdarzenia, którym minął czas,
-	(2) przesuwa/dysponuje pociągi względem odświeżonego stanu torów, (3) ewentualnie
-	losuje jedno nowe zdarzenie, (4) jeśli ono coś zablokowało/ograniczyło — od razu
-	przelicza trasy pociągów, których to dotyczy. Zwraca gotowy snapshot do broadcastu."""
+	(2) wprowadza na sieć pociągi rozkładu, którym minął czas odjazdu, (3) przesuwa/
+	dysponuje pociągi względem odświeżonego stanu torów, (4) ewentualnie losuje
+	jedno nowe zdarzenie i przelicza trasy dotkniętych pociągów. Przy wstrzymanej
+	symulacji niczego nie mutuje — tylko odczytuje bieżący stan do broadcastu."""
 	now = time.time()
+
+	if getattr(app_state, "sim_paused", False):
+		with driver.session() as session:
+			trains = _load_trains(session)
+			events = event_service.load_events(session)
+		return {
+			"trains": [_train_node_from_dict(t, now) for t in trains],
+			"events": events,
+			"scenario": scenario_service.active_info(app_state),
+			"paused": True,
+			"timestamp": now,
+		}
+
 	dt_sim_s = config.SIM_TICK_INTERVAL_S * config.SIM_TIME_SCALE
 
 	with driver.session() as session:
 		event_service.resolve_due_events(session, now)
+		scenario_service.apply_due_spawns(session, app_state, now)
 
 		edge_lookup = _load_directed_edge_lookup(session)
 		trains = _load_trains(session)
@@ -300,5 +315,7 @@ def run_tick_sync(driver: Driver, app_state) -> dict:
 	return {
 		"trains": [_train_node_from_dict(t, now) for t in trains],
 		"events": events,
+		"scenario": scenario_service.active_info(app_state),
+		"paused": False,
 		"timestamp": now,
 	}

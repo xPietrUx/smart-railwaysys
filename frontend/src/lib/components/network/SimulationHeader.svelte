@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import type { ConnectionStatus, LiveSnapshot } from '$lib/services/live';
+	import { clearTrains, pauseSimulation, resumeSimulation } from '$lib/services/simulation';
 	import type { HighlightFilter } from '$lib/types/selection';
 	import type { TrainStatus } from '$lib/types/train';
 
@@ -59,6 +60,45 @@
 			// Cicho pomijamy błąd -- następny tick i tak pokaże aktualny stan sieci.
 		} finally {
 			triggering = false;
+		}
+	}
+
+	// --- Sterowanie symulacją (pauza / wznowienie / czyszczenie floty) ---
+	$: paused = snapshot.paused;
+
+	let controlBusy = false;
+	// Optymistyczny stan pauzy do czasu potwierdzenia następnym tickiem WS.
+	let optimisticPaused: boolean | null = null;
+	$: pausedView = optimisticPaused ?? paused;
+	$: if (optimisticPaused !== null && paused === optimisticPaused) optimisticPaused = null;
+
+	async function togglePause() {
+		if (controlBusy) return;
+		controlBusy = true;
+		try {
+			if (pausedView) {
+				await resumeSimulation(fetch, apiBaseUrl);
+				optimisticPaused = false;
+			} else {
+				await pauseSimulation(fetch, apiBaseUrl);
+				optimisticPaused = true;
+			}
+		} catch {
+			// 409 przy podwójnym kliknięciu -- następny tick pokaże właściwy stan.
+		} finally {
+			controlBusy = false;
+		}
+	}
+
+	async function handleClearTrains() {
+		if (controlBusy) return;
+		controlBusy = true;
+		try {
+			await clearTrains(fetch, apiBaseUrl);
+		} catch {
+			// Cicho pomijamy -- kolejny tick pokaże aktualny stan floty.
+		} finally {
+			controlBusy = false;
 		}
 	}
 </script>
@@ -146,12 +186,39 @@
 			</button>
 		</div>
 
+		<div class="sim-controls">
+			<button
+				type="button"
+				class="ctrl-btn"
+				class:ctrl-paused={pausedView}
+				on:click={togglePause}
+				disabled={controlBusy}
+				title={pausedView ? 'Wznów symulację' : 'Zatrzymaj symulację'}
+			>
+				{pausedView ? '▶ Wznów' : '⏸ Zatrzymaj'}
+			</button>
+			<button
+				type="button"
+				class="ctrl-btn ctrl-danger"
+				on:click={handleClearTrains}
+				disabled={controlBusy || snapshot.trains.length === 0}
+				title="Usuń z sieci wszystkie pociągi obecnego scenariusza"
+			>
+				🗑 Usuń pociągi
+			</button>
+		</div>
+
 		<div
 			class="status-strip"
 			title="Stan połączenia z symulacją — ostatnia aktualizacja {lastUpdateLabel}"
 		>
-			<span class="status-dot {statusDotClass[status]}"></span>
-			<span class="status-label">{statusLabels[status]}</span>
+			{#if pausedView}
+				<span class="status-dot dot-amber"></span>
+				<span class="status-label">Wstrzymano</span>
+			{:else}
+				<span class="status-dot {statusDotClass[status]}"></span>
+				<span class="status-label">{statusLabels[status]}</span>
+			{/if}
 			<span class="status-time">{lastUpdateLabel}</span>
 		</div>
 
@@ -329,6 +396,46 @@
 
 	.status-time {
 		color: #64748b;
+	}
+
+	.sim-controls {
+		display: flex;
+		gap: 6px;
+	}
+
+	.ctrl-btn {
+		padding: 6px 12px;
+		border-radius: 10px;
+		border: 1px solid rgba(148, 163, 184, 0.3);
+		background: rgba(30, 41, 59, 0.72);
+		color: #e2e8f0;
+		font-weight: 600;
+		font-size: 0.8rem;
+		cursor: pointer;
+		white-space: nowrap;
+		transition:
+			border-color 0.3s,
+			background 0.3s;
+	}
+
+	.ctrl-btn:hover:not(:disabled) {
+		border-color: rgba(96, 165, 250, 0.6);
+	}
+
+	.ctrl-btn:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+
+	.ctrl-paused {
+		border-color: rgba(245, 158, 11, 0.55);
+		background: rgba(120, 53, 15, 0.35);
+		color: #fbbf24;
+	}
+
+	.ctrl-danger:hover:not(:disabled) {
+		border-color: rgba(239, 68, 68, 0.7);
+		color: #fca5a5;
 	}
 
 	.debug-btn {

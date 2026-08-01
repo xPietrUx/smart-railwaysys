@@ -1,5 +1,6 @@
 import { writable, type Readable } from 'svelte/store';
 import type { RailEventNode } from '$lib/types/event';
+import type { ActiveScenarioInfo } from '$lib/types/scenario';
 import type { TrainNode } from '$lib/types/train';
 
 export type ConnectionStatus = 'connecting' | 'open' | 'reconnecting' | 'polling-fallback';
@@ -7,6 +8,8 @@ export type ConnectionStatus = 'connecting' | 'open' | 'reconnecting' | 'polling
 export type LiveSnapshot = {
 	trains: TrainNode[];
 	events: RailEventNode[];
+	scenario: ActiveScenarioInfo | null;
+	paused: boolean;
 	timestamp: number;
 };
 
@@ -85,11 +88,14 @@ export function createLiveStore(
 				fetchTrainsSnapshot(fetchFn, baseUrl),
 				fetchEventsSnapshot(fetchFn, baseUrl)
 			]);
-			snapshotStore.set({
+			// REST nie zna statusu scenariusza ani pauzy — zachowujemy ostatnie znane.
+			snapshotStore.update((prev) => ({
 				trains: trainsData.trains,
 				events: eventsData.events,
+				scenario: prev.scenario,
+				paused: prev.paused,
 				timestamp: trainsData.timestamp
-			});
+			}));
 		} catch {
 			// Cicho pomijamy -- spróbujemy ponownie przy następnym pollu albo WS.
 		}
@@ -149,6 +155,8 @@ export function createLiveStore(
 					snapshotStore.set({
 						trains: payload.trains,
 						events: payload.events,
+						scenario: payload.scenario ?? null,
+						paused: payload.paused ?? false,
 						timestamp: payload.timestamp
 					});
 				}
