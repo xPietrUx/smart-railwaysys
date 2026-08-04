@@ -32,6 +32,10 @@ def connect_with_retry(delay: int = 2):
 async def lifespan(app: FastAPI):
 	driver = connect_with_retry()
 	with driver.session() as session:
+		try:
+			session.run("CREATE CONSTRAINT ON (u:User) ASSERT u.email IS UNIQUE")  # ograniczenie unikalności e-maili
+		except Exception:
+			pass
 		count = session.run("MATCH (s:Station) RETURN count(s) AS c").single()["c"]
 		if count == 0:
 			print("Graf pusty — uruchamiam seed...")
