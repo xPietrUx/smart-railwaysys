@@ -12,6 +12,7 @@
 	export let onDetails: (scenario: Scenario) => void = () => {};
 	/** Otwiera modal tworzenia nowego rozkładu. */
 	export let onCreate: () => void = () => {};
+	export let readOnly = false;
 
 	const SCENARIO_ICON: Record<string, string> = {
 		ROZKLAD_BAZOWY: '🚉',
@@ -109,30 +110,32 @@
 							{/if}
 							<small>{trainsCountLabel(item.trains.length)}</small>
 						</div>
-						<div class="scenario-actions">
-							<button
-								type="button"
-								class="run-btn"
-								on:click={() => handleRun(item.id)}
-								disabled={busyId !== null}
-								title="Uruchom rozkład (zastąpi pociągi na sieci)"
-							>
-								{busyId === item.id ? '…' : '▶'}
-							</button>
-							<button
-								type="button"
-								class="details-btn"
-								on:click={() => onDetails(item)}
-								title="Szczegóły — edytuj pociągi rozkładu"
-							>
-								Szczegóły
-							</button>
-						</div>
+						{#if !readOnly}<div class="scenario-actions">
+								<button
+									type="button"
+									class="run-btn"
+									on:click={() => handleRun(item.id)}
+									disabled={busyId !== null}
+									title="Uruchom rozkład (zastąpi pociągi na sieci)"
+								>
+									{busyId === item.id ? '…' : '▶'}
+								</button>
+								<button
+									type="button"
+									class="details-btn"
+									on:click={() => onDetails(item)}
+									title="Szczegóły — edytuj pociągi rozkładu"
+								>
+									Szczegóły
+								</button>
+							</div>{/if}
 					</li>
 				{/each}
 			</ul>
 
-			<button type="button" class="new-btn" on:click={onCreate}>➕ Nowy scenariusz</button>
+			{#if !readOnly}<button type="button" class="new-btn" on:click={onCreate}
+					>➕ Nowy scenariusz</button
+				>{/if}
 		{/if}
 	</div>
 </div>
