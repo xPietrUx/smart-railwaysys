@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import DetailsPanel from '$lib/components/network/DetailsPanel.svelte';
 	import IncidentFeed from '$lib/components/network/IncidentFeed.svelte';
 	import NetworkGraph from '$lib/components/network/NetworkGraph.svelte';
@@ -30,10 +29,7 @@
 	let selected: Selected | null = null;
 	let highlight: HighlightFilter | null = null;
 	let mapComponent: NetworkGraph | undefined;
-	let introVisible = true;
 
-	// Modal szczegółów rozkładu renderowany na poziomie strony (na środku mapy),
-	// nie w docku — dock ma backdrop-filter, który uwięziłby position:fixed.
 	let editorOpen = false;
 	let editorScenario: Scenario | null = null;
 	let scenariosRefreshKey = 0;
@@ -83,7 +79,7 @@
 
 <svelte:window on:keydown={handleWindowKeydown} />
 
-<main class="stage" aria-hidden={introVisible} inert={introVisible}>
+<main class="stage">
 	<div class="map-layer">
 		<NetworkGraph
 			bind:this={mapComponent}
@@ -101,6 +97,7 @@
 			status={$status}
 			apiBaseUrl={data.apiBaseUrl}
 			bind:highlight
+			readOnly={data.user.role === 'guest'}
 		/>
 	</div>
 
@@ -123,6 +120,7 @@
 			refreshKey={scenariosRefreshKey}
 			onDetails={openScenarioDetails}
 			onCreate={openScenarioCreate}
+			readOnly={data.user.role === 'guest'}
 		/>
 	</aside>
 
@@ -136,10 +134,6 @@
 	{/if}
 </main>
 
-{#if introVisible}
-	<LoadingScreen on:enter={() => (introVisible = false)} />
-{/if}
-
 <style>
 	:global(html),
 	:global(body) {
@@ -148,14 +142,7 @@
 
 	:global(body) {
 		margin: 0;
-		font-family:
-			Inter,
-			ui-sans-serif,
-			system-ui,
-			-apple-system,
-			BlinkMacSystemFont,
-			'Segoe UI',
-			sans-serif;
+		font-family: 'Inter Variable', sans-serif;
 		background:
 			radial-gradient(circle at top, rgba(37, 99, 235, 0.2), transparent 35%),
 			linear-gradient(180deg, #0f172a 0%, #111827 100%);
