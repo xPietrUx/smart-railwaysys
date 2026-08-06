@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
+	import { locale, t } from '$lib/i18n';
 	import type { ConnectionStatus, LiveSnapshot } from '$lib/services/live';
 	import { clearTrains, pauseSimulation, resumeSimulation } from '$lib/services/simulation';
 	import type { HighlightFilter } from '$lib/types/selection';
@@ -33,15 +35,15 @@
 	$: activeIncidents = snapshot.events.filter((e) => e.status === 'active').length;
 
 	$: lastUpdateLabel = snapshot.timestamp
-		? new Date(snapshot.timestamp * 1000).toLocaleTimeString('pl-PL')
+		? new Date(snapshot.timestamp * 1000).toLocaleTimeString($locale === 'pl' ? 'pl-PL' : 'en-GB')
 		: '—';
 
-	const statusLabels: Record<ConnectionStatus, string> = {
-		connecting: 'Łączenie…',
-		open: 'Na żywo',
-		reconnecting: 'Ponowne łączenie…',
-		'polling-fallback': 'Tryb odpytywania'
-	};
+	function connectionLabel(connectionStatus: ConnectionStatus): string {
+		if (connectionStatus === 'connecting') return $t('connection.connecting');
+		if (connectionStatus === 'open') return $t('connection.open');
+		if (connectionStatus === 'reconnecting') return $t('connection.reconnecting');
+		return $t('connection.polling');
+	}
 
 	const statusDotClass: Record<ConnectionStatus, string> = {
 		connecting: 'dot-amber',
@@ -70,6 +72,8 @@
 	// Optymistyczny stan pauzy do czasu potwierdzenia następnym tickiem WS.
 	let optimisticPaused: boolean | null = null;
 	$: pausedView = optimisticPaused ?? paused;
+	// Reaktywne użycie jest rozpoznawane przez Svelte, ale nie przez bazową regułę ESLint.
+	// eslint-disable-next-line no-useless-assignment
 	$: if (optimisticPaused !== null && paused === optimisticPaused) optimisticPaused = null;
 
 	async function togglePause() {
@@ -106,7 +110,7 @@
 <header class="bar">
 	<div class="title">
 		<p class="eyebrow">Smart Railway System</p>
-		<h1>Autonomiczna sieć kolejowa Śląska</h1>
+		<h1>{$t('header.title')}</h1>
 	</div>
 
 	<div class="right">
@@ -118,10 +122,10 @@
 				aria-pressed={activeTrainStatus === 'running'}
 				on:click={() => toggleTrainFilter('running')}
 				title={activeTrainStatus === 'running'
-					? 'Kliknij, aby wyłączyć filtr'
-					: 'Podświetl pociągi w drodze'}
+					? $t('header.filter.disable')
+					: $t('header.filter.running')}
 			>
-				<span>W drodze</span>
+				<span>{$t('header.metric.running')}</span>
 				<strong>{runningCount}</strong>
 				{#if activeTrainStatus === 'running'}<span class="clear-mark">×</span>{/if}
 			</button>
@@ -132,10 +136,10 @@
 				aria-pressed={activeTrainStatus === 'dwelling'}
 				on:click={() => toggleTrainFilter('dwelling')}
 				title={activeTrainStatus === 'dwelling'
-					? 'Kliknij, aby wyłączyć filtr'
-					: 'Podświetl pociągi na przerwie'}
+					? $t('header.filter.disable')
+					: $t('header.filter.dwelling')}
 			>
-				<span>Przerwa</span>
+				<span>{$t('header.metric.dwelling')}</span>
 				<strong>{dwellingCount}</strong>
 				{#if activeTrainStatus === 'dwelling'}<span class="clear-mark">×</span>{/if}
 			</button>
@@ -147,10 +151,10 @@
 				aria-pressed={activeTrainStatus === 'waiting'}
 				on:click={() => toggleTrainFilter('waiting')}
 				title={activeTrainStatus === 'waiting'
-					? 'Kliknij, aby wyłączyć filtr'
-					: 'Podświetl pociągi zatrzymane'}
+					? $t('header.filter.disable')
+					: $t('header.filter.waiting')}
 			>
-				<span>Zatrzymane</span>
+				<span>{$t('header.metric.waiting')}</span>
 				<strong>{waitingCount}</strong>
 				{#if activeTrainStatus === 'waiting'}<span class="clear-mark">×</span>{/if}
 			</button>
@@ -162,10 +166,10 @@
 				aria-pressed={activeTrainStatus === 'derailed'}
 				on:click={() => toggleTrainFilter('derailed')}
 				title={activeTrainStatus === 'derailed'
-					? 'Kliknij, aby wyłączyć filtr'
-					: 'Podświetl pociągi wykolejone'}
+					? $t('header.filter.disable')
+					: $t('header.filter.derailed')}
 			>
-				<span>Wykolejone</span>
+				<span>{$t('header.metric.derailed')}</span>
 				<strong>{derailedCount}</strong>
 				{#if activeTrainStatus === 'derailed'}<span class="clear-mark">×</span>{/if}
 			</button>
@@ -176,11 +180,9 @@
 				class:active={incidentsActive}
 				aria-pressed={incidentsActive}
 				on:click={toggleIncidentFilter}
-				title={incidentsActive
-					? 'Kliknij, aby wyłączyć filtr'
-					: 'Podświetl incydenty i dotknięte nimi elementy'}
+				title={incidentsActive ? $t('header.filter.disable') : $t('header.filter.incidents')}
 			>
-				<span>Incydenty</span>
+				<span>{$t('header.metric.incidents')}</span>
 				<strong>{activeIncidents}</strong>
 				{#if incidentsActive}<span class="clear-mark">×</span>{/if}
 			</button>
@@ -193,40 +195,39 @@
 				class:ctrl-paused={pausedView}
 				on:click={togglePause}
 				disabled={controlBusy}
-				title={pausedView ? 'Wznów symulację' : 'Zatrzymaj symulację'}
+				title={pausedView ? $t('header.resumeTitle') : $t('header.pauseTitle')}
 			>
-				{pausedView ? '▶ Wznów' : '⏸ Zatrzymaj'}
+				{pausedView ? `▶ ${$t('header.resume')}` : `⏸ ${$t('header.pause')}`}
 			</button>
 			<button
 				type="button"
 				class="ctrl-btn ctrl-danger"
 				on:click={handleClearTrains}
 				disabled={controlBusy || snapshot.trains.length === 0}
-				title="Usuń z sieci wszystkie pociągi obecnego scenariusza"
+				title={$t('header.clearTrainsTitle')}
 			>
-				🗑 Usuń pociągi
+				🗑 {$t('header.clearTrains')}
 			</button>
 		</div>
 
-		<div
-			class="status-strip"
-			title="Stan połączenia z symulacją — ostatnia aktualizacja {lastUpdateLabel}"
-		>
+		<div class="status-strip" title={$t('header.connectionTitle', { time: lastUpdateLabel })}>
 			{#if pausedView}
 				<span class="status-dot dot-amber"></span>
-				<span class="status-label">Wstrzymano</span>
+				<span class="status-label">{$t('header.paused')}</span>
 			{:else}
 				<span class="status-dot {statusDotClass[status]}"></span>
-				<span class="status-label">{statusLabels[status]}</span>
+				<span class="status-label">{connectionLabel(status)}</span>
 			{/if}
 			<span class="status-time">{lastUpdateLabel}</span>
 		</div>
 
 		{#if debugMode}
 			<button type="button" class="debug-btn" on:click={triggerRandomEvent} disabled={triggering}>
-				{triggering ? 'Wywoływanie…' : '🎲 Zdarzenie'}
+				{triggering ? $t('header.triggering') : `🎲 ${$t('header.event')}`}
 			</button>
 		{/if}
+
+		<LanguageSwitcher />
 	</div>
 </header>
 

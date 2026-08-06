@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { locale, localizedScenarioField, t } from '$lib/i18n';
 	import { trainTypeLabel } from '$lib/services/labels';
 	import { createScenario, deleteScenario, updateScenario } from '$lib/services/scenarios';
 	import type { NetworkGraph } from '$lib/types/network';
@@ -13,7 +14,9 @@
 
 	const TRAIN_TYPES: TrainPlanType[] = ['REGIONAL', 'IC', 'FREIGHT'];
 
-	$: stationOptions = graph.stations.slice().sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+	$: stationOptions = graph.stations
+		.slice()
+		.sort((a, b) => a.name.localeCompare(b.name, $locale === 'pl' ? 'pl' : 'en'));
 
 	let draftName = scenario?.name ?? '';
 	let draftDescription = scenario?.description ?? '';
@@ -26,7 +29,7 @@
 		const first = graph.stations[0]?.id ?? '';
 		const second = graph.stations[1]?.id ?? first;
 		return {
-			name: 'Nowy pociąg',
+			name: $t('editor.defaultTrainName'),
 			type: 'REGIONAL',
 			fromStationId: first,
 			toStationId: second,
@@ -46,18 +49,18 @@
 	async function handleSave() {
 		if (saving || deleting) return;
 		if (!draftName.trim()) {
-			saveError = 'Podaj nazwę scenariusza.';
+			saveError = $t('editor.error.name');
 			return;
 		}
 		if (rows.length === 0) {
-			saveError = 'Rozkład musi mieć przynajmniej jeden pociąg.';
+			saveError = $t('editor.error.noTrains');
 			return;
 		}
 		const badRow = rows.findIndex(
 			(row) => !row.name.trim() || row.fromStationId === row.toStationId
 		);
 		if (badRow >= 0) {
-			saveError = `Pociąg ${badRow + 1}: podaj nazwę i dwie różne stacje.`;
+			saveError = $t('editor.error.invalidTrain', { number: badRow + 1 });
 			return;
 		}
 		saving = true;
@@ -74,8 +77,8 @@
 				await createScenario(fetch, apiBaseUrl, payload);
 			}
 			onClose(true);
-		} catch (error) {
-			saveError = error instanceof Error ? error.message : 'Nie udało się zapisać scenariusza.';
+		} catch {
+			saveError = $t('editor.error.save');
 		} finally {
 			saving = false;
 		}
@@ -88,8 +91,8 @@
 		try {
 			await deleteScenario(fetch, apiBaseUrl, scenario.id);
 			onClose(true);
-		} catch (error) {
-			saveError = error instanceof Error ? error.message : 'Nie udało się usunąć scenariusza.';
+		} catch {
+			saveError = $t('editor.error.delete');
 		} finally {
 			deleting = false;
 		}
@@ -108,15 +111,24 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div class="overlay" on:click={handleBackdropClick}>
-	<div class="modal" role="dialog" aria-modal="true" aria-label="Szczegóły scenariusza rozkładu">
+	<div class="modal" role="dialog" aria-modal="true" aria-label={$t('editor.dialogAria')}>
 		<div class="modal-header">
 			<div>
 				<p class="modal-label">
-					{scenario !== null ? 'Szczegóły rozkładu' : 'Nowy rozkład'}
+					{scenario !== null ? $t('editor.details') : $t('editor.newTimetable')}
 				</p>
-				<h2>{scenario !== null ? scenario.name : 'Nowy scenariusz rozkładu'}</h2>
+				<h2>
+					{scenario !== null
+						? localizedScenarioField(scenario.id, 'name', scenario.name, $t)
+						: $t('editor.newScenario')}
+				</h2>
 			</div>
-			<button type="button" class="close-btn" on:click={() => onClose(false)} title="Zamknij">
+			<button
+				type="button"
+				class="close-btn"
+				on:click={() => onClose(false)}
+				title={$t('editor.close')}
+			>
 				✕
 			</button>
 		</div>
@@ -124,39 +136,39 @@
 		<div class="modal-body">
 			<div class="meta-fields">
 				<label class="field">
-					<span>Nazwa</span>
+					<span>{$t('editor.name')}</span>
 					<input
 						type="text"
 						maxlength="80"
 						bind:value={draftName}
-						placeholder="np. Rozkład nocny"
+						placeholder={$t('editor.namePlaceholder')}
 					/>
 				</label>
 				<label class="field">
-					<span>Opis (opcjonalnie)</span>
+					<span>{$t('editor.description')}</span>
 					<input
 						type="text"
 						maxlength="300"
 						bind:value={draftDescription}
-						placeholder="Czym ten rozkład się wyróżnia?"
+						placeholder={$t('editor.descriptionPlaceholder')}
 					/>
 				</label>
 			</div>
 
 			<div class="trains-head">
-				<h3>Pociągi ({rows.length})</h3>
+				<h3>{$t('editor.trains', { count: rows.length })}</h3>
 				<button type="button" class="add-btn" on:click={addRow} disabled={rows.length >= 60}>
-					➕ Dodaj pociąg
+					➕ {$t('editor.addTrain')}
 				</button>
 			</div>
 
 			<div class="trains-table">
 				<div class="row head">
-					<span>Nazwa</span>
-					<span>Typ</span>
-					<span>Ze stacji</span>
-					<span>Do stacji</span>
-					<span>Odjazd po (s)</span>
+					<span>{$t('editor.name')}</span>
+					<span>{$t('editor.type')}</span>
+					<span>{$t('editor.fromStation')}</span>
+					<span>{$t('editor.toStation')}</span>
+					<span>{$t('editor.departAfter')}</span>
 					<span></span>
 				</div>
 				{#each rows as row, index (index)}
@@ -164,7 +176,7 @@
 						<input type="text" maxlength="80" bind:value={row.name} />
 						<select bind:value={row.type}>
 							{#each TRAIN_TYPES as trainType (trainType)}
-								<option value={trainType}>{trainTypeLabel(trainType)}</option>
+								<option value={trainType}>{trainTypeLabel(trainType, $t)}</option>
 							{/each}
 						</select>
 						<select bind:value={row.fromStationId}>
@@ -182,7 +194,7 @@
 							type="button"
 							class="remove-btn"
 							on:click={() => removeRow(index)}
-							title="Usuń pociąg z rozkładu"
+							title={$t('editor.removeTrainTitle')}
 						>
 							✕
 						</button>
@@ -203,19 +215,21 @@
 					on:click={handleDelete}
 					disabled={deleting || saving}
 				>
-					{deleting ? 'Usuwanie…' : '🗑 Usuń scenariusz'}
+					{deleting ? $t('editor.deleting') : `🗑 ${$t('editor.deleteScenario')}`}
 				</button>
 			{:else}
 				<span></span>
 			{/if}
 			<div class="footer-right">
-				<button type="button" class="ghost-btn" on:click={() => onClose(false)}>Anuluj</button>
+				<button type="button" class="ghost-btn" on:click={() => onClose(false)}
+					>{$t('editor.cancel')}</button
+				>
 				<button type="button" class="save-btn" on:click={handleSave} disabled={saving || deleting}>
 					{saving
-						? 'Zapisywanie…'
+						? $t('editor.saving')
 						: scenario !== null
-							? '💾 Zapisz zmiany'
-							: '💾 Utwórz scenariusz'}
+							? `💾 ${$t('editor.saveChanges')}`
+							: `💾 ${$t('editor.createScenario')}`}
 				</button>
 			</div>
 		</div>

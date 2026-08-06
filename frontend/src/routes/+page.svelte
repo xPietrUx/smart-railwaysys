@@ -7,6 +7,7 @@
 	import TimetableEditorModal from '$lib/components/network/TimetableEditorModal.svelte';
 	import TimetablePanel from '$lib/components/network/TimetablePanel.svelte';
 	import { createLiveStore } from '$lib/services/live';
+	import { initLocale, t } from '$lib/i18n';
 	import { applyEventsToSegments } from '$lib/services/liveNetwork';
 	import type { Scenario } from '$lib/types/scenario';
 	import type { HighlightFilter, Selected } from '$lib/types/selection';
@@ -23,7 +24,10 @@
 	});
 	const { snapshot, status } = live;
 
-	onMount(() => live.connect());
+	onMount(() => {
+		initLocale();
+		live.connect();
+	});
 	onDestroy(() => live.disconnect());
 
 	let selected: Selected | null = null;
@@ -72,11 +76,8 @@
 </script>
 
 <svelte:head>
-	<title>Smart Railway System — autonomiczna sieć kolejowa</title>
-	<meta
-		name="description"
-		content="Autonomiczna symulacja pociągów na sieci kolejowej województwa śląskiego, na żywo z Memgraph."
-	/>
+	<title>{$t('meta.title')}</title>
+	<meta name="description" content={$t('meta.description')} />
 </svelte:head>
 
 <svelte:window on:keydown={handleWindowKeydown} />
@@ -103,7 +104,11 @@
 	</div>
 
 	<aside class="dock dock-left">
-		<IncidentFeed events={$snapshot.events} onSelect={handleIncidentSelect} />
+		<IncidentFeed
+			events={$snapshot.events}
+			stations={liveGraph.stations}
+			onSelect={handleIncidentSelect}
+		/>
 	</aside>
 
 	<aside class="dock dock-right">
