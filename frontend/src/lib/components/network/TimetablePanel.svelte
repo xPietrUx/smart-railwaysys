@@ -13,6 +13,7 @@
 	export let onDetails: (scenario: Scenario) => void = () => {};
 	/** Otwiera modal tworzenia nowego rozkładu. */
 	export let onCreate: () => void = () => {};
+	export let readOnly = false;
 
 	const SCENARIO_ICON: Record<string, string> = {
 		ROZKLAD_BAZOWY: '🚉',

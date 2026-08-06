@@ -11,6 +11,7 @@
 	export let status: ConnectionStatus;
 	export let apiBaseUrl: string;
 	export let highlight: HighlightFilter | null = null;
+	export let readOnly = false;
 
 	function toggleTrainFilter(trainStatus: TrainStatus) {
 		highlight =
@@ -114,6 +115,7 @@
 	</div>
 
 	<div class="right">
+		{#if readOnly}<span class="guest-badge">Tryb gościa · tylko podgląd</span>{/if}
 		<div class="metrics">
 			<button
 				type="button"
@@ -221,7 +223,7 @@
 			<span class="status-time">{lastUpdateLabel}</span>
 		</div>
 
-		{#if debugMode}
+		{#if debugMode && !readOnly}
 			<button type="button" class="debug-btn" on:click={triggerRandomEvent} disabled={triggering}>
 				{triggering ? $t('header.triggering') : `🎲 ${$t('header.event')}`}
 			</button>
@@ -244,6 +246,18 @@
 		border: 1px solid rgba(148, 163, 184, 0.18);
 		box-shadow: 0 24px 60px rgba(15, 23, 42, 0.45);
 		backdrop-filter: blur(12px);
+		font-family: 'Inter Variable', sans-serif;
+		font-weight: 300;
+	}
+	.guest-badge {
+		border: 1px solid rgba(203, 213, 225, 0.28);
+		border-radius: 9px;
+		color: #cbd5e1;
+		padding: 6px 9px;
+		font-size: 0.66rem;
+		font-weight: 300;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 	}
 
 	.eyebrow {
@@ -265,6 +279,26 @@
 		align-items: center;
 		gap: 10px;
 		flex-wrap: wrap;
+	}
+
+	.right form {
+		margin: 0;
+	}
+
+	.logout-btn {
+		border: 1px solid rgba(148, 163, 184, 0.28);
+		border-radius: 9px;
+		background: rgba(15, 23, 42, 0.45);
+		color: #cbd5e1;
+		padding: 7px 10px;
+		font: inherit;
+		font-size: 0.7rem;
+		cursor: pointer;
+	}
+
+	.logout-btn:hover {
+		border-color: #5eead4;
+		color: #f8fafc;
 	}
 
 	.metrics {

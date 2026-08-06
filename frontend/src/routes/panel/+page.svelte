@@ -7,11 +7,11 @@
 	import TimetableEditorModal from '$lib/components/network/TimetableEditorModal.svelte';
 	import TimetablePanel from '$lib/components/network/TimetablePanel.svelte';
 	import { createLiveStore } from '$lib/services/live';
-	import { initLocale, t } from '$lib/i18n';
 	import { applyEventsToSegments } from '$lib/services/liveNetwork';
 	import type { Scenario } from '$lib/types/scenario';
 	import type { HighlightFilter, Selected } from '$lib/types/selection';
 	import type { PageData } from './$types';
+
 	export let data: PageData;
 
 	const live = createLiveStore(fetch, data.apiBaseUrl, {
@@ -23,10 +23,7 @@
 	});
 	const { snapshot, status } = live;
 
-	onMount(() => {
-		initLocale();
-		live.connect();
-	});
+	onMount(() => live.connect());
 	onDestroy(() => live.disconnect());
 
 	let selected: Selected | null = null;
@@ -75,8 +72,11 @@
 </script>
 
 <svelte:head>
-	<title>{$t('meta.title')}</title>
-	<meta name="description" content={$t('meta.description')} />
+	<title>Smart Railway System — autonomiczna sieć kolejowa</title>
+	<meta
+		name="description"
+		content="Autonomiczna symulacja pociągów na sieci kolejowej województwa śląskiego, na żywo z Memgraph."
+	/>
 </svelte:head>
 
 <svelte:window on:keydown={handleWindowKeydown} />
@@ -99,15 +99,12 @@
 			status={$status}
 			apiBaseUrl={data.apiBaseUrl}
 			bind:highlight
+			readOnly={data.user.role === 'guest'}
 		/>
 	</div>
 
 	<aside class="dock dock-left">
-		<IncidentFeed
-			events={$snapshot.events}
-			stations={liveGraph.stations}
-			onSelect={handleIncidentSelect}
-		/>
+		<IncidentFeed events={$snapshot.events} onSelect={handleIncidentSelect} />
 	</aside>
 
 	<aside class="dock dock-right">
@@ -125,6 +122,7 @@
 			refreshKey={scenariosRefreshKey}
 			onDetails={openScenarioDetails}
 			onCreate={openScenarioCreate}
+			readOnly={data.user.role === 'guest'}
 		/>
 	</aside>
 
@@ -139,85 +137,128 @@
 </main>
 
 <style>
-	:global(html) {
-		scroll-behavior: smooth;
+	:global(html),
+	:global(body) {
+		height: 100%;
 	}
+
 	:global(body) {
 		margin: 0;
-		background: #333333;
-		color: #f5f7f8;
 		font-family: 'Inter Variable', sans-serif;
+		background:
+			radial-gradient(circle at top, rgba(37, 99, 235, 0.2), transparent 35%),
+			linear-gradient(180deg, #0f172a 0%, #111827 100%);
+		color: #e5eefb;
 	}
-	.landing {
-		min-height: 100vh;
-		background: #333333;
+
+	.stage {
+		position: relative;
+		height: 100dvh;
+		overflow: hidden;
 	}
-	.hero {
-		min-height: calc(100vh - 76px);
+
+	.map-layer {
+		position: absolute;
+		inset: 0;
 	}
-	.features {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 1px;
-		background: #444444;
-		padding: 1px;
+
+	.topbar {
+		position: absolute;
+		top: 12px;
+		left: 16px;
+		right: 16px;
+		z-index: 20;
+		pointer-events: none;
 	}
-	.features article {
-		background: #292929;
-		padding: 70px clamp(24px, 5vw, 70px);
-		transition: opacity 180ms ease;
+
+	.topbar :global(.bar) {
+		pointer-events: auto;
 	}
-	.features article:hover {
-		opacity: 0.72;
-	}
-	.features article > span {
-		color: #dddddd;
-		font-size: 0.7rem;
-	}
-	.features h2 {
-		font-size: 1.35rem;
-	}
-	.features p {
-		color: #87979f;
-		line-height: 1.7;
-	}
-	.about {
-		text-align: center;
-		padding: 120px 24px;
-		background: #222222;
-	}
-	.about p {
-		color: #dddddd;
-		letter-spacing: 0.18em;
-		font-size: 0.7rem;
-	}
-	.about h2 {
-		font-size: clamp(2rem, 4vw, 4rem);
-		max-width: 800px;
-		margin: 20px auto;
-	}
-	footer {
-		padding: 30px clamp(24px, 8vw, 120px);
+
+	.dock {
+		position: absolute;
+		top: 96px;
+		bottom: 68px;
+		z-index: 10;
+		width: min(330px, 86vw);
 		display: flex;
-		justify-content: space-between;
-		color: #718089;
-		font-size: 0.75rem;
-		border-top: 1px solid #17242a;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 12px;
+		pointer-events: none;
 	}
-	footer a {
-		color: #9fb0b7;
+
+	/* flex-shrink + min-height pozwalają dwóm panelom (szczegóły + scenariusze)
+	   podzielić się wysokością docka zamiast wystawać poza ekran. */
+	.dock > :global(*) {
+		pointer-events: auto;
+		max-height: 100%;
+		overflow-y: auto;
+		flex: 0 1 auto;
+		min-height: 0;
 	}
-	footer a:hover {
-		opacity: 0.6;
+
+	.dock-left {
+		left: 16px;
 	}
-	@media (max-width: 900px) {
-		.features {
-			grid-template-columns: 1fr;
+
+	.dock-right {
+		right: 16px;
+	}
+
+	/* Gdy topbar zawija się do dwóch wierszy, panele muszą zacząć niżej. */
+	@media (max-width: 1400px) {
+		.dock {
+			top: 132px;
 		}
 	}
-	@media (max-width: 560px) {
-		.features article {
-			padding: 45px 24px;
+
+	/* Wąskie ekrany: zwykły układ pionowy zamiast nakładek. */
+	@media (max-width: 900px) {
+		.stage {
+			height: auto;
+			min-height: 100dvh;
+			overflow: visible;
+			display: flex;
+			flex-direction: column;
+			gap: 12px;
+			padding: 12px;
+			box-sizing: border-box;
+		}
+
+		.map-layer {
+			position: relative;
+			inset: auto;
+			height: 60vh;
+			border-radius: 16px;
+			overflow: hidden;
+			border: 1px solid rgba(148, 163, 184, 0.18);
+			order: 2;
+		}
+
+		.topbar {
+			position: static;
+			pointer-events: auto;
+			order: 1;
+		}
+
+		.dock {
+			position: static;
+			width: auto;
+			pointer-events: auto;
+		}
+
+		.dock > :global(*) {
+			max-height: none;
+			overflow-y: visible;
+		}
+
+		.dock-right {
+			order: 3;
+		}
+
+		.dock-left {
+			order: 4;
 		}
 	}
 </style>
