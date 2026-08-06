@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+html,
+body {
+	font-family: 'Inter Variable', Inter, sans-serif;
+	scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html,
+	body {
+		scroll-behavior: auto;
+	}
+}
+
+button,
+input,
+textarea,
+select {
+	font: inherit;
+}

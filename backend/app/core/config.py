@@ -1,5 +1,8 @@
 from os import getenv
 
+AUTH_SECRET = getenv("AUTH_SECRET", "change-this-secret-in-production")
+AUTH_TOKEN_TTL_SECONDS = int(getenv("AUTH_TOKEN_TTL_SECONDS", "604800"))
+
 DEFAULT_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
 
 ALLOWED_ORIGINS = [
