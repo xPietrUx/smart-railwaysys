@@ -1,142 +1,48 @@
 <script lang="ts">
-	import { onDestroy, onMount } from 'svelte';
-	import DetailsPanel from '$lib/components/network/DetailsPanel.svelte';
-	import IncidentFeed from '$lib/components/network/IncidentFeed.svelte';
-	import NetworkGraph from '$lib/components/network/NetworkGraph.svelte';
-	import SimulationHeader from '$lib/components/network/SimulationHeader.svelte';
-	import TimetableEditorModal from '$lib/components/network/TimetableEditorModal.svelte';
-	import TimetablePanel from '$lib/components/network/TimetablePanel.svelte';
-	import { createLiveStore } from '$lib/services/live';
-	import { initLocale, t } from '$lib/i18n';
-	import { applyEventsToSegments } from '$lib/services/liveNetwork';
-	import type { Scenario } from '$lib/types/scenario';
-	import type { HighlightFilter, Selected } from '$lib/types/selection';
+	import PublicNav from '$lib/components/site/PublicNav.svelte';
 	import type { PageData } from './$types';
 	export let data: PageData;
-
-	const live = createLiveStore(fetch, data.apiBaseUrl, {
-		trains: data.trains,
-		events: data.events,
-		scenario: null,
-		paused: false,
-		timestamp: data.timestamp
-	});
-	const { snapshot, status } = live;
-
-	onMount(() => {
-		initLocale();
-		live.connect();
-	});
-	onDestroy(() => live.disconnect());
-
-	let selected: Selected | null = null;
-	let highlight: HighlightFilter | null = null;
-	let mapComponent: NetworkGraph | undefined;
-
-	// Modal szczegółów rozkładu renderowany na poziomie strony (na środku mapy),
-	// nie w docku — dock ma backdrop-filter, który uwięziłby position:fixed.
-	let editorOpen = false;
-	let editorScenario: Scenario | null = null;
-	let scenariosRefreshKey = 0;
-
-	function openScenarioDetails(scenario: Scenario) {
-		editorScenario = scenario;
-		editorOpen = true;
-	}
-
-	function openScenarioCreate() {
-		editorScenario = null;
-		editorOpen = true;
-	}
-
-	function handleEditorClose(changed: boolean) {
-		editorOpen = false;
-		if (changed) scenariosRefreshKey += 1;
-	}
-
-	// Stany torów (blokady, ograniczenia) wyliczane na żywo z aktywnych zdarzeń --
-	// graf z SSR jest tylko migawką startową i sam by się nie aktualizował.
-	$: liveGraph = {
-		...data.graph,
-		segments: applyEventsToSegments(data.graph.segments, $snapshot.events)
-	};
-
-	function handleWindowKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && !editorOpen) {
-			selected = null;
-			highlight = null;
-		}
-	}
-
-	function handleIncidentSelect(sel: Selected) {
-		selected = sel;
-		mapComponent?.focusOn(sel);
-	}
 </script>
 
-<svelte:head>
-	<title>{$t('meta.title')}</title>
-	<meta name="description" content={$t('meta.description')} />
-</svelte:head>
+<svelte:head
+	><title>Smart Railway — kolej pod pełną kontrolą</title><meta
+		name="description"
+		content="Inteligentny system monitorowania i zarządzania ruchem kolejowym w czasie rzeczywistym."
+	/></svelte:head
+>
 
-<svelte:window on:keydown={handleWindowKeydown} />
-
-<main class="stage">
-	<div class="map-layer">
-		<NetworkGraph
-			bind:this={mapComponent}
-			graph={liveGraph}
-			trains={$snapshot.trains}
-			events={$snapshot.events}
-			bind:highlight
-			bind:selected
-		/>
-	</div>
-
-	<div class="topbar">
-		<SimulationHeader
-			snapshot={$snapshot}
-			status={$status}
-			apiBaseUrl={data.apiBaseUrl}
-			bind:highlight
-		/>
-	</div>
-
-	<aside class="dock dock-left">
-		<IncidentFeed
-			events={$snapshot.events}
-			stations={liveGraph.stations}
-			onSelect={handleIncidentSelect}
-		/>
-	</aside>
-
-	<aside class="dock dock-right">
-		{#if selected}
-			<DetailsPanel
-				graph={liveGraph}
-				trains={$snapshot.trains}
-				events={$snapshot.events}
-				bind:selected
-			/>
-		{/if}
-		<TimetablePanel
-			apiBaseUrl={data.apiBaseUrl}
-			scenario={$snapshot.scenario}
-			refreshKey={scenariosRefreshKey}
-			onDetails={openScenarioDetails}
-			onCreate={openScenarioCreate}
-		/>
-	</aside>
-
-	{#if editorOpen}
-		<TimetableEditorModal
-			apiBaseUrl={data.apiBaseUrl}
-			graph={liveGraph}
-			scenario={editorScenario}
-			onClose={handleEditorClose}
-		/>
-	{/if}
-</main>
+<div class="landing">
+	<PublicNav authenticated={data.authenticated} />
+	<main>
+		<section class="hero" aria-label="Sekcja główna"></section>
+		<section id="jak-to-dziala" class="features">
+			<article>
+				<span>01</span>
+				<h2>Sieć na żywo</h2>
+				<p>Pełny obraz ruchu i stanu infrastruktury w jednej, czytelnej mapie.</p>
+			</article>
+			<article>
+				<span>02</span>
+				<h2>Szybka reakcja</h2>
+				<p>Incydenty trafiają do operatora natychmiast, wraz z kontekstem.</p>
+			</article>
+			<article>
+				<span>03</span>
+				<h2>Lepsze decyzje</h2>
+				<p>Scenariusze i rozkłady pozwalają bezpiecznie planować kolejne kroki.</p>
+			</article>
+		</section>
+		<section id="o-nas" class="about">
+			<p>SMART RAILWAY SYSTEM</p>
+			<h2>Technologia, która utrzymuje kolej w ruchu.</h2>
+		</section>
+		<footer id="kontakt">
+			<span>© 2026 Smart Railway</span><a href="mailto:kontakt@smartrailway.pl"
+				>kontakt@smartrailway.pl</a
+			>
+		</footer>
+	</main>
+</div>
 
 <style>
 	:global(html) {
