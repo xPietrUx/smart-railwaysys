@@ -1,25 +1,101 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/stores';
+	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
+	import { initLocale, t } from '$lib/i18n';
+
+	onMount(initLocale);
 </script>
 
-<svelte:head><title>Błąd — Smart Railway</title></svelte:head>
+<svelte:head>
+	<title>{$t('error.status', { status: $page.status })} — Smart Railway System</title>
+</svelte:head>
 
-<main class="grid min-h-screen place-items-center bg-[#333333] px-5 text-white">
-	<section class="w-full max-w-md rounded-2xl bg-[#1b1b1b] p-10 text-center">
-		<p class="mb-3 text-xs tracking-[0.18em] text-[#aaaaaa] uppercase">Błąd {$page.status}</p>
-		<h1 class="mb-4 text-xl font-light">Nie udało się otworzyć panelu</h1>
-		<p class="mb-8 text-sm leading-6 text-[#aaaaaa]">
-			{$page.error?.message ?? 'Spróbuj ponownie za chwilę.'}
-		</p>
-		<div class="flex justify-center gap-3">
-			<a
-				class="rounded-lg bg-white px-5 py-3 text-xs font-semibold tracking-wider text-black uppercase"
-				href="/panel">Spróbuj ponownie</a
-			>
-			<a
-				class="rounded-lg border border-[#555555] px-5 py-3 text-xs tracking-wider uppercase"
-				href="/">Strona główna</a
-			>
-		</div>
+<main>
+	<section class="error-card">
+		<div class="switcher"><LanguageSwitcher /></div>
+		<p>{$t('error.status', { status: $page.status })}</p>
+		<h1>{$t('error.title')}</h1>
+		<span>{$t('error.description')}</span>
+		<a href={resolve('/')}>{$t('error.home')}</a>
 	</section>
 </main>
+
+<style>
+	:global(html),
+	:global(body) {
+		height: 100%;
+	}
+
+	:global(body) {
+		margin: 0;
+		font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+		background:
+			radial-gradient(circle at top, rgba(37, 99, 235, 0.2), transparent 35%),
+			linear-gradient(180deg, #0f172a 0%, #111827 100%);
+		color: #e5eefb;
+	}
+
+	main {
+		min-height: 100dvh;
+		display: grid;
+		place-items: center;
+		padding: 24px;
+		box-sizing: border-box;
+	}
+
+	.error-card {
+		position: relative;
+		width: min(460px, 100%);
+		box-sizing: border-box;
+		padding: 32px;
+		border: 1px solid rgba(148, 163, 184, 0.22);
+		border-radius: 18px;
+		background: rgba(15, 23, 42, 0.86);
+		box-shadow: 0 24px 60px rgba(15, 23, 42, 0.45);
+		backdrop-filter: blur(12px);
+	}
+
+	.switcher {
+		position: absolute;
+		top: 16px;
+		right: 16px;
+	}
+
+	p {
+		margin: 0 0 8px;
+		color: #93c5fd;
+		font-size: 0.75rem;
+		font-weight: 700;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+	}
+
+	h1 {
+		margin: 0 0 12px;
+		font-size: 1.5rem;
+	}
+
+	span {
+		display: block;
+		color: #cbd5e1;
+		line-height: 1.55;
+	}
+
+	a {
+		display: inline-block;
+		margin-top: 22px;
+		padding: 9px 14px;
+		border-radius: 10px;
+		background: rgba(37, 99, 235, 0.7);
+		color: #fff;
+		font-size: 0.85rem;
+		font-weight: 700;
+		text-decoration: none;
+	}
+
+	a:hover {
+		background: rgba(37, 99, 235, 0.9);
+	}
+</style>

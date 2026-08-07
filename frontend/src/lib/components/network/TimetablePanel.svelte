@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { locale, localizedScenarioField, t } from '$lib/i18n';
 	import { fetchScenarios, runScenario } from '$lib/services/scenarios';
 	import type { ActiveScenarioInfo, Scenario } from '$lib/types/scenario';
 
@@ -42,7 +43,7 @@
 		try {
 			scenarios = await fetchScenarios(fetch, apiBaseUrl);
 		} catch {
-			listError = 'Nie udało się pobrać scenariuszy — sprawdź, czy backend działa.';
+			listError = $t('timetable.loadError');
 		}
 	}
 
@@ -52,40 +53,44 @@
 		actionError = '';
 		try {
 			await runScenario(fetch, apiBaseUrl, scenarioId);
-		} catch (error) {
-			actionError = error instanceof Error ? error.message : 'Nie udało się uruchomić rozkładu.';
+		} catch {
+			actionError = $t('timetable.runError');
 		} finally {
 			busyId = null;
 		}
 	}
 
 	function trainsCountLabel(count: number): string {
-		if (count === 1) return '1 pociąg';
+		if (count === 1) return $t('timetable.train.one', { count });
+		if ($locale === 'en') return $t('timetable.train.many', { count });
 		const lastDigit = count % 10;
 		const lastTwo = count % 100;
 		if (lastDigit >= 2 && lastDigit <= 4 && !(lastTwo >= 12 && lastTwo <= 14)) {
-			return `${count} pociągi`;
+			return $t('timetable.train.few', { count });
 		}
-		return `${count} pociągów`;
+		return $t('timetable.train.many', { count });
 	}
 </script>
 
 <div class="panel">
 	<div class="panel-header">
 		<div>
-			<p class="panel-label">Rozkłady jazdy</p>
-			<h2>Scenariusze rozkładu pociągów</h2>
+			<p class="panel-label">{$t('timetable.label')}</p>
+			<h2>{$t('timetable.title')}</h2>
 		</div>
 	</div>
 
 	<div class="scroll-area">
 		{#if scenario}
 			<div class="active-box">
-				<strong>▶ {scenario.name}</strong>
+				<strong>▶ {localizedScenarioField(scenario.id, 'name', scenario.name, $t)}</strong>
 				<p>
-					na sieci {scenario.spawnedTrains}/{scenario.totalTrains} pociągów
+					{$t('timetable.active', {
+						spawned: scenario.spawnedTrains,
+						total: scenario.totalTrains
+					})}
 					{#if scenario.spawnedTrains < scenario.totalTrains}
-						· kolejne wjeżdżają
+						· {$t('timetable.moreEntering')}
 					{/if}
 				</p>
 			</div>
@@ -97,45 +102,45 @@
 
 		{#if listError}
 			<p class="error">{listError}</p>
-			<button type="button" class="ghost-btn" on:click={loadScenarios}>Spróbuj ponownie</button>
+			<button type="button" class="ghost-btn" on:click={loadScenarios}
+				>{$t('timetable.retry')}</button
+			>
 		{:else}
 			<ul class="scenario-list">
 				{#each scenarios as item (item.id)}
 					<li class="scenario" class:active={scenario?.id === item.id}>
 						<span class="icon">{SCENARIO_ICON[item.id] ?? '🗓️'}</span>
 						<div class="scenario-body">
-							<strong>{item.name}</strong>
+							<strong>{localizedScenarioField(item.id, 'name', item.name, $t)}</strong>
 							{#if item.description}
-								<p>{item.description}</p>
+								<p>{localizedScenarioField(item.id, 'description', item.description, $t)}</p>
 							{/if}
 							<small>{trainsCountLabel(item.trains.length)}</small>
 						</div>
-						{#if !readOnly}<div class="scenario-actions">
-								<button
-									type="button"
-									class="run-btn"
-									on:click={() => handleRun(item.id)}
-									disabled={busyId !== null}
-									title="Uruchom rozkład (zastąpi pociągi na sieci)"
-								>
-									{busyId === item.id ? '…' : '▶'}
-								</button>
-								<button
-									type="button"
-									class="details-btn"
-									on:click={() => onDetails(item)}
-									title="Szczegóły — edytuj pociągi rozkładu"
-								>
-									Szczegóły
-								</button>
-							</div>{/if}
+						<div class="scenario-actions">
+							<button
+								type="button"
+								class="run-btn"
+								on:click={() => handleRun(item.id)}
+								disabled={busyId !== null}
+								title={$t('timetable.runTitle')}
+							>
+								{busyId === item.id ? '…' : '▶'}
+							</button>
+							<button
+								type="button"
+								class="details-btn"
+								on:click={() => onDetails(item)}
+								title={$t('timetable.detailsTitle')}
+							>
+								{$t('timetable.details')}
+							</button>
+						</div>
 					</li>
 				{/each}
 			</ul>
 
-			{#if !readOnly}<button type="button" class="new-btn" on:click={onCreate}
-					>➕ Nowy scenariusz</button
-				>{/if}
+			<button type="button" class="new-btn" on:click={onCreate}>➕ {$t('timetable.new')}</button>
 		{/if}
 	</div>
 </div>

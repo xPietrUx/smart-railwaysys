@@ -1,11 +1,13 @@
 <script lang="ts">
 	import {
 		EVENT_ICON,
-		EVENT_LABEL,
+		eventLabel,
+		formatEventMessage,
 		trainEndpoints,
 		trainStatusLabel,
 		trainTargetId
 	} from '$lib/services/labels';
+	import { t } from '$lib/i18n';
 	import type { RailEventNode } from '$lib/types/event';
 	import type { DirectionalState, NetworkGraph, StationNode } from '$lib/types/network';
 	import type { HighlightFilter, Selected } from '$lib/types/selection';
@@ -448,7 +450,7 @@
 			class:names-hidden={zoom < 1.35}
 			role="application"
 			tabindex="0"
-			aria-label="Interaktywna mapa sieci kolejowej — przewiń, aby przybliżyć, przeciągnij, aby przesunąć, Escape czyści wybór"
+			aria-label={$t('map.aria')}
 			on:wheel|nonpassive={handleWheel}
 			on:dblclick={handleDblClick}
 			on:pointerdown={handlePointerDown}
@@ -483,7 +485,11 @@
 						!selectedStationIds.has(segment.target)) ||
 					(selectedKind === 'train' && !onTrainRoute) ||
 					(highlight?.kind === 'incidents' && !hasIncident)}
-				{@const label = `Segment ${segment.segmentId}: ${stationById.get(segment.source)?.name} - ${stationById.get(segment.target)?.name}`}
+				{@const label = $t('map.segmentAria', {
+					id: segment.segmentId,
+					from: stationById.get(segment.source)?.name ?? segment.source,
+					to: stationById.get(segment.target)?.name ?? segment.target
+				})}
 				{#if source && target}
 					{#if isDouble}
 						{@const offset = perpendicularOffset(source, target, TRACK_OFFSET)}
@@ -569,7 +575,7 @@
 						on:click={() => pickStation(station.id)}
 						role="button"
 						tabindex="0"
-						aria-label={`Stacja ${station.name}`}
+						aria-label={$t('map.stationAria', { name: station.name })}
 						on:keydown={(event) => handleKeydown(event, () => pickStation(station.id))}
 					>
 						<g transform={`scale(${markerScale})`}>
@@ -650,7 +656,11 @@
 						on:click={() => pickTrain(train.id)}
 						role="button"
 						tabindex="0"
-						aria-label={`Pociąg ${train.name}, ${trainStatusLabel(train.status)}, relacja ${relationLabel(train)}`}
+						aria-label={$t('map.trainAria', {
+							name: train.name,
+							status: trainStatusLabel(train.status, $t),
+							relation: relationLabel(train)
+						})}
 						on:keydown={(event) => handleKeydown(event, () => pickTrain(train.id))}
 					>
 						<g transform={`scale(${markerScale})`}>
@@ -692,7 +702,11 @@
 					on:click={() => pickIncident(badge)}
 					role="button"
 					tabindex="0"
-					aria-label={`${EVENT_LABEL[badge.event.type]}: ${badge.event.message}`}
+					aria-label={`${eventLabel(badge.event.type, $t)}: ${formatEventMessage(
+						badge.event,
+						$t,
+						stationName
+					)}`}
 					on:keydown={(event) => handleKeydown(event, () => pickIncident(badge))}
 				>
 					<g transform={badge.atStation ? 'translate(17, -17)' : ''}>
@@ -705,26 +719,39 @@
 		</svg>
 
 		<div class="zoom-controls">
-			<button type="button" on:click={zoomInStep} aria-label="Przybliż" title="Przybliż">+</button>
-			<button type="button" on:click={zoomOutStep} aria-label="Oddal" title="Oddal">−</button>
-			<button type="button" on:click={resetView} aria-label="Resetuj widok" title="Resetuj widok"
-				>⟲</button
+			<button
+				type="button"
+				on:click={zoomInStep}
+				aria-label={$t('map.zoomIn')}
+				title={$t('map.zoomIn')}>+</button
+			>
+			<button
+				type="button"
+				on:click={zoomOutStep}
+				aria-label={$t('map.zoomOut')}
+				title={$t('map.zoomOut')}>−</button
+			>
+			<button
+				type="button"
+				on:click={resetView}
+				aria-label={$t('map.reset')}
+				title={$t('map.reset')}>⟲</button
 			>
 		</div>
 
 		<div class="map-legend">
-			<span><i class="legend-shape hub"></i>węzeł</span>
-			<span><i class="legend-shape through"></i>przelotowa</span>
-			<span><i class="legend-shape terminus"></i>końcowa</span>
+			<span><i class="legend-shape hub"></i>{$t('map.legend.hub')}</span>
+			<span><i class="legend-shape through"></i>{$t('map.legend.through')}</span>
+			<span><i class="legend-shape terminus"></i>{$t('map.legend.terminus')}</span>
 			<span class="legend-divider"></span>
-			<span><i class="legend-line active"></i>aktywny</span>
-			<span><i class="legend-line restricted"></i>ograniczenie</span>
-			<span><i class="legend-line blocked"></i>zablokowany</span>
+			<span><i class="legend-line active"></i>{$t('map.legend.active')}</span>
+			<span><i class="legend-line restricted"></i>{$t('map.legend.restricted')}</span>
+			<span><i class="legend-line blocked"></i>{$t('map.legend.blocked')}</span>
 			<span class="legend-divider"></span>
-			<span class="legend-hint">scroll = zoom · przeciągnij = przesuń · klik w tło = odznacz</span>
+			<span class="legend-hint">{$t('map.legend.hint')}</span>
 		</div>
 	{:else}
-		<div class="empty-state">Brak danych z Memgraph.</div>
+		<div class="empty-state">{$t('map.empty')}</div>
 	{/if}
 </div>
 

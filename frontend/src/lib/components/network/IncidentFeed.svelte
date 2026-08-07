@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import { EVENT_ICON, EVENT_LABEL } from '$lib/services/labels';
+	import { t } from '$lib/i18n';
+	import { EVENT_ICON, eventLabel, formatEventMessage } from '$lib/services/labels';
 	import type { RailEventNode } from '$lib/types/event';
+	import type { StationNode } from '$lib/types/network';
 	import type { Selected } from '$lib/types/selection';
 
 	export let events: RailEventNode[];
+	export let stations: StationNode[] = [];
 	export let onSelect: (selected: Selected) => void = () => {};
 
 	let nowSec = Date.now() / 1000;
@@ -19,10 +22,17 @@
 
 	function countdownLabel(resolvesAt: number): string {
 		const remaining = Math.max(0, Math.round(resolvesAt - nowSec));
-		if (remaining <= 0) return 'lada chwila';
+		if (remaining <= 0) return $t('incidents.soon');
 		const minutes = Math.floor(remaining / 60);
 		const seconds = remaining % 60;
 		return minutes > 0 ? `${minutes} min ${seconds}s` : `${seconds}s`;
+	}
+
+	$: stationById = new Map(stations.map((station) => [station.id, station.name]));
+
+	function stationName(id: string | null): string {
+		if (!id) return '—';
+		return stationById.get(id) ?? id;
 	}
 
 	function selectIncident(event: RailEventNode) {
@@ -50,9 +60,9 @@
 <div class="panel incidents">
 	<div class="panel-header">
 		<div>
-			<p class="panel-label">Na żywo</p>
+			<p class="panel-label">{$t('incidents.live')}</p>
 			<h2>
-				Incydenty
+				{$t('incidents.title')}
 				{#if activeEvents.length > 0}
 					<span class="count">{activeEvents.length}</span>
 				{/if}
@@ -62,7 +72,7 @@
 
 	<div class="scroll-area">
 		{#if activeEvents.length === 0}
-			<p class="empty">Brak aktywnych zdarzeń — sieć działa normalnie.</p>
+			<p class="empty">{$t('incidents.empty')}</p>
 		{:else}
 			<ul class="incident-list">
 				{#each activeEvents as event (event.id)}
@@ -71,13 +81,15 @@
 							type="button"
 							class="incident active-incident severity-{event.severity}"
 							on:click={() => selectIncident(event)}
-							title="Pokaż na mapie"
+							title={$t('incidents.showOnMap')}
 						>
 							<span class="icon">{EVENT_ICON[event.type] ?? '⚠️'}</span>
 							<div class="incident-body">
-								<strong>{EVENT_LABEL[event.type] ?? event.type}</strong>
-								<p>{event.message}</p>
-								<small>przywrócenie za {countdownLabel(event.resolvesAt)}</small>
+								<strong>{eventLabel(event.type, $t)}</strong>
+								<p>{formatEventMessage(event, $t, stationName)}</p>
+								<small
+									>{$t('incidents.resolvesIn', { time: countdownLabel(event.resolvesAt) })}</small
+								>
 							</div>
 						</button>
 					</li>
@@ -87,15 +99,15 @@
 
 		{#if resolvedEvents.length > 0}
 			<div class="section">
-				<h3>Ostatnio rozwiązane</h3>
+				<h3>{$t('incidents.recentlyResolved')}</h3>
 				<ul class="incident-list resolved">
 					{#each resolvedEvents as event (event.id)}
 						<li>
 							<div class="incident">
 								<span class="icon">{EVENT_ICON[event.type] ?? '⚠️'}</span>
 								<div class="incident-body">
-									<strong>{EVENT_LABEL[event.type] ?? event.type}</strong>
-									<p>{event.message}</p>
+									<strong>{eventLabel(event.type, $t)}</strong>
+									<p>{formatEventMessage(event, $t, stationName)}</p>
 								</div>
 							</div>
 						</li>
