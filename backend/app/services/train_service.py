@@ -273,8 +273,21 @@ def run_tick_sync(driver: Driver, app_state) -> dict:
 	jedno nowe zdarzenie i przelicza trasy dotkniętych pociągów. Przy wstrzymanej
 	symulacji niczego nie mutuje — tylko odczytuje bieżący stan do broadcastu."""
 	now = time.time()
+	paused = getattr(app_state, "sim_paused", False)
 
-	if getattr(app_state, "sim_paused", False):
+	# Realny czas działania symulacji: suma odstępów między tickami z pominięciem
+	# pauz (tick w pauzie tylko przesuwa punkt odniesienia, nic nie dolicza).
+	last_tick_at = getattr(app_state, "sim_last_tick_at", None)
+	if not paused and last_tick_at is not None:
+		app_state.sim_elapsed_real_s = (
+			getattr(app_state, "sim_elapsed_real_s", 0.0) + (now - last_tick_at)
+		)
+	app_state.sim_last_tick_at = now
+
+	speed = getattr(app_state, "sim_speed", 1.0)
+	elapsed_real_s = getattr(app_state, "sim_elapsed_real_s", 0.0)
+
+	if paused:
 		with driver.session() as session:
 			trains = _load_trains(session)
 			events = event_service.load_events(session)
@@ -283,10 +296,14 @@ def run_tick_sync(driver: Driver, app_state) -> dict:
 			"events": events,
 			"scenario": scenario_service.active_info(app_state),
 			"paused": True,
+			"speed": speed,
+			"elapsedRealS": elapsed_real_s,
 			"timestamp": now,
 		}
 
-	dt_sim_s = config.SIM_TICK_INTERVAL_S * config.SIM_TIME_SCALE
+	# Mnożnik tempa (0.5x–2x) skaluje wyłącznie postęp pociągów — timery liczone
+	# w realnych sekundach (przerwy, zdarzenia) celowo biegną niezależnie.
+	dt_sim_s = config.SIM_TICK_INTERVAL_S * config.SIM_TIME_SCALE * speed
 
 	with driver.session() as session:
 		event_service.resolve_due_events(session, now)
@@ -317,5 +334,7 @@ def run_tick_sync(driver: Driver, app_state) -> dict:
 		"events": events,
 		"scenario": scenario_service.active_info(app_state),
 		"paused": False,
+		"speed": speed,
+		"elapsedRealS": elapsed_real_s,
 		"timestamp": now,
 	}

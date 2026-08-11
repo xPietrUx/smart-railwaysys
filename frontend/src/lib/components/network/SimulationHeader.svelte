@@ -3,7 +3,7 @@
 	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
 	import { locale, t } from '$lib/i18n';
 	import type { ConnectionStatus, LiveSnapshot } from '$lib/services/live';
-	import { clearTrains, pauseSimulation, resumeSimulation } from '$lib/services/simulation';
+	import { clearTrains } from '$lib/services/simulation';
 	import type { HighlightFilter } from '$lib/types/selection';
 	import type { TrainStatus } from '$lib/types/train';
 
@@ -66,34 +66,10 @@
 		}
 	}
 
-	// --- Sterowanie symulacją (pauza / wznowienie / czyszczenie floty) ---
+	// --- Sterowanie flotą (pauza/prędkość mieszkają w SimSpeedControl na mapie) ---
 	$: paused = snapshot.paused;
 
 	let controlBusy = false;
-	// Optymistyczny stan pauzy do czasu potwierdzenia następnym tickiem WS.
-	let optimisticPaused: boolean | null = null;
-	$: pausedView = optimisticPaused ?? paused;
-	// Reaktywne użycie jest rozpoznawane przez Svelte, ale nie przez bazową regułę ESLint.
-	// eslint-disable-next-line no-useless-assignment
-	$: if (optimisticPaused !== null && paused === optimisticPaused) optimisticPaused = null;
-
-	async function togglePause() {
-		if (controlBusy) return;
-		controlBusy = true;
-		try {
-			if (pausedView) {
-				await resumeSimulation(fetch, apiBaseUrl);
-				optimisticPaused = false;
-			} else {
-				await pauseSimulation(fetch, apiBaseUrl);
-				optimisticPaused = true;
-			}
-		} catch {
-			// 409 przy podwójnym kliknięciu -- następny tick pokaże właściwy stan.
-		} finally {
-			controlBusy = false;
-		}
-	}
 
 	async function handleClearTrains() {
 		if (controlBusy) return;
@@ -193,16 +169,6 @@
 		<div class="sim-controls">
 			<button
 				type="button"
-				class="ctrl-btn"
-				class:ctrl-paused={pausedView}
-				on:click={togglePause}
-				disabled={controlBusy}
-				title={pausedView ? $t('header.resumeTitle') : $t('header.pauseTitle')}
-			>
-				{pausedView ? `▶ ${$t('header.resume')}` : `⏸ ${$t('header.pause')}`}
-			</button>
-			<button
-				type="button"
 				class="ctrl-btn ctrl-danger"
 				on:click={handleClearTrains}
 				disabled={controlBusy || snapshot.trains.length === 0}
@@ -213,7 +179,7 @@
 		</div>
 
 		<div class="status-strip" title={$t('header.connectionTitle', { time: lastUpdateLabel })}>
-			{#if pausedView}
+			{#if paused}
 				<span class="status-dot dot-amber"></span>
 				<span class="status-label">{$t('header.paused')}</span>
 			{:else}
@@ -460,12 +426,6 @@
 	.ctrl-btn:disabled {
 		opacity: 0.5;
 		cursor: default;
-	}
-
-	.ctrl-paused {
-		border-color: rgba(245, 158, 11, 0.55);
-		background: rgba(120, 53, 15, 0.35);
-		color: #fbbf24;
 	}
 
 	.ctrl-danger:hover:not(:disabled) {

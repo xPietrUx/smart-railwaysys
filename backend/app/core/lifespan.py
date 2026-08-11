@@ -52,6 +52,9 @@ async def lifespan(app: FastAPI):
 	app.state.scenario = None
 	app.state.sim_paused = False
 	app.state.pause_started_at = None
+	app.state.sim_speed = 1.0
+	app.state.sim_elapsed_real_s = 0.0
+	app.state.sim_last_tick_at = None
 	app.state.next_event_at = time.time() + random.expovariate(
 		1.0 / config.SIM_EVENT_MEAN_INTERVAL_REAL_S
 	)
