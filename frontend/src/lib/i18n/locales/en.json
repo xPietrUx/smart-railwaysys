@@ -30,7 +30,7 @@
 	"header.paused": "Paused",
 	"header.speed.title": "Simulation speed: {{speed}}×",
 	"header.speed.set": "Set speed to {{speed}}×",
-	"header.elapsedTitle": "Simulation clock — 1 real second = 1 simulated minute (pauses excluded)",
+	"header.elapsedTitle": "Simulation clock — pace scales with speed (at 1× one real second = one simulated minute), pauses excluded",
 	"header.triggering": "Triggering…",
 	"header.event": "Event",
 	"search.aria": "Network element search",

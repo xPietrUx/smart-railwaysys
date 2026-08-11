@@ -22,7 +22,7 @@
 		scenario: null,
 		paused: false,
 		speed: 1,
-		elapsedRealS: 0,
+		simClockMinutes: 0,
 		timestamp: data.timestamp
 	});
 	const { snapshot, status } = live;

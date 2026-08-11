@@ -12,8 +12,8 @@ export type LiveSnapshot = {
 	paused: boolean;
 	/** Mnożnik tempa symulacji (0.5–2). */
 	speed: number;
-	/** Realny czas działania symulacji w sekundach (bez okresów pauzy). */
-	elapsedRealS: number;
+	/** Zegar symulacji w minutach (tempo skalowane prędkością, bez okresów pauzy). */
+	simClockMinutes: number;
 	timestamp: number;
 };
 
@@ -99,7 +99,7 @@ export function createLiveStore(
 				scenario: prev.scenario,
 				paused: prev.paused,
 				speed: prev.speed,
-				elapsedRealS: prev.elapsedRealS,
+				simClockMinutes: prev.simClockMinutes,
 				timestamp: trainsData.timestamp
 			}));
 		} catch {
@@ -164,7 +164,7 @@ export function createLiveStore(
 						scenario: payload.scenario ?? null,
 						paused: payload.paused ?? false,
 						speed: payload.speed ?? 1,
-						elapsedRealS: payload.elapsedRealS ?? 0,
+						simClockMinutes: payload.simClockMinutes ?? 0,
 						timestamp: payload.timestamp
 					});
 				}

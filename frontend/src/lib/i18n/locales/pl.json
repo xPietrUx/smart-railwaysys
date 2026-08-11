@@ -30,7 +30,7 @@
 	"header.paused": "Wstrzymano",
 	"header.speed.title": "Prędkość symulacji: {{speed}}×",
 	"header.speed.set": "Ustaw prędkość {{speed}}×",
-	"header.elapsedTitle": "Zegar symulacji — 1 s czasu rzeczywistego = 1 min symulacji (pauzy nie są wliczane)",
+	"header.elapsedTitle": "Zegar symulacji — tempo zależne od prędkości (przy 1× jedna realna sekunda = jedna minuta symulacji), pauzy nie są wliczane",
 	"header.triggering": "Wywoływanie…",
 	"header.event": "Zdarzenie",
 	"search.aria": "Wyszukiwarka elementów sieci",

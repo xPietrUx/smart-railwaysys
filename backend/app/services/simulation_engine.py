@@ -19,7 +19,7 @@ def _build_broadcast_payload(tick_result: dict) -> dict:
 		"scenario": scenario.model_dump() if scenario is not None else None,
 		"paused": tick_result.get("paused", False),
 		"speed": tick_result.get("speed", 1.0),
-		"elapsedRealS": tick_result.get("elapsedRealS", 0.0),
+		"simClockMinutes": tick_result.get("simClockMinutes", 0.0),
 		"timestamp": tick_result["timestamp"],
 	}
 

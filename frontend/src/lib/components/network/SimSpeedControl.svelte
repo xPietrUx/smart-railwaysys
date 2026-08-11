@@ -51,12 +51,13 @@
 
 	const RIM_PATH = `M ${point(R_RIM, -90)} A ${R_RIM} ${R_RIM} 0 0 1 ${point(R_RIM, 0)}`;
 
-	// Zegar symulacji: 1 realna sekunda pracy symulacji = 1 symulowana minuta
-	// (SIM_TIME_SCALE=60), więc realne sekundy wyświetlamy jako minuty.
-	function formatSimClock(elapsedRealS: number): string {
-		const simMinutes = Math.max(0, Math.floor(elapsedRealS));
+	// Zegar symulacji podawany przez backend już w minutach (tempo skalowane
+	// prędkością). Godziny zawijamy modulo 24 — to zegar dobowy 24h, a nie licznik
+	// narastający.
+	function formatSimClock(clockMinutes: number): string {
+		const simMinutes = Math.max(0, Math.floor(clockMinutes));
 		const pad = (value: number) => String(value).padStart(2, '0');
-		return `${pad(Math.floor(simMinutes / 60))}:${pad(simMinutes % 60)}`;
+		return `${pad(Math.floor(simMinutes / 60) % 24)}:${pad(simMinutes % 60)}`;
 	}
 
 	let busy = false;
@@ -172,7 +173,9 @@
 	</svg>
 
 	<div class="readout">
-		<span class="clock" title={$t('header.elapsedTitle')}>{formatSimClock(snapshot.elapsedRealS)}</span>
+		<span class="clock" title={$t('header.elapsedTitle')}>
+			{formatSimClock(snapshot.simClockMinutes)}
+		</span>
 		<span class="speed-line">
 			{#if paused}
 				<span class="paused-badge">⏸ {$t('header.paused')}</span>

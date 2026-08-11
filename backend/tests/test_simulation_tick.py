@@ -148,30 +148,46 @@ def test_run_tick_sync_scales_train_progress_with_sim_speed():
 	assert result["speed"] == 2.0
 
 
-def test_run_tick_sync_accumulates_real_elapsed_time_between_ticks():
+def test_run_tick_sync_advances_sim_clock_between_ticks():
 	train_row = _base_train(next_station_id="B", current_segment_id="SEG1", progress=0.0)
 	session = _FakeSimSession(train_row)
 	driver = _FakeDriver(session)
 	app_state = _FakeAppState()
 
 	first = run_tick_sync(driver, app_state)
-	assert first["elapsedRealS"] == 0.0  # pierwszy tick — brak punktu odniesienia
+	assert first["simClockMinutes"] == 0.0  # pierwszy tick — brak punktu odniesienia
 
+	# 5 realnych sekund przy 1× => ~5 minut symulacji.
 	app_state.sim_last_tick_at = time.time() - 5.0
 	second = run_tick_sync(driver, app_state)
-	assert 4.5 < second["elapsedRealS"] < 6.0
+	assert 4.5 < second["simClockMinutes"] < 6.0
 
 
-def test_run_tick_sync_freezes_elapsed_time_while_paused():
+def test_run_tick_sync_scales_sim_clock_with_speed():
+	train_row = _base_train(next_station_id="B", current_segment_id="SEG1", progress=0.0)
+	session = _FakeSimSession(train_row)
+	driver = _FakeDriver(session)
+	app_state = _FakeAppState()
+	app_state.sim_speed = 2.0
+
+	run_tick_sync(driver, app_state)  # pierwszy tick ustawia punkt odniesienia
+
+	# 5 realnych sekund przy 2× => ~10 minut symulacji (zegar idzie szybciej).
+	app_state.sim_last_tick_at = time.time() - 5.0
+	result = run_tick_sync(driver, app_state)
+	assert 9.0 < result["simClockMinutes"] < 11.0
+
+
+def test_run_tick_sync_freezes_sim_clock_while_paused():
 	train_row = _base_train()
 	session = _FakeSimSession(train_row)
 	driver = _FakeDriver(session)
 	app_state = _FakeAppState()
 	app_state.sim_paused = True
-	app_state.sim_elapsed_real_s = 42.0
+	app_state.sim_clock_minutes = 42.0
 	app_state.sim_last_tick_at = time.time() - 100.0
 
 	result = run_tick_sync(driver, app_state)
 
 	assert result["paused"] is True
-	assert result["elapsedRealS"] == 42.0
+	assert result["simClockMinutes"] == 42.0
