@@ -2,7 +2,9 @@
 	import { onDestroy, onMount } from 'svelte';
 	import DetailsPanel from '$lib/components/network/DetailsPanel.svelte';
 	import IncidentFeed from '$lib/components/network/IncidentFeed.svelte';
+	import MapSearch from '$lib/components/network/MapSearch.svelte';
 	import NetworkGraph from '$lib/components/network/NetworkGraph.svelte';
+	import SimSpeedControl from '$lib/components/network/SimSpeedControl.svelte';
 	import SimulationHeader from '$lib/components/network/SimulationHeader.svelte';
 	import TimetableEditorModal from '$lib/components/network/TimetableEditorModal.svelte';
 	import TimetablePanel from '$lib/components/network/TimetablePanel.svelte';
@@ -19,6 +21,8 @@
 		events: data.events,
 		scenario: null,
 		paused: false,
+		speed: 1,
+		simClockMinutes: 0,
 		timestamp: data.timestamp
 	});
 	const { snapshot, status } = live;
@@ -65,7 +69,8 @@
 		}
 	}
 
-	function handleIncidentSelect(sel: Selected) {
+	// Wspólne dla feedu incydentów i wyszukiwarki: zaznacza element i centruje mapę.
+	function handleMapSelect(sel: Selected) {
 		selected = sel;
 		mapComponent?.focusOn(sel);
 	}
@@ -91,6 +96,10 @@
 			bind:highlight
 			bind:selected
 		/>
+		<!-- Ćwiartka koła w stylu EU4 zagnieżdżona w dolnym-lewym rogu mapy. -->
+		<div class="speed-corner">
+			<SimSpeedControl snapshot={$snapshot} apiBaseUrl={data.apiBaseUrl} />
+		</div>
 	</div>
 
 	<div class="topbar">
@@ -103,8 +112,17 @@
 		/>
 	</div>
 
+	<div class="search-layer">
+		<MapSearch
+			graph={liveGraph}
+			trains={$snapshot.trains}
+			events={$snapshot.events}
+			onSelect={handleMapSelect}
+		/>
+	</div>
+
 	<aside class="dock dock-left">
-		<IncidentFeed events={$snapshot.events} onSelect={handleIncidentSelect} />
+		<IncidentFeed events={$snapshot.events} onSelect={handleMapSelect} />
 	</aside>
 
 	<aside class="dock dock-right">
@@ -162,6 +180,23 @@
 		inset: 0;
 	}
 
+	.speed-corner {
+		position: absolute;
+		left: 0;
+		bottom: 0;
+		z-index: 15;
+	}
+
+	/* Wyszukiwarka pływa nad mapą, wyśrodkowana pod paskiem górnym — docki
+	   zostają po bokach, więc nic na nią nie nachodzi. */
+	.search-layer {
+		position: absolute;
+		top: 96px;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 18;
+	}
+
 	.topbar {
 		position: absolute;
 		top: 12px;
@@ -200,6 +235,8 @@
 
 	.dock-left {
 		left: 16px;
+		/* Kończy się wyżej, żeby nie nachodzić na selektor prędkości w rogu mapy. */
+		bottom: 140px;
 	}
 
 	.dock-right {
@@ -209,6 +246,10 @@
 	/* Gdy topbar zawija się do dwóch wierszy, panele muszą zacząć niżej. */
 	@media (max-width: 1400px) {
 		.dock {
+			top: 132px;
+		}
+
+		.search-layer {
 			top: 132px;
 		}
 	}
@@ -239,6 +280,13 @@
 		.topbar {
 			position: static;
 			pointer-events: auto;
+			order: 1;
+		}
+
+		.search-layer {
+			position: static;
+			transform: none;
+			align-self: center;
 			order: 1;
 		}
 

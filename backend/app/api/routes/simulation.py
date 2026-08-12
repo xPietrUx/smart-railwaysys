@@ -5,9 +5,23 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from neo4j import Driver
 
 from app.api.dependencies import get_driver
+from app.core import config
+from app.schemas.simulation import SimulationSpeedRequest
 from app.services import scenario_service
 
 router = APIRouter(tags=["simulation"])
+
+
+@router.post("/api/simulation/speed", status_code=204)
+async def set_simulation_speed(payload: SimulationSpeedRequest, request: Request):
+	if payload.speed not in config.SIM_SPEED_OPTIONS:
+		allowed = ", ".join(f"{option:g}" for option in config.SIM_SPEED_OPTIONS)
+		raise HTTPException(
+			status_code=422, detail=f"Dozwolone prędkości symulacji: {allowed}"
+		)
+	app_state = request.app.state
+	async with app_state.sim_lock:
+		app_state.sim_speed = payload.speed
 
 
 @router.post("/api/simulation/pause", status_code=204)

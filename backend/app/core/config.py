@@ -19,6 +19,11 @@ ALLOWED_ORIGINS = [
 SIM_TICK_INTERVAL_S = float(getenv("SIM_TICK_INTERVAL_S", "1.0"))
 SIM_TIME_SCALE = float(getenv("SIM_TIME_SCALE", "60.0"))
 
+# Dozwolone mnożniki tempa symulacji (sterowane z UI, styl EU4). Mnożnik skaluje
+# postęp pociągów na odcinkach; timery liczone w realnych sekundach (przerwy,
+# zdarzenia) pozostają nietknięte — patrz komentarz wyżej.
+SIM_SPEED_OPTIONS = (0.5, 1.0, 1.5, 2.0)
+
 SIM_DWELL_REAL_SECONDS_MIN = float(getenv("SIM_DWELL_REAL_SECONDS_MIN", "5.0"))
 SIM_DWELL_REAL_SECONDS_MAX = float(getenv("SIM_DWELL_REAL_SECONDS_MAX", "15.0"))
 
