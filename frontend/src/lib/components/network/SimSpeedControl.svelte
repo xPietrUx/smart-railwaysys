@@ -1,14 +1,12 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import type { LiveSnapshot } from '$lib/services/live';
-	import {
-		pauseSimulation,
-		resumeSimulation,
-		setSimulationSpeed
-	} from '$lib/services/simulation';
+	import { pauseSimulation, resumeSimulation, setSimulationSpeed } from '$lib/services/simulation';
 
 	export let snapshot: LiveSnapshot;
 	export let apiBaseUrl: string;
+	// Gość ogląda symulację, ale nie może zmieniać jej tempa ani jej wstrzymać.
+	export let readOnly = false;
 
 	// Ćwiartka koła w stylu EU4, zagnieżdżona w dolnym-lewym rogu mapy: wachlarz
 	// klinów prędkości od pionu (najwolniej) zgodnie z zegarem do poziomu
@@ -73,7 +71,7 @@
 	$: if (optimisticSpeed !== null && snapshot.speed === optimisticSpeed) optimisticSpeed = null;
 
 	async function togglePause() {
-		if (busy) return;
+		if (busy || readOnly) return;
 		busy = true;
 		try {
 			if (paused) {
@@ -91,7 +89,7 @@
 	}
 
 	async function pickSpeed(option: number) {
-		if (busy || option === speed) return;
+		if (busy || readOnly || option === speed) return;
 		busy = true;
 		try {
 			await setSimulationSpeed(fetch, apiBaseUrl, option);
@@ -111,7 +109,7 @@
 	}
 </script>
 
-<div class="corner" class:paused>
+<div class="corner" class:paused class:read-only={readOnly}>
 	<svg
 		viewBox="0 0 116 116"
 		width="116"
@@ -138,7 +136,8 @@
 				class="wedge"
 				class:on={option <= speed}
 				role="button"
-				tabindex="0"
+				tabindex={readOnly ? -1 : 0}
+				aria-disabled={readOnly}
 				aria-label={$t('header.speed.set', { speed: option })}
 				aria-pressed={option === speed}
 				on:click={() => pickSpeed(option)}
@@ -162,7 +161,8 @@
 			r={CORE_R}
 			class="core"
 			role="button"
-			tabindex="0"
+			tabindex={readOnly ? -1 : 0}
+			aria-disabled={readOnly}
 			aria-label={paused ? $t('header.resumeTitle') : $t('header.pauseTitle')}
 			on:click={togglePause}
 			on:keydown={(event) => activateOnKey(event, togglePause)}
@@ -212,6 +212,13 @@
 		stroke: rgba(148, 163, 184, 0.25);
 		stroke-width: 1.5;
 		pointer-events: none;
+	}
+
+	/* Gość: koło prędkości jest widoczne, ale nieinteraktywne. */
+	.read-only .wedge,
+	.read-only .core {
+		pointer-events: none;
+		cursor: default;
 	}
 
 	.wedge {

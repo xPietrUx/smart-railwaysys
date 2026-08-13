@@ -12,6 +12,10 @@
 	export let apiBaseUrl: string;
 	export let highlight: HighlightFilter | null = null;
 	export let readOnly = false;
+	export let user: { email: string; role: string; permissions: string[] } | null = null;
+
+	$: isGuest = user?.role === 'guest';
+	$: isAdmin = user?.permissions?.includes('users.manage') ?? false;
 
 	function toggleTrainFilter(trainStatus: TrainStatus) {
 		highlight =
@@ -91,7 +95,6 @@
 	</div>
 
 	<div class="right">
-		{#if readOnly}<span class="guest-badge">Tryb gościa · tylko podgląd</span>{/if}
 		<div class="metrics">
 			<button
 				type="button"
@@ -166,17 +169,19 @@
 			</button>
 		</div>
 
-		<div class="sim-controls">
-			<button
-				type="button"
-				class="ctrl-btn ctrl-danger"
-				on:click={handleClearTrains}
-				disabled={controlBusy || snapshot.trains.length === 0}
-				title={$t('header.clearTrainsTitle')}
-			>
-				🗑 {$t('header.clearTrains')}
-			</button>
-		</div>
+		{#if !readOnly}
+			<div class="sim-controls">
+				<button
+					type="button"
+					class="ctrl-btn ctrl-danger"
+					on:click={handleClearTrains}
+					disabled={controlBusy || snapshot.trains.length === 0}
+					title={$t('header.clearTrainsTitle')}
+				>
+					🗑 {$t('header.clearTrains')}
+				</button>
+			</div>
+		{/if}
 
 		<div class="status-strip" title={$t('header.connectionTitle', { time: lastUpdateLabel })}>
 			{#if paused}
@@ -196,6 +201,27 @@
 		{/if}
 
 		<LanguageSwitcher />
+
+		{#if user}
+			<div class="account">
+				{#if isGuest}
+					<span class="guest-badge">{$t('header.guestBadge')}</span>
+					<a class="account-btn" href="/login" data-sveltekit-preload-data="off">
+						{$t('header.login')}
+					</a>
+				{:else}
+					{#if isAdmin}
+						<a class="account-btn account-admin" href="/admin" data-sveltekit-preload-data="off">
+							🛠 {$t('header.admin')}
+						</a>
+					{/if}
+					<span class="account-email" title={user.email}>{user.email}</span>
+					<form method="POST" action="/wyloguj">
+						<button class="account-btn" type="submit">{$t('header.logout')}</button>
+					</form>
+				{/if}
+			</div>
+		{/if}
 	</div>
 </header>
 
@@ -251,7 +277,23 @@
 		margin: 0;
 	}
 
-	.logout-btn {
+	.account {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+
+	.account-email {
+		max-width: 180px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.72rem;
+		color: #cbd5e1;
+	}
+
+	.account-btn {
 		border: 1px solid rgba(148, 163, 184, 0.28);
 		border-radius: 9px;
 		background: rgba(15, 23, 42, 0.45);
@@ -259,11 +301,22 @@
 		padding: 7px 10px;
 		font: inherit;
 		font-size: 0.7rem;
+		text-decoration: none;
 		cursor: pointer;
 	}
 
-	.logout-btn:hover {
+	.account-btn:hover {
 		border-color: #5eead4;
+		color: #f8fafc;
+	}
+
+	.account-admin {
+		border-color: rgba(96, 165, 250, 0.55);
+		color: #bfdbfe;
+	}
+
+	.account-admin:hover {
+		border-color: #60a5fa;
 		color: #f8fafc;
 	}
 

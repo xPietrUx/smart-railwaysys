@@ -2,7 +2,9 @@ import { fail, redirect } from '@sveltejs/kit';
 import { authApiUrl, setGuestSession, setSession } from '$lib/server/auth';
 
 export const load = ({ cookies }) => {
-	if (cookies.get('srs_session') || cookies.get('srs_guest')) redirect(303, '/panel');
+	// Tylko realnie zalogowany użytkownik jest odsyłany do panelu. Gość musi móc
+	// wejść na formularz logowania, żeby „awansować” na konto.
+	if (cookies.get('srs_session')) redirect(303, '/panel');
 };
 
 export const actions = {

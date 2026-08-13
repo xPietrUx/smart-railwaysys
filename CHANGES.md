@@ -346,3 +346,110 @@ silnik: A\*, blokady, zdarzenia losowe).
   w pauzie, wznowienie, CRUD, czyszczenie floty); pełny przepływ UI przez
   Playwright (modal, edycja pociągów, tworzenie/usuwanie rozkładu, pauza —
   chip "Wstrzymano", czyszczenie floty); `svelte-check` 0 błędów.
+
+---
+
+## Iteracja 3 — Poprawki logowania, kontrola dostępu (RBAC) i przekierowania
+
+W tej iteracji usunięto usterki związane z logowaniem administratora, obsługą klawisza `Enter` w formularzach autoryzacji oraz przekierowaniami portów między backendem FastAPI a frontendem SvelteKit.
+
+### Naprawa domyślnego przycisku w formularzu logowania (Enter key bug)
+
+W kodzie HTML formularza autoryzacji ([AuthCard.svelte](file:///C:/Users/Piotr/Desktop/smart-railwaysys/frontend/src/lib/components/site/AuthCard.svelte)) przycisk wejścia w trybie gościa (`formaction="?/guest"`) znajdował się przed przyciskiem właściwego logowania. Zgodnie ze specyfikacją HTML, wciśnięcie klawisza `Enter` w polu tekstowym formularza wywoływało pierwszy submit button w drzewie DOM, nieumyślnie przełączając logującego się administratora w tryb sesji gościa (`srs_guest`).
+
+- **Zmieniono kolejność przycisków w DOM**: Przycisk głównego logowania (`?/login` / `?/register`) umieszczono jako pierwszy w drzewie DOM.
+- **Odwrócono kierunek układu w CSS (`flex-direction: row-reverse`)**: Zachowano spójność wizualną (przycisk gościa po lewej stronie, logowanie po prawej), gwarantując jednocześnie, że wciśnięcie klawisza `Enter` zawsze przesyła formularz do akcji logowania.
+
+### Automatyczny zasiew ról i konta administratora
+
+- Zaktualizowano skrypt zasilania bazy [db/seed.py](file:///C:/Users/Piotr/Desktop/smart-railwaysys/backend/db/seed.py), wywołując w nim `ensure_roles` oraz `ensure_admin_user`. Dzięki temu ręczny reseed bazy danych gwarantuje natychmiastowe utworzenie domyślnych ról oraz konta administratora (`admin@smartrailway.pl`).
+- Użytkownicy z ważnym tokenem sesji administratora (`srs_session`) i uprawnieniem `users.manage` mają stały dostęp do panelu zarządczego pod adresem `/admin`.
+
+### Przekierowania z backendu FastAPI do frontendu SvelteKit
+
+- W pliku [backend/app/main.py](file:///C:/Users/Piotr/Desktop/smart-railwaysys/backend/app/main.py) dodano trasy przekierowań HTTP 307 (`/admin` oraz `/`) wskazujące bezpośrednio na adres frontendu SvelteKit (`http://localhost:5173/admin` oraz `http://localhost:5173`). Otwarcie ścieżek w przeglądarce na porcie backendu (8000) zamiast pokazywać surową dokumentację Swaggera lub błąd 404 automatycznie przekierowuje użytkownika do interfejsu graficznego.
+
+### Weryfikacja
+
+- `pytest backend/tests` — 51/51 testów przechodzi (100%).
+- `svelte-check` — 0 błędów, 0 ostrzeżeń.
+- `npm run build` — czysty build produkcyjny bez błędów.
+
+---
+
+## System autoryzacji i kontroli dostępu opartej na rolach (RBAC)
+
+Aplikacja wykorzystuje hybrydowy model autoryzacji łączący sesje ciasteczkowe SvelteKit z bezstanowymi tokenami JWT backendu oraz dynamicznym przypisywaniem uprawnień w bazie danych Memgraph.
+
+### 1. Model danych (Memgraph)
+
+- **Węzeł `User`**:
+  - `id`: Unikalny identyfikator użytkownika (np. `USR_a1b2c3d4e5f6`).
+  - `email`: Znormalizowany adres e-mail (małe litery, bez spacji). Unikalny na poziomie bazy (`CONSTRAINT`).
+  - `password_hash`: Hasło zarehashowane algorytmem `PBKDF2-HMAC-SHA256` z solą urlsafe base64 (310 000 iteracji).
+  - `role`: Identyfikator roli przypisanej do użytkownika (domyślnie `user`).
+  - `active`: Flaga stanu konta (`true` / `false`). Wyłączone konta nie mogą generować ani weryfikować tokenów.
+  - `created_at`: Znacznik czasu utworzenia konta.
+
+- **Węzeł `Role`**:
+  - `name`: Nazwa systemowa roli (np. `admin`, `user`, `guest`).
+  - `label`: Czytelna nazwa wyświetlana w panelu (np. `Administrator`, `Użytkownik`, `Gość`).
+  - `permissions`: Lista kluczy przyznanych uprawnień (np. `["simulation.view", "simulation.control"]`).
+  - `is_system`: Flaga uniemożliwiająca usunięcie roli systemowej.
+
+### 2. Katalog uprawnień (`PERMISSIONS`)
+
+Każda operacja chroniona w systemie wymaga posiadania odpowiedniego uprawnienia:
+
+| Klucz uprawnienia | Opis i zakres dostępu |
+| --- | --- |
+| `simulation.view` | Dostęp do podglądu mapy sieci kolejowej, listy pociągów i zdarzeń na żywo. |
+| `simulation.control` | Prawo do sterowania pracą symulacji (pauza, wznawianie, zmiana prędkości, czyszczenie floty). |
+| `timetable.manage` | Zarządzanie scenariuszami rozkładów jazdy (tworzenie, edycja, usuwanie i uruchamianie rozkładów). |
+| `users.manage` | Dostęp do panelu administratora (`/admin`), zarządzanie kontami (tworzenie, zmiana ról, zmiana haseł, aktywacja/blokowanie, usuwanie). |
+| `roles.manage` | Tworzenie nowych ról, edycja etykiet i przypisanych do nich uprawnień oraz usuwanie ról niesystemowych. |
+
+### 3. Domyślne role systemowe (`DEFAULT_ROLES`)
+
+1. **Administrator (`admin`)**:
+   - Posiada wszystkie uprawnienia w systemie.
+   - Uprawnienia `users.manage` oraz `roles.manage` są zablokowane dla roli `admin` (`ADMIN_LOCKED_PERMISSIONS`), co uniemożliwia ich przypadkowe odebranie i samoblokadę panelu administracyjnego.
+   - System chroni ostatniego aktywnego administratora przed usunięciem, wyłączeniem lub degradacją roli.
+2. **Użytkownik (`user`)**:
+   - Domyślna rola przy rejestracji nowych użytkowników.
+   - Posiada uprawnienia: `simulation.view`, `simulation.control`, `timetable.manage`.
+3. **Gość (`guest`)**:
+   - Rola przypisywana w sesji tymczasowej dla osób nieposiadających konta (wejście przez "Kontynuuj jako gość").
+   - Posiada wyłącznie uprawnienie `simulation.view` — wszystkie elementy sterujące i edycyjne są ukryte.
+
+### 4. Przepływ autoryzacji (Authentication Flow)
+
+```text
+[Przeglądarka] ─── (Formularz logowania /login) ───> [SvelteKit SSR (+page.server.ts)]
+                                                               │
+                                                       POST /api/auth/login
+                                                               ▼
+                                                      [FastAPI Backend]
+                                                               │
+                                                    Przeszukaj User w Memgraph
+                                                   Weryfikacja PBKDF2 Hasha
+                                                               │
+                                                     Wygeneruj JWT Token
+                                                               ▼
+[Przeglądarka] <─── Ustaw ciasteczko srs_session <─── [SvelteKit SSR]
+```
+
+- **Ciasteczko `srs_session`**: Przechowuje JWT Bearer Token (`httpOnly`, `sameSite: lax`).
+- **Ciasteczko `srs_guest`**: Oznacza sesję gościa bez wymogu obecności konta w bazie.
+- **Dynamiczna weryfikacja uprawnień**: Backendowy weryfikator `get_current_user` przy każdym zapytaniu REST odszyfrowuje token, sprawdza stan konta w Memgraph i świeżo pobiera aktualne uprawnienia przypisane do roli. Dzięki temu zmiana uprawnień roli w panelu administratora od razu wpływa na aktywnych użytkowników bez konieczności ich ponownego logowania.
+
+### 5. Interfejs zarządczy (`/admin`)
+
+Panel administratora dostępny pod adresem `/admin` umożliwia użytkownikom z uprawnieniem `users.manage`:
+- Podgląd i edycję danych wszystkich zarejestrowanych użytkowników.
+- Szybki reset hasła dla wybranego użytkownika.
+- Przełączanie statusu aktywacji konta (aktywny / zablokowany).
+- Zarządzanie rolami i przypisywanie im uprawnień (przy posiadanym `roles.manage`).
+- Zakładanie nowych użytkowników z wybraną rolą początkową.
+
+
