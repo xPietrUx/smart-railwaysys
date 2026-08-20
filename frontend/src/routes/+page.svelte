@@ -14,7 +14,27 @@
 <div class="landing">
 	<PublicNav authenticated={data.authenticated} />
 	<main>
-		<section class="hero" aria-label="Sekcja główna"></section>
+		<section class="hero" aria-label="Sekcja główna">
+			<div class="hero-inner">
+				<p class="hero-eyebrow">Smart Railway System</p>
+				<h1 class="hero-title">Kolej pod pełną kontrolą.</h1>
+				<p class="hero-lead">
+					Podgląd sieci kolejowej Śląska na żywo — pociągi, incydenty i rozkłady w jednym miejscu.
+				</p>
+				<div class="hero-cta">
+					{#if data.authenticated}
+						<a class="cta cta-primary" data-sveltekit-preload-data="off" href="/panel"
+							>Przejdź do systemu <b>→</b></a
+						>
+					{:else}
+						<form method="POST" action="?/guest">
+							<button class="cta cta-primary" type="submit">Wejdź jako gość <b>→</b></button>
+						</form>
+						<a class="cta cta-ghost" data-sveltekit-preload-data="off" href="/login">Zaloguj się</a>
+					{/if}
+				</div>
+			</div>
+		</section>
 		<section id="jak-to-dziala" class="features">
 			<article>
 				<span>01</span>
@@ -60,6 +80,72 @@
 	}
 	.hero {
 		min-height: calc(100vh - 76px);
+		display: flex;
+		align-items: center;
+		padding: 0 clamp(24px, 8vw, 120px);
+		box-sizing: border-box;
+	}
+	.hero-inner {
+		max-width: 640px;
+	}
+	.hero-eyebrow {
+		margin: 0 0 14px;
+		color: #dddddd;
+		letter-spacing: 0.18em;
+		font-size: 0.7rem;
+		text-transform: uppercase;
+	}
+	.hero-title {
+		margin: 0;
+		font-size: clamp(2.4rem, 6vw, 4.6rem);
+		line-height: 1.02;
+		letter-spacing: -0.01em;
+	}
+	.hero-lead {
+		margin: 22px 0 0;
+		max-width: 480px;
+		color: #87979f;
+		line-height: 1.7;
+		font-size: 1.02rem;
+	}
+	.hero-cta {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		margin-top: 40px;
+		flex-wrap: wrap;
+	}
+	.hero-cta form {
+		margin: 0;
+	}
+	.cta {
+		display: inline-block;
+		border: 0;
+		border-radius: 9px;
+		padding: 14px 22px;
+		font: inherit;
+		font-size: 0.72rem;
+		font-weight: 750;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		text-decoration: none;
+		cursor: pointer;
+		transition: opacity 180ms ease;
+	}
+	.cta:hover {
+		opacity: 0.7;
+	}
+	.cta b {
+		margin-left: 7px;
+	}
+	.cta-primary {
+		background: #f4f1eb;
+		color: #171717;
+	}
+	.cta-ghost {
+		background: transparent;
+		color: #cccccc;
+		border: 1px solid #4a4a4a;
 	}
 	.features {
 		display: grid;

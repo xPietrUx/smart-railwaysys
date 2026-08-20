@@ -117,30 +117,34 @@
 							{/if}
 							<small>{trainsCountLabel(item.trains.length)}</small>
 						</div>
-						<div class="scenario-actions">
-							<button
-								type="button"
-								class="run-btn"
-								on:click={() => handleRun(item.id)}
-								disabled={busyId !== null}
-								title={$t('timetable.runTitle')}
-							>
-								{busyId === item.id ? '…' : '▶'}
-							</button>
-							<button
-								type="button"
-								class="details-btn"
-								on:click={() => onDetails(item)}
-								title={$t('timetable.detailsTitle')}
-							>
-								{$t('timetable.details')}
-							</button>
-						</div>
+						{#if !readOnly}
+							<div class="scenario-actions">
+								<button
+									type="button"
+									class="run-btn"
+									on:click={() => handleRun(item.id)}
+									disabled={busyId !== null}
+									title={$t('timetable.runTitle')}
+								>
+									{busyId === item.id ? '…' : '▶'}
+								</button>
+								<button
+									type="button"
+									class="details-btn"
+									on:click={() => onDetails(item)}
+									title={$t('timetable.detailsTitle')}
+								>
+									{$t('timetable.details')}
+								</button>
+							</div>
+						{/if}
 					</li>
 				{/each}
 			</ul>
 
-			<button type="button" class="new-btn" on:click={onCreate}>➕ {$t('timetable.new')}</button>
+			{#if !readOnly}
+				<button type="button" class="new-btn" on:click={onCreate}>➕ {$t('timetable.new')}</button>
+			{/if}
 		{/if}
 	</div>
 </div>

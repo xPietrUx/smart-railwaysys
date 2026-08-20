@@ -2,7 +2,9 @@ import { fail, redirect } from '@sveltejs/kit';
 import { authApiUrl, setGuestSession, setSession } from '$lib/server/auth';
 
 export const load = ({ cookies }) => {
-	if (cookies.get('srs_session') || cookies.get('srs_guest')) redirect(303, '/panel');
+	// Gość (tylko ciasteczko srs_guest) musi móc wejść na rejestrację, żeby założyć
+	// konto — odsyłamy do panelu wyłącznie realnie zalogowanego użytkownika.
+	if (cookies.get('srs_session')) redirect(303, '/panel');
 };
 
 export const actions = {

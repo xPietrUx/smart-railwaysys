@@ -62,11 +62,11 @@
 					są zgodne.{/if}
 			</p>{/if}
 		<div class="submit-row">
-			<button class="guest-btn" type="submit" formaction="?/guest" formnovalidate
-				>Kontynuuj<br />jako gość</button
-			>
 			<button class="submit-btn" type="submit" disabled={passwordsMismatch}
 				>{register ? 'Stwórz konto' : 'Zaloguj się'} <b>→</b></button
+			>
+			<button class="guest-btn" type="submit" formaction="?/guest" formnovalidate
+				>Kontynuuj<br />jako gość</button
 			>
 		</div>
 	</form>
@@ -165,6 +165,7 @@
 	}
 	.submit-row {
 		display: flex;
+		flex-direction: row-reverse;
 		align-items: center;
 		justify-content: space-between;
 		gap: 20px;

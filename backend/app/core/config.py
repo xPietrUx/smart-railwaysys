@@ -3,6 +3,12 @@ from os import getenv
 AUTH_SECRET = getenv("AUTH_SECRET", "change-this-secret-in-production")
 AUTH_TOKEN_TTL_SECONDS = int(getenv("AUTH_TOKEN_TTL_SECONDS", "604800"))
 
+# Konto administratora zakładane przy pierwszym starcie, jeśli w bazie nie ma
+# żadnego aktywnego admina. Zmień hasło po pierwszym logowaniu (albo nadpisz
+# przez zmienne środowiskowe ADMIN_EMAIL / ADMIN_PASSWORD).
+DEFAULT_ADMIN_EMAIL = getenv("ADMIN_EMAIL", "admin@smartrailway.pl")
+DEFAULT_ADMIN_PASSWORD = getenv("ADMIN_PASSWORD", "admin12345")
+
 DEFAULT_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
 
 ALLOWED_ORIGINS = [

@@ -9,7 +9,7 @@ from neo4j.exceptions import ServiceUnavailable
 
 from app.core import config
 from app.core.ws_manager import ConnectionManager
-from app.services import scenario_service, simulation_engine
+from app.services import auth_service, scenario_service, simulation_engine
 from db.seed import AUTH, URI, load_data
 
 
@@ -32,10 +32,9 @@ def connect_with_retry(delay: int = 2):
 async def lifespan(app: FastAPI):
 	driver = connect_with_retry()
 	with driver.session() as session:
-		try:
-			session.run("CREATE CONSTRAINT ON (u:User) ASSERT u.email IS UNIQUE")  # ograniczenie unikalności e-maili
-		except Exception:
-			pass
+		# UWAGA: load_data() (seed sieci) robi DETACH DELETE na grafie — dlatego
+		# role i konto admina zakładamy DOPIERO po zasianiu stacji, żeby seed ich
+		# nie skasował. Dodatkowo load_data pomija już węzły :User/:Role.
 		count = session.run("MATCH (s:Station) RETURN count(s) AS c").single()["c"]
 		if count == 0:
 			print("Graf pusty — uruchamiam seed...")
@@ -45,6 +44,18 @@ async def lifespan(app: FastAPI):
 		created = scenario_service.ensure_starter_scenarios(session, time.time())
 		if created:
 			print(f"✓ Utworzono {created} startowych scenariuszy rozkładu")
+		try:
+			session.run("CREATE CONSTRAINT ON (u:User) ASSERT u.email IS UNIQUE")  # ograniczenie unikalności e-maili
+		except Exception:
+			pass
+		try:
+			session.run("CREATE CONSTRAINT ON (r:Role) ASSERT r.name IS UNIQUE")  # unikalne nazwy ról
+		except Exception:
+			pass
+		auth_service.ensure_roles(session)
+		created_admin = auth_service.ensure_admin_user(session)
+		if created_admin:
+			print(f"✓ Konto administratora gotowe: {created_admin} (zmień hasło po zalogowaniu)")
 	app.state.driver = driver
 
 	app.state.ws_manager = ConnectionManager()

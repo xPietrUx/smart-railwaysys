@@ -16,6 +16,12 @@
 
 	export let data: PageData;
 
+	// Uprawnienia z backendu decydują, co użytkownik może zrobić. Gość ma tylko
+	// `simulation.view`, więc wszystkie akcje są przed nim ukryte.
+	$: permissions = data.user.permissions ?? [];
+	$: canControl = permissions.includes('simulation.control');
+	$: canManageTimetable = permissions.includes('timetable.manage');
+
 	const live = createLiveStore(fetch, data.apiBaseUrl, {
 		trains: data.trains,
 		events: data.events,
@@ -98,7 +104,7 @@
 		/>
 		<!-- Ćwiartka koła w stylu EU4 zagnieżdżona w dolnym-lewym rogu mapy. -->
 		<div class="speed-corner">
-			<SimSpeedControl snapshot={$snapshot} apiBaseUrl={data.apiBaseUrl} />
+			<SimSpeedControl snapshot={$snapshot} apiBaseUrl={data.apiBaseUrl} readOnly={!canControl} />
 		</div>
 	</div>
 
@@ -108,7 +114,8 @@
 			status={$status}
 			apiBaseUrl={data.apiBaseUrl}
 			bind:highlight
-			readOnly={data.user.role === 'guest'}
+			user={data.user}
+			readOnly={!canControl}
 		/>
 	</div>
 
@@ -140,7 +147,7 @@
 			refreshKey={scenariosRefreshKey}
 			onDetails={openScenarioDetails}
 			onCreate={openScenarioCreate}
-			readOnly={data.user.role === 'guest'}
+			readOnly={!canManageTimetable}
 		/>
 	</aside>
 
