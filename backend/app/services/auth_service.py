@@ -265,16 +265,13 @@ def update_role(
 	role = get_role(session, name)
 	if not role:
 		return None
+	if role["is_system"]:
+		raise ValueError("Roli systemowej nie można edytować.")
 	props: dict = {}
 	if label is not None:
 		props["label"] = label.strip() or name
 	if permissions is not None:
-		perms = _clean_permissions(permissions)
-		if name == ADMIN_ROLE_NAME:
-			for locked in ADMIN_LOCKED_PERMISSIONS:
-				if locked not in perms:
-					perms.append(locked)
-		props["permissions"] = perms
+		props["permissions"] = _clean_permissions(permissions)
 	if not props:
 		return role
 	row = session.run(

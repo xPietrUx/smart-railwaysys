@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
 	import type { ActionData, PageData } from './$types';
+	import type { Role } from './+page.server';
 
 	export let data: PageData;
 	export let form: ActionData;
@@ -23,11 +25,33 @@
 		});
 	}
 
-	// Uprawnienia administracyjne roli „admin” są zablokowane — nie da się ich
-	// odebrać, więc pokazujemy je jako zaznaczone i wyłączone.
-	const ADMIN_LOCKED = ['users.manage', 'roles.manage'];
-	const isLocked = (roleName: string, key: string) =>
-		roleName === 'admin' && ADMIN_LOCKED.includes(key);
+	function sortRoles(roles: Role[]): Role[] {
+		return [...roles].sort((a, b) =>
+			a.is_system !== b.is_system ? (a.is_system ? -1 : 1) : a.name.localeCompare(b.name)
+		);
+	}
+
+	// Formularze roli (zapisz/utwórz/usuń) aktualizują tylko `data.roles` z odpowiedzi
+	// akcji zamiast pełnego invalidateAll — nie ma sensu odpytywać backend o
+	// użytkowników i katalog uprawnień przy każdej zmianie jednej roli.
+	const handleRoleForm: SubmitFunction = () => {
+		return async ({ result, update }) => {
+			await update({ invalidateAll: false });
+			if (result.type !== 'success' || !result.data) return;
+			const payload = result.data as { role?: Role; deleted?: boolean; name?: string };
+			if (payload.deleted && payload.name) {
+				const removedName = payload.name;
+				data = { ...data, roles: data.roles.filter((r) => r.name !== removedName) };
+			} else if (payload.role) {
+				const updated = payload.role;
+				const exists = data.roles.some((r) => r.name === updated.name);
+				const roles = exists
+					? data.roles.map((r) => (r.name === updated.name ? updated : r))
+					: sortRoles([...data.roles, updated]);
+				data = { ...data, roles };
+			}
+		};
+	};
 
 	$: canManageRoles = data.canManageRoles;
 </script>
@@ -197,15 +221,18 @@
 
 		<div class="roles-grid">
 			{#each data.roles as r (r.name)}
-				<form method="POST" action="?/updateRole" use:enhance class="role-card">
+				<form method="POST" action="?/updateRole" use:enhance={handleRoleForm} class="role-card">
 					<input type="hidden" name="name" value={r.name} />
 					<div class="role-head">
 						<code class="role-name">{r.name}</code>
 						{#if r.is_system}<span class="tag">systemowa</span>{/if}
 					</div>
+					{#if r.is_system}
+						<p class="muted role-note">Rola systemowa — edycja zablokowana.</p>
+					{/if}
 					<label class="role-label"
 						>Nazwa wyświetlana
-						<input name="label" value={r.label} disabled={!canManageRoles} />
+						<input name="label" value={r.label} disabled={!canManageRoles || r.is_system} />
 					</label>
 					<fieldset class="perms">
 						<legend>Uprawnienia</legend>
@@ -216,7 +243,7 @@
 									name="permissions"
 									value={p.key}
 									checked={r.permissions.includes(p.key)}
-									disabled={!canManageRoles || isLocked(r.name, p.key)}
+									disabled={!canManageRoles || r.is_system}
 								/>
 								<span>{p.label} <code>{p.key}</code></span>
 							</label>
@@ -225,19 +252,17 @@
 					{#if fb.scope === 'role' && fb.name === r.name && fb.error}
 						<p class="row-error" role="alert">{fb.error}</p>
 					{/if}
-					{#if canManageRoles}
+					{#if canManageRoles && !r.is_system}
 						<div class="role-actions">
 							<button class="btn small" type="submit">Zapisz</button>
-							{#if !r.is_system}
-								<button
-									class="btn small danger"
-									type="submit"
-									formaction="?/deleteRole"
-									on:click={(e) => {
-										if (!confirm(`Usunąć rolę ${r.label}?`)) e.preventDefault();
-									}}>Usuń</button
-								>
-							{/if}
+							<button
+								class="btn small danger"
+								type="submit"
+								formaction="?/deleteRole"
+								on:click={(e) => {
+									if (!confirm(`Usunąć rolę ${r.label}?`)) e.preventDefault();
+								}}>Usuń</button
+							>
 						</div>
 					{/if}
 				</form>
@@ -247,10 +272,10 @@
 		{#if canManageRoles}
 			<details class="adder">
 				<summary>+ Dodaj rolę</summary>
-				<form method="POST" action="?/createRole" use:enhance class="add-role">
+				<form method="POST" action="?/createRole" use:enhance={handleRoleForm} class="add-role">
 					<div class="add-role-top">
 						<label
-							>Nazwa (identyfikator)
+							>ID (małe litery)
 							<input
 								name="name"
 								required
@@ -481,6 +506,10 @@
 	.note {
 		font-size: 0.8rem;
 		margin: -6px 0 16px;
+	}
+	.role-note {
+		font-size: 0.7rem;
+		margin: -2px 0 0;
 	}
 	.tag {
 		display: inline-block;

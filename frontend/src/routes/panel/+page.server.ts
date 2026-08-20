@@ -45,6 +45,10 @@ export const load = async ({ fetch, cookies }) => {
 		user = { id: 'guest', email: 'Gość', role: 'guest', permissions };
 	}
 
+	if (!user.permissions.includes('simulation.view')) {
+		error(403, 'Nie masz uprawnień do podglądu symulacji.');
+	}
+
 	let initialData;
 	try {
 		initialData = await Promise.all([

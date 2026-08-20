@@ -163,7 +163,8 @@ export const actions = {
 				scope: 'createRole',
 				error: await readError(response, 'Nie udało się dodać roli.')
 			});
-		return { scope: 'createRole', message: `Dodano rolę ${label || name}.` };
+		const role: Role = await response.json();
+		return { scope: 'createRole', message: `Dodano rolę ${label || name}.`, role };
 	},
 
 	updateRole: async ({ request, cookies, fetch }) => {
@@ -183,7 +184,8 @@ export const actions = {
 				name,
 				error: await readError(response, 'Nie udało się zapisać roli.')
 			});
-		return { scope: 'role', name, message: 'Zapisano rolę.' };
+		const role: Role = await response.json();
+		return { scope: 'role', name, message: 'Zapisano rolę.', role };
 	},
 
 	deleteRole: async ({ request, cookies, fetch }) => {
@@ -200,6 +202,6 @@ export const actions = {
 				name,
 				error: await readError(response, 'Nie udało się usunąć roli.')
 			});
-		return { scope: 'role', message: 'Rola usunięta.' };
+		return { scope: 'role', name, deleted: true, message: 'Rola usunięta.' };
 	}
 };

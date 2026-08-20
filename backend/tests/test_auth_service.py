@@ -1,3 +1,5 @@
+import pytest
+
 from app.services import auth_service
 
 
@@ -81,7 +83,7 @@ class _FakeSession:
 		return _FakeResult(None)
 
 
-def test_update_role_admin_cannot_lose_management_permissions():
+def test_update_role_rejects_edits_to_system_roles():
 	roles = {
 		"admin": {
 			"name": "admin",
@@ -92,11 +94,8 @@ def test_update_role_admin_cannot_lose_management_permissions():
 	}
 	session = _FakeSession(roles)
 
-	# Próba zostawienia adminowi wyłącznie podglądu — locki muszą wrócić.
-	result = auth_service.update_role(session, "admin", permissions=["simulation.view"])
-
-	assert "users.manage" in result["permissions"]
-	assert "roles.manage" in result["permissions"]
+	with pytest.raises(ValueError):
+		auth_service.update_role(session, "admin", permissions=["simulation.view"])
 
 
 def test_update_role_drops_unknown_permissions_for_custom_role():
