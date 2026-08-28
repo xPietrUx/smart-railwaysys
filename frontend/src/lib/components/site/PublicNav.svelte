@@ -9,7 +9,6 @@
 	let navElement: HTMLElement;
 	$: path = $page.url.pathname;
 	const navItems = [
-		{ label: 'Strona główna', href: '/' },
 		{ label: 'Jak to działa', href: '/#jak-to-dziala' },
 		{ label: 'O wa.gone', href: '/#o-wa-gone' },
 		{ label: 'Dokumentacja', href: '/#dokumentacja' },
@@ -122,6 +121,9 @@
 </script>
 
 <header class="site-header">
+	<a class="brand" href="/" aria-label="Strona główna">
+		<img src={lightMode ? '/logo/logo_black.png' : '/logo/logo_white.png'} alt="wa.gone" />
+	</a>
 	<button
 		class="menu"
 		type="button"
@@ -184,6 +186,17 @@
 		transition:
 			color 300ms ease,
 			background-color 300ms ease;
+	}
+	.brand {
+		position: absolute;
+		left: clamp(20px, 5vw, 72px);
+		display: flex;
+		align-items: center;
+	}
+	.brand img {
+		display: block;
+		width: 44px;
+		height: auto;
 	}
 	nav {
 		display: flex;
@@ -298,6 +311,7 @@
 		}
 		.menu {
 			display: block;
+			left: calc(clamp(20px, 5vw, 72px) + 52px);
 		}
 		nav {
 			display: none;
@@ -320,6 +334,9 @@
 		}
 		.login b {
 			display: none;
+		}
+		.brand img {
+			width: 38px;
 		}
 	}
 </style>
