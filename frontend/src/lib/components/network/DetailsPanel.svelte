@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { SvelteMap } from 'svelte/reactivity';
+	import { t } from '$lib/i18n';
 	import {
 		directionStatusLabel,
+		formatEventMessage,
 		formatStationType,
 		trainEndpoints,
 		trainStatusLabel,
@@ -89,7 +91,7 @@
 	}
 
 	function formatLine(segment: TrackSegment) {
-		return `Linia ${segment.line}`;
+		return `${$t('details.line')} ${segment.line}`;
 	}
 
 	function pickStation(id: string) {
@@ -115,11 +117,11 @@
 			<div>
 				<p class="panel-label">
 					{#if selectedKind === 'train'}
-						Szczegóły pociągu
+						{$t('details.train')}
 					{:else if selectedKind === 'segment'}
-						Szczegóły odcinka
+						{$t('details.segment')}
 					{:else}
-						Szczegóły stacji
+						{$t('details.station')}
 					{/if}
 				</p>
 				<h2>
@@ -132,26 +134,36 @@
 					{/if}
 				</h2>
 			</div>
-			<button type="button" class="close" on:click={close} aria-label="Zamknij panel szczegółów">
+			<button type="button" class="close" on:click={close} aria-label={$t('details.close')}>
 				×
 			</button>
 		</div>
 
 		{#if selectedKind === 'station' && selectedStation}
 			<div class="detail-grid">
-				<div><span>Kod</span><strong>{selectedStation.code}</strong></div>
-				<div><span>Typ</span><strong>{formatStationType(selectedStation.type)}</strong></div>
-				<div><span>Perony</span><strong>{selectedStation.platforms}</strong></div>
-				<div><span>Tory</span><strong>{selectedStation.tracks}</strong></div>
-				<div><span>Pociągi/dzień</span><strong>{selectedStation.dailyTrains}</strong></div>
+				<div><span>{$t('details.code')}</span><strong>{selectedStation.code}</strong></div>
 				<div>
-					<span>Połączenia</span><strong>{degreeByStation.get(selectedStation.id) ?? 0}</strong>
+					<span>{$t('details.type')}</span><strong
+						>{formatStationType(selectedStation.type, $t)}</strong
+					>
+				</div>
+				<div>
+					<span>{$t('details.platforms')}</span><strong>{selectedStation.platforms}</strong>
+				</div>
+				<div><span>{$t('details.tracks')}</span><strong>{selectedStation.tracks}</strong></div>
+				<div>
+					<span>{$t('details.trainsPerDay')}</span><strong>{selectedStation.dailyTrains}</strong>
+				</div>
+				<div>
+					<span>{$t('details.connections')}</span><strong
+						>{degreeByStation.get(selectedStation.id) ?? 0}</strong
+					>
 				</div>
 			</div>
 
 			{#if (trainsByStation.get(selectedStation.id) ?? []).length > 0}
 				<div class="section">
-					<h3>Pociągi na stacji</h3>
+					<h3>{$t('details.trainsAtStation')}</h3>
 					<ul class="connections">
 						{#each trainsByStation.get(selectedStation.id) ?? [] as train (train.id)}
 							<li>
@@ -162,9 +174,9 @@
 								>
 									<div>
 										<strong>{train.name}</strong>
-										<span>{trainTypeLabel(train.type)} · {relationLabel(train)}</span>
+										<span>{trainTypeLabel(train.type, $t)} · {relationLabel(train)}</span>
 									</div>
-									<small>{trainStatusLabel(train.status)}</small>
+									<small>{trainStatusLabel(train.status, $t)}</small>
 								</button>
 							</li>
 						{/each}
@@ -173,7 +185,7 @@
 			{/if}
 
 			<div class="section">
-				<h3>Najbliższe połączenia</h3>
+				<h3>{$t('details.nearestConnections')}</h3>
 				<ul class="connections">
 					{#each connectedSegments as segment (segment.segmentId)}
 						<li>
@@ -192,15 +204,17 @@
 			</div>
 		{:else if selectedKind === 'segment' && selectedSegment}
 			<div class="detail-grid">
-				<div><span>Linia</span><strong>{selectedSegment.line}</strong></div>
-				<div><span>Długość</span><strong>{selectedSegment.distKm} km</strong></div>
-				<div><span>Czas przejazdu</span><strong>{selectedSegment.travelMin} min</strong></div>
+				<div><span>{$t('details.line')}</span><strong>{selectedSegment.line}</strong></div>
+				<div><span>{$t('details.length')}</span><strong>{selectedSegment.distKm} km</strong></div>
+				<div>
+					<span>{$t('details.travelTime')}</span><strong>{selectedSegment.travelMin} min</strong>
+				</div>
 				<div><span>Vmax</span><strong>{selectedSegment.vmax} km/h</strong></div>
-				<div><span>Tory</span><strong>{selectedSegment.railTracks}</strong></div>
+				<div><span>{$t('details.tracks')}</span><strong>{selectedSegment.railTracks}</strong></div>
 			</div>
 
 			<div class="section">
-				<h3>Stan wg kierunku</h3>
+				<h3>{$t('details.directionState')}</h3>
 				<div class="direction-grid">
 					<div class="direction-card status-{selectedSegment.forward.status}">
 						<span>
@@ -208,9 +222,9 @@
 								selectedSegment.target
 							)?.name}
 						</span>
-						<strong>{directionStatusLabel(selectedSegment.forward.status)}</strong>
+						<strong>{directionStatusLabel(selectedSegment.forward.status, $t)}</strong>
 						{#if selectedSegment.forward.restrictedVmax}
-							<small>do {selectedSegment.forward.restrictedVmax} km/h</small>
+							<small>{$t('details.upTo', { speed: selectedSegment.forward.restrictedVmax })}</small>
 						{/if}
 					</div>
 					<div class="direction-card status-{selectedSegment.backward.status}">
@@ -219,9 +233,10 @@
 								selectedSegment.source
 							)?.name}
 						</span>
-						<strong>{directionStatusLabel(selectedSegment.backward.status)}</strong>
+						<strong>{directionStatusLabel(selectedSegment.backward.status, $t)}</strong>
 						{#if selectedSegment.backward.restrictedVmax}
-							<small>do {selectedSegment.backward.restrictedVmax} km/h</small>
+							<small>{$t('details.upTo', { speed: selectedSegment.backward.restrictedVmax })}</small
+							>
 						{/if}
 					</div>
 				</div>
@@ -229,7 +244,7 @@
 
 			{#if trainsOnSelectedSegment.length > 0}
 				<div class="section">
-					<h3>Pociągi na odcinku</h3>
+					<h3>{$t('details.trainsOnSegment')}</h3>
 					<ul class="connections">
 						{#each trainsOnSelectedSegment as train (train.id)}
 							<li>
@@ -240,7 +255,7 @@
 								>
 									<div>
 										<strong>{train.name}</strong>
-										<span>{trainTypeLabel(train.type)}</span>
+										<span>{trainTypeLabel(train.type, $t)}</span>
 									</div>
 									<small>{Math.round(train.progress * 100)}%</small>
 								</button>
@@ -251,7 +266,7 @@
 			{/if}
 
 			<div class="section">
-				<h3>Łączy</h3>
+				<h3>{$t('details.connects')}</h3>
 				<ul class="connections">
 					<li>
 						<button type="button" on:click={() => pickStation(selectedSegment?.source ?? '')}>
@@ -259,7 +274,7 @@
 								<strong>{stationById.get(selectedSegment?.source ?? '')?.name}</strong>
 								<span>{selectedSegment?.source}</span>
 							</div>
-							<small>Stacja A</small>
+							<small>{$t('details.stationA')}</small>
 						</button>
 					</li>
 					<li>
@@ -268,7 +283,7 @@
 								<strong>{stationById.get(selectedSegment?.target ?? '')?.name}</strong>
 								<span>{selectedSegment?.target}</span>
 							</div>
-							<small>Stacja B</small>
+							<small>{$t('details.stationB')}</small>
 						</button>
 					</li>
 				</ul>
@@ -277,34 +292,46 @@
 			<p class="train-relation">{relationLabel(selectedTrain)}</p>
 
 			<div class="detail-grid">
-				<div><span>Status</span><strong>{trainStatusLabel(selectedTrain.status)}</strong></div>
-				<div><span>Typ</span><strong>{trainTypeLabel(selectedTrain.type)}</strong></div>
 				<div>
-					<span>Następny przystanek</span>
+					<span>{$t('details.status')}</span><strong
+						>{trainStatusLabel(selectedTrain.status, $t)}</strong
+					>
+				</div>
+				<div>
+					<span>{$t('details.type')}</span><strong>{trainTypeLabel(selectedTrain.type, $t)}</strong>
+				</div>
+				<div>
+					<span>{$t('details.nextStop')}</span>
 					<strong>
 						{selectedTrain.status === 'running' ? stationName(selectedTrain.nextStationId) : '—'}
 					</strong>
 				</div>
 				<div>
-					<span>Postęp odcinka</span><strong>{Math.round(selectedTrain.progress * 100)}%</strong>
+					<span>{$t('details.segmentProgress')}</span><strong
+						>{Math.round(selectedTrain.progress * 100)}%</strong
+					>
 				</div>
 				<div><span>Vmax</span><strong>{selectedTrain.vmax} km/h</strong></div>
 				<div>
-					<span>Kierunek</span>
-					<strong>{selectedTrain.direction === 'outbound' ? 'tam' : 'powrót'}</strong>
+					<span>{$t('details.direction')}</span>
+					<strong
+						>{selectedTrain.direction === 'outbound'
+							? $t('details.outbound')
+							: $t('details.return')}</strong
+					>
 				</div>
 			</div>
 
 			{#if selectedTrainDelayEvent}
 				<div class="delay-card">
-					<strong>⚠️ Pociąg wstrzymany przez incydent</strong>
-					<p>{selectedTrainDelayEvent.message}</p>
+					<strong>⚠️ {$t('details.delayedByIncident')}</strong>
+					<p>{formatEventMessage(selectedTrainDelayEvent, $t, stationName)}</p>
 				</div>
 			{/if}
 
 			{#if selectedTrain.routeStationIds.length > 0}
 				<div class="section">
-					<h3>Trasa ({stationName(selectedTrainTargetId)})</h3>
+					<h3>{$t('details.route', { destination: stationName(selectedTrainTargetId) })}</h3>
 					<ol class="route-list">
 						{#each selectedTrain.routeStationIds as stationId, index (`${index}-${stationId}`)}
 							<li
@@ -317,9 +344,11 @@
 								{#if index === selectedTrain.routeIndex}
 									<small>
 										{#if selectedTrain.status === 'running'}
-											w drodze → {stationName(selectedTrain.nextStationId)}
+											{$t('details.enRouteTo', {
+												station: stationName(selectedTrain.nextStationId)
+											})}
 										{:else}
-											{trainStatusLabel(selectedTrain.status)}
+											{trainStatusLabel(selectedTrain.status, $t)}
 										{/if}
 									</small>
 								{/if}

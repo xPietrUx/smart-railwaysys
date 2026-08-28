@@ -42,6 +42,8 @@ async def live(websocket: WebSocket):
 		info = scenario_service.active_info(websocket.app.state)
 		snapshot["scenario"] = info.model_dump() if info is not None else None
 		snapshot["paused"] = getattr(websocket.app.state, "sim_paused", False)
+		snapshot["speed"] = getattr(websocket.app.state, "sim_speed", 1.0)
+		snapshot["simClockMinutes"] = getattr(websocket.app.state, "sim_clock_minutes", 0.0)
 		await websocket.send_json(snapshot)
 		while True:
 			# Klient nic nie musi wysyłać — jedyny cel to wykrycie rozłączenia.

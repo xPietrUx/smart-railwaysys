@@ -1,269 +1,342 @@
 <script lang="ts">
-	import { onDestroy, onMount } from 'svelte';
-	import DetailsPanel from '$lib/components/network/DetailsPanel.svelte';
-	import IncidentFeed from '$lib/components/network/IncidentFeed.svelte';
-	import NetworkGraph from '$lib/components/network/NetworkGraph.svelte';
-	import SimulationHeader from '$lib/components/network/SimulationHeader.svelte';
-	import TimetableEditorModal from '$lib/components/network/TimetableEditorModal.svelte';
-	import TimetablePanel from '$lib/components/network/TimetablePanel.svelte';
-	import { createLiveStore } from '$lib/services/live';
-	import { applyEventsToSegments } from '$lib/services/liveNetwork';
-	import type { Scenario } from '$lib/types/scenario';
-	import type { HighlightFilter, Selected } from '$lib/types/selection';
+	import PublicNav from '$lib/components/site/PublicNav.svelte';
 	import type { PageData } from './$types';
-
 	export let data: PageData;
-
-	const live = createLiveStore(fetch, data.apiBaseUrl, {
-		trains: data.trains,
-		events: data.events,
-		scenario: null,
-		paused: false,
-		timestamp: data.timestamp
-	});
-	const { snapshot, status } = live;
-
-	onMount(() => live.connect());
-	onDestroy(() => live.disconnect());
-
-	let selected: Selected | null = null;
-	let highlight: HighlightFilter | null = null;
-	let mapComponent: NetworkGraph | undefined;
-
-	// Modal szczegółów rozkładu renderowany na poziomie strony (na środku mapy),
-	// nie w docku — dock ma backdrop-filter, który uwięziłby position:fixed.
-	let editorOpen = false;
-	let editorScenario: Scenario | null = null;
-	let scenariosRefreshKey = 0;
-
-	function openScenarioDetails(scenario: Scenario) {
-		editorScenario = scenario;
-		editorOpen = true;
-	}
-
-	function openScenarioCreate() {
-		editorScenario = null;
-		editorOpen = true;
-	}
-
-	function handleEditorClose(changed: boolean) {
-		editorOpen = false;
-		if (changed) scenariosRefreshKey += 1;
-	}
-
-	// Stany torów (blokady, ograniczenia) wyliczane na żywo z aktywnych zdarzeń --
-	// graf z SSR jest tylko migawką startową i sam by się nie aktualizował.
-	$: liveGraph = {
-		...data.graph,
-		segments: applyEventsToSegments(data.graph.segments, $snapshot.events)
-	};
-
-	function handleWindowKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && !editorOpen) {
-			selected = null;
-			highlight = null;
-		}
-	}
-
-	function handleIncidentSelect(sel: Selected) {
-		selected = sel;
-		mapComponent?.focusOn(sel);
-	}
 </script>
 
-<svelte:head>
-	<title>Smart Railway System — autonomiczna sieć kolejowa</title>
-	<meta
+<svelte:head
+	><title>Smart Railway — kolej pod pełną kontrolą</title><meta
 		name="description"
-		content="Autonomiczna symulacja pociągów na sieci kolejowej województwa śląskiego, na żywo z Memgraph."
-	/>
-</svelte:head>
+		content="Inteligentny system monitorowania i zarządzania ruchem kolejowym w czasie rzeczywistym."
+	/></svelte:head
+>
 
-<svelte:window on:keydown={handleWindowKeydown} />
-
-<main class="stage">
-	<div class="map-layer">
-		<NetworkGraph
-			bind:this={mapComponent}
-			graph={liveGraph}
-			trains={$snapshot.trains}
-			events={$snapshot.events}
-			bind:highlight
-			bind:selected
-		/>
-	</div>
-
-	<div class="topbar">
-		<SimulationHeader
-			snapshot={$snapshot}
-			status={$status}
-			apiBaseUrl={data.apiBaseUrl}
-			bind:highlight
-		/>
-	</div>
-
-	<aside class="dock dock-left">
-		<IncidentFeed events={$snapshot.events} onSelect={handleIncidentSelect} />
-	</aside>
-
-	<aside class="dock dock-right">
-		{#if selected}
-			<DetailsPanel
-				graph={liveGraph}
-				trains={$snapshot.trains}
-				events={$snapshot.events}
-				bind:selected
-			/>
-		{/if}
-		<TimetablePanel
-			apiBaseUrl={data.apiBaseUrl}
-			scenario={$snapshot.scenario}
-			refreshKey={scenariosRefreshKey}
-			onDetails={openScenarioDetails}
-			onCreate={openScenarioCreate}
-		/>
-	</aside>
-
-	{#if editorOpen}
-		<TimetableEditorModal
-			apiBaseUrl={data.apiBaseUrl}
-			graph={liveGraph}
-			scenario={editorScenario}
-			onClose={handleEditorClose}
-		/>
-	{/if}
-</main>
+<div class="landing">
+	<PublicNav authenticated={data.authenticated} />
+	<main>
+		<section class="hero" aria-label="Sekcja główna">
+			<div class="hero-inner">
+				<p class="hero-eyebrow">Smart Railway System</p>
+				<h1 class="hero-title">Kolej pod pełną kontrolą.</h1>
+				<p class="hero-lead">
+					Podgląd sieci kolejowej Śląska na żywo — pociągi, incydenty i rozkłady w jednym miejscu.
+				</p>
+				<div class="hero-cta">
+					{#if data.authenticated}
+						<a class="cta cta-primary" data-sveltekit-preload-data="off" href="/panel"
+							>Przejdź do systemu <b>→</b></a
+						>
+					{:else}
+						<form method="POST" action="?/guest">
+							<button class="cta cta-primary" type="submit">Wejdź jako gość <b>→</b></button>
+						</form>
+						<a class="cta cta-ghost" data-sveltekit-preload-data="off" href="/login">Zaloguj się</a>
+					{/if}
+				</div>
+			</div>
+		</section>
+		<section id="jak-to-dziala" class="features">
+			<article>
+				<span>01</span>
+				<h2>Sieć na żywo</h2>
+				<p>Pełny obraz ruchu i stanu infrastruktury w jednej, czytelnej mapie.</p>
+			</article>
+			<article>
+				<span>02</span>
+				<h2>Szybka reakcja</h2>
+				<p>Incydenty trafiają do operatora natychmiast, wraz z kontekstem.</p>
+			</article>
+			<article>
+				<span>03</span>
+				<h2>Lepsze decyzje</h2>
+				<p>Scenariusze i rozkłady pozwalają bezpiecznie planować kolejne kroki.</p>
+			</article>
+		</section>
+		<section id="o-wa-gone" class="about">
+			<p>O WA.GONE</p>
+			<h2>Technologia, która utrzymuje kolej w ruchu.</h2>
+		</section>
+		<section id="dokumentacja" class="documentation">
+			<p>DOKUMENTACJA</p>
+			<h2>Poznaj architekturę i sposób działania systemu.</h2>
+			<a href="https://github.com/xPietrUx/smart-railwaysys#readme" target="_blank" rel="noreferrer"
+				>Przejdź do dokumentacji <b>→</b></a
+			>
+		</section>
+		<footer id="kontakt">
+			<span>© 2026 Smart Railway</span><a href="mailto:kontakt@smartrailway.pl"
+				>kontakt@smartrailway.pl</a
+			>
+		</footer>
+	</main>
+</div>
 
 <style>
-	:global(html),
-	:global(body) {
-		height: 100%;
+	:global(html) {
+		scroll-behavior: smooth;
 	}
-
 	:global(body) {
 		margin: 0;
-		font-family:
-			Inter,
-			ui-sans-serif,
-			system-ui,
-			-apple-system,
-			BlinkMacSystemFont,
-			'Segoe UI',
-			sans-serif;
-		background:
-			radial-gradient(circle at top, rgba(37, 99, 235, 0.2), transparent 35%),
-			linear-gradient(180deg, #0f172a 0%, #111827 100%);
-		color: #e5eefb;
+		background: #333333;
+		color: #f5f7f8;
+		font-family: 'Inter Variable', sans-serif;
+		transition:
+			background-color 350ms ease,
+			color 350ms ease;
 	}
-
-	.stage {
-		position: relative;
-		height: 100dvh;
-		overflow: hidden;
+	:global(html.light-mode) :global(body),
+	:global(html.light-mode) .landing {
+		background: #f4f5f3;
+		color: #1f2933;
 	}
-
-	.map-layer {
-		position: absolute;
-		inset: 0;
+	.landing {
+		min-height: 100vh;
+		background: #333333;
+		transition:
+			background-color 350ms ease,
+			color 350ms ease;
 	}
-
-	.topbar {
-		position: absolute;
-		top: 12px;
-		left: 16px;
-		right: 16px;
-		z-index: 20;
-		pointer-events: none;
-	}
-
-	.topbar :global(.bar) {
-		pointer-events: auto;
-	}
-
-	.dock {
-		position: absolute;
-		top: 96px;
-		bottom: 68px;
-		z-index: 10;
-		width: min(330px, 86vw);
+	.hero {
+		min-height: calc(100vh - 76px);
 		display: flex;
-		flex-direction: column;
-		align-items: stretch;
-		gap: 12px;
-		pointer-events: none;
+		align-items: center;
+		padding: 0 clamp(24px, 8vw, 120px);
+		box-sizing: border-box;
 	}
-
-	/* flex-shrink + min-height pozwalają dwóm panelom (szczegóły + scenariusze)
-	   podzielić się wysokością docka zamiast wystawać poza ekran. */
-	.dock > :global(*) {
-		pointer-events: auto;
-		max-height: 100%;
-		overflow-y: auto;
-		flex: 0 1 auto;
-		min-height: 0;
+	.hero-inner {
+		max-width: 640px;
 	}
-
-	.dock-left {
-		left: 16px;
+	.hero-eyebrow {
+		margin: 0 0 14px;
+		color: #dddddd;
+		letter-spacing: 0.18em;
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		transition: color 350ms ease;
 	}
-
-	.dock-right {
-		right: 16px;
+	.hero-title {
+		margin: 0;
+		font-size: clamp(2.4rem, 6vw, 4.6rem);
+		line-height: 1.02;
+		letter-spacing: -0.01em;
+		transition: color 350ms ease;
 	}
-
-	/* Gdy topbar zawija się do dwóch wierszy, panele muszą zacząć niżej. */
-	@media (max-width: 1400px) {
-		.dock {
-			top: 132px;
-		}
+	.hero-lead {
+		margin: 22px 0 0;
+		max-width: 480px;
+		color: #87979f;
+		line-height: 1.7;
+		font-size: 1.02rem;
+		transition: color 350ms ease;
 	}
-
-	/* Wąskie ekrany: zwykły układ pionowy zamiast nakładek. */
+	:global(html.light-mode) .hero-eyebrow {
+		color: #52606a;
+	}
+	:global(html.light-mode) .hero-lead {
+		color: #52606a;
+	}
+	.hero-cta {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		margin-top: 40px;
+		flex-wrap: wrap;
+	}
+	.hero-cta form {
+		margin: 0;
+	}
+	.cta {
+		display: inline-block;
+		border: 0;
+		border-radius: 9px;
+		padding: 14px 22px;
+		font: inherit;
+		font-size: 0.72rem;
+		font-weight: 750;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		text-decoration: none;
+		cursor: pointer;
+		transition: opacity 180ms ease;
+	}
+	.cta:hover {
+		opacity: 0.7;
+	}
+	.cta b {
+		margin-left: 7px;
+	}
+	.cta-primary {
+		background: #f4f1eb;
+		color: #171717;
+	}
+	.cta-ghost {
+		background: transparent;
+		color: #cccccc;
+		border: 1px solid #4a4a4a;
+	}
+	.features {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 1px;
+		background: #444444;
+		padding: 1px;
+		transition: background-color 350ms ease;
+	}
+	:global(html.light-mode) .features {
+		background: #d1d5db;
+	}
+	.features article {
+		background: #292929;
+		padding: 70px clamp(24px, 5vw, 70px);
+		transition: opacity 180ms ease;
+		transition-property: background-color, color, opacity;
+		transition-duration: 350ms, 350ms, 180ms;
+	}
+	:global(html.light-mode) .features article {
+		background: #ffffff;
+	}
+	.features article:hover {
+		opacity: 0.72;
+	}
+	.features article > span {
+		color: #dddddd;
+		font-size: 0.7rem;
+		transition: color 350ms ease;
+	}
+	.features h2 {
+		font-size: 1.35rem;
+		transition: color 350ms ease;
+	}
+	.features p {
+		color: #87979f;
+		line-height: 1.7;
+		transition: color 350ms ease;
+	}
+	:global(html.light-mode) .features p {
+		color: #52606a;
+	}
+	:global(html.light-mode) .features article > span,
+	:global(html.light-mode) .about p,
+	:global(html.light-mode) .documentation p {
+		color: #52606a;
+	}
+	.about {
+		text-align: center;
+		padding: 120px 24px;
+		background: #222222;
+		transition:
+			background-color 350ms ease,
+			color 350ms ease;
+	}
+	:global(html.light-mode) .about {
+		background: #e5e7eb;
+	}
+	.about p {
+		color: #dddddd;
+		letter-spacing: 0.18em;
+		font-size: 0.7rem;
+		transition: color 350ms ease;
+	}
+	.about h2 {
+		font-size: clamp(2rem, 4vw, 4rem);
+		max-width: 800px;
+		margin: 20px auto;
+		transition: color 350ms ease;
+	}
+	.documentation {
+		padding: 100px 24px;
+		text-align: center;
+		background: #292929;
+		transition:
+			background-color 350ms ease,
+			color 350ms ease;
+	}
+	:global(html.light-mode) .documentation {
+		background: #ffffff;
+	}
+	.documentation p {
+		color: #dddddd;
+		letter-spacing: 0.18em;
+		font-size: 0.7rem;
+		transition: color 350ms ease;
+	}
+	.documentation h2 {
+		max-width: 680px;
+		margin: 20px auto 32px;
+		font-size: clamp(1.8rem, 4vw, 3.2rem);
+		transition: color 350ms ease;
+	}
+	.documentation a {
+		color: #f4f1eb;
+		font-size: 0.78rem;
+		font-weight: 750;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		transition: color 350ms ease;
+	}
+	:global(html.light-mode) .documentation a {
+		color: #1f2933;
+	}
+	.documentation b {
+		margin-left: 7px;
+	}
+	footer {
+		padding: 30px clamp(24px, 8vw, 120px);
+		display: flex;
+		justify-content: space-between;
+		color: #718089;
+		font-size: 0.75rem;
+		border-top: 1px solid #17242a;
+		transition:
+			background-color 350ms ease,
+			color 350ms ease,
+			border-color 350ms ease;
+	}
+	:global(html.light-mode) footer {
+		border-top-color: #d1d5db;
+		color: #52606a;
+	}
+	:global(html.light-mode) footer a {
+		color: #374151;
+	}
+	footer a {
+		color: #9fb0b7;
+		transition: color 350ms ease;
+	}
+	footer a:hover {
+		opacity: 0.6;
+	}
 	@media (max-width: 900px) {
-		.stage {
-			height: auto;
-			min-height: 100dvh;
-			overflow: visible;
-			display: flex;
-			flex-direction: column;
-			gap: 12px;
-			padding: 12px;
-			box-sizing: border-box;
+		.features {
+			grid-template-columns: 1fr;
 		}
-
-		.map-layer {
-			position: relative;
-			inset: auto;
-			height: 60vh;
-			border-radius: 16px;
-			overflow: hidden;
-			border: 1px solid rgba(148, 163, 184, 0.18);
-			order: 2;
+	}
+	@media (max-width: 560px) {
+		.features article {
+			padding: 45px 24px;
 		}
-
-		.topbar {
-			position: static;
-			pointer-events: auto;
-			order: 1;
-		}
-
-		.dock {
-			position: static;
-			width: auto;
-			pointer-events: auto;
-		}
-
-		.dock > :global(*) {
-			max-height: none;
-			overflow-y: visible;
-		}
-
-		.dock-right {
-			order: 3;
-		}
-
-		.dock-left {
-			order: 4;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		:global(body),
+		.landing,
+		.hero-eyebrow,
+		.hero-title,
+		.hero-lead,
+		.features,
+		.features article,
+		.features article > span,
+		.features h2,
+		.features p,
+		.about,
+		.about p,
+		.about h2,
+		.documentation,
+		.documentation p,
+		.documentation h2,
+		.documentation a,
+		footer,
+		footer a {
+			transition-duration: 0ms;
 		}
 	}
 </style>

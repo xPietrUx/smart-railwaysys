@@ -19,3 +19,19 @@ export function resumeSimulation(fetchFn: typeof fetch, baseUrl: string): Promis
 export function clearTrains(fetchFn: typeof fetch, baseUrl: string): Promise<void> {
 	return post(fetchFn, `${baseUrl}/api/simulation/trains/clear`);
 }
+
+/** Ustawia mnożnik tempa symulacji (dozwolone: 0.5, 1, 1.5, 2). */
+export async function setSimulationSpeed(
+	fetchFn: typeof fetch,
+	baseUrl: string,
+	speed: number
+): Promise<void> {
+	const response = await fetchFn(`${baseUrl}/api/simulation/speed`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ speed })
+	});
+	if (!response.ok) {
+		throw new Error(await readApiError(response));
+	}
+}

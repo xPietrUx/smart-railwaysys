@@ -1,5 +1,14 @@
 from os import getenv
 
+AUTH_SECRET = getenv("AUTH_SECRET", "change-this-secret-in-production")
+AUTH_TOKEN_TTL_SECONDS = int(getenv("AUTH_TOKEN_TTL_SECONDS", "604800"))
+
+# Konto administratora zakładane przy pierwszym starcie, jeśli w bazie nie ma
+# żadnego aktywnego admina. Zmień hasło po pierwszym logowaniu (albo nadpisz
+# przez zmienne środowiskowe ADMIN_EMAIL / ADMIN_PASSWORD).
+DEFAULT_ADMIN_EMAIL = getenv("ADMIN_EMAIL", "admin@smartrailway.pl")
+DEFAULT_ADMIN_PASSWORD = getenv("ADMIN_PASSWORD", "admin12345")
+
 DEFAULT_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
 
 ALLOWED_ORIGINS = [
@@ -15,6 +24,11 @@ ALLOWED_ORIGINS = [
 
 SIM_TICK_INTERVAL_S = float(getenv("SIM_TICK_INTERVAL_S", "1.0"))
 SIM_TIME_SCALE = float(getenv("SIM_TIME_SCALE", "60.0"))
+
+# Dozwolone mnożniki tempa symulacji (sterowane z UI, styl EU4). Mnożnik skaluje
+# postęp pociągów na odcinkach; timery liczone w realnych sekundach (przerwy,
+# zdarzenia) pozostają nietknięte — patrz komentarz wyżej.
+SIM_SPEED_OPTIONS = (0.5, 1.0, 1.5, 2.0)
 
 SIM_DWELL_REAL_SECONDS_MIN = float(getenv("SIM_DWELL_REAL_SECONDS_MIN", "5.0"))
 SIM_DWELL_REAL_SECONDS_MAX = float(getenv("SIM_DWELL_REAL_SECONDS_MAX", "15.0"))

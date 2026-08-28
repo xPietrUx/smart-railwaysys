@@ -18,6 +18,8 @@ def _build_broadcast_payload(tick_result: dict) -> dict:
 		"events": [event.model_dump() for event in tick_result["events"]],
 		"scenario": scenario.model_dump() if scenario is not None else None,
 		"paused": tick_result.get("paused", False),
+		"speed": tick_result.get("speed", 1.0),
+		"simClockMinutes": tick_result.get("simClockMinutes", 0.0),
 		"timestamp": tick_result["timestamp"],
 	}
 

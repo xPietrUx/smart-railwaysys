@@ -273,8 +273,24 @@ def run_tick_sync(driver: Driver, app_state) -> dict:
 	jedno nowe zdarzenie i przelicza trasy dotkniętych pociągów. Przy wstrzymanej
 	symulacji niczego nie mutuje — tylko odczytuje bieżący stan do broadcastu."""
 	now = time.time()
+	paused = getattr(app_state, "sim_paused", False)
+	speed = getattr(app_state, "sim_speed", 1.0)
 
-	if getattr(app_state, "sim_paused", False):
+	# Zegar symulacji (w minutach): co realną sekundę doliczamy `speed` minut
+	# symulowanych. Przy 1× i SIM_TIME_SCALE=60 jedna realna sekunda = jedna minuta
+	# symulacji, a przy 2×/0,5× zegar idzie odpowiednio szybciej/wolniej — tak samo
+	# jak ruch pociągów. Tick w pauzie tylko przesuwa punkt odniesienia, nic nie
+	# dolicza.
+	last_tick_at = getattr(app_state, "sim_last_tick_at", None)
+	if not paused and last_tick_at is not None:
+		app_state.sim_clock_minutes = (
+			getattr(app_state, "sim_clock_minutes", 0.0) + (now - last_tick_at) * speed
+		)
+	app_state.sim_last_tick_at = now
+
+	sim_clock_minutes = getattr(app_state, "sim_clock_minutes", 0.0)
+
+	if paused:
 		with driver.session() as session:
 			trains = _load_trains(session)
 			events = event_service.load_events(session)
@@ -283,10 +299,14 @@ def run_tick_sync(driver: Driver, app_state) -> dict:
 			"events": events,
 			"scenario": scenario_service.active_info(app_state),
 			"paused": True,
+			"speed": speed,
+			"simClockMinutes": sim_clock_minutes,
 			"timestamp": now,
 		}
 
-	dt_sim_s = config.SIM_TICK_INTERVAL_S * config.SIM_TIME_SCALE
+	# Mnożnik tempa (0.5x–2x) skaluje postęp pociągów i zegar symulacji — timery
+	# liczone w realnych sekundach (przerwy, zdarzenia) celowo biegną niezależnie.
+	dt_sim_s = config.SIM_TICK_INTERVAL_S * config.SIM_TIME_SCALE * speed
 
 	with driver.session() as session:
 		event_service.resolve_due_events(session, now)
@@ -317,5 +337,7 @@ def run_tick_sync(driver: Driver, app_state) -> dict:
 		"events": events,
 		"scenario": scenario_service.active_info(app_state),
 		"paused": False,
+		"speed": speed,
+		"simClockMinutes": sim_clock_minutes,
 		"timestamp": now,
 	}

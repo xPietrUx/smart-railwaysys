@@ -266,7 +266,9 @@ CREATE (:Train {
 
 def load_data(session):
     # 0. Czyszczenie i constrainty (idempotentnosc)
-    session.run("MATCH (n) DETACH DELETE n")
+    # Zachowujemy konta (:User) i role (:Role) — reseed sieci kolejowej nie może
+    # kasować danych logowania, inaczej znika m.in. konto administratora.
+    session.run("MATCH (n) WHERE NOT n:User AND NOT n:Role DETACH DELETE n")
     for constraint in CONSTRAINTS:
         try:
             session.run(constraint)
@@ -305,6 +307,17 @@ def load_data(session):
                     operator=operator, line_code=line_code,
                     data_source=data_source, conf=conf)
     print(f"✓ Pociagi utworzone ({len(TRAINS)})")
+
+    # 4. Role i konto administratora
+    try:
+        from app.services import auth_service
+        auth_service.ensure_roles(session)
+        created_admin = auth_service.ensure_admin_user(session)
+        if created_admin:
+            print(f"✓ Konto administratora gotowe: {created_admin}")
+    except Exception as exc:
+        print(f"⚠ Pomijam zasiew ról/admina w seed.py: {exc}")
+
 
 
 if __name__ == "__main__":

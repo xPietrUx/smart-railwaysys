@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
+	import { locale, t } from '$lib/i18n';
 	import type { ConnectionStatus, LiveSnapshot } from '$lib/services/live';
-	import { clearTrains, pauseSimulation, resumeSimulation } from '$lib/services/simulation';
+	import { clearTrains } from '$lib/services/simulation';
 	import type { HighlightFilter } from '$lib/types/selection';
 	import type { TrainStatus } from '$lib/types/train';
 
@@ -9,6 +11,11 @@
 	export let status: ConnectionStatus;
 	export let apiBaseUrl: string;
 	export let highlight: HighlightFilter | null = null;
+	export let readOnly = false;
+	export let user: { email: string; role: string; permissions: string[] } | null = null;
+
+	$: isGuest = user?.role === 'guest';
+	$: isAdmin = user?.permissions?.includes('users.manage') ?? false;
 
 	function toggleTrainFilter(trainStatus: TrainStatus) {
 		highlight =
@@ -33,15 +40,15 @@
 	$: activeIncidents = snapshot.events.filter((e) => e.status === 'active').length;
 
 	$: lastUpdateLabel = snapshot.timestamp
-		? new Date(snapshot.timestamp * 1000).toLocaleTimeString('pl-PL')
+		? new Date(snapshot.timestamp * 1000).toLocaleTimeString($locale === 'pl' ? 'pl-PL' : 'en-GB')
 		: '—';
 
-	const statusLabels: Record<ConnectionStatus, string> = {
-		connecting: 'Łączenie…',
-		open: 'Na żywo',
-		reconnecting: 'Ponowne łączenie…',
-		'polling-fallback': 'Tryb odpytywania'
-	};
+	function connectionLabel(connectionStatus: ConnectionStatus): string {
+		if (connectionStatus === 'connecting') return $t('connection.connecting');
+		if (connectionStatus === 'open') return $t('connection.open');
+		if (connectionStatus === 'reconnecting') return $t('connection.reconnecting');
+		return $t('connection.polling');
+	}
 
 	const statusDotClass: Record<ConnectionStatus, string> = {
 		connecting: 'dot-amber',
@@ -63,32 +70,10 @@
 		}
 	}
 
-	// --- Sterowanie symulacją (pauza / wznowienie / czyszczenie floty) ---
+	// --- Sterowanie flotą (pauza/prędkość mieszkają w SimSpeedControl na mapie) ---
 	$: paused = snapshot.paused;
 
 	let controlBusy = false;
-	// Optymistyczny stan pauzy do czasu potwierdzenia następnym tickiem WS.
-	let optimisticPaused: boolean | null = null;
-	$: pausedView = optimisticPaused ?? paused;
-	$: if (optimisticPaused !== null && paused === optimisticPaused) optimisticPaused = null;
-
-	async function togglePause() {
-		if (controlBusy) return;
-		controlBusy = true;
-		try {
-			if (pausedView) {
-				await resumeSimulation(fetch, apiBaseUrl);
-				optimisticPaused = false;
-			} else {
-				await pauseSimulation(fetch, apiBaseUrl);
-				optimisticPaused = true;
-			}
-		} catch {
-			// 409 przy podwójnym kliknięciu -- następny tick pokaże właściwy stan.
-		} finally {
-			controlBusy = false;
-		}
-	}
 
 	async function handleClearTrains() {
 		if (controlBusy) return;
@@ -106,7 +91,7 @@
 <header class="bar">
 	<div class="title">
 		<p class="eyebrow">Smart Railway System</p>
-		<h1>Autonomiczna sieć kolejowa Śląska</h1>
+		<h1>{$t('header.title')}</h1>
 	</div>
 
 	<div class="right">
@@ -118,10 +103,10 @@
 				aria-pressed={activeTrainStatus === 'running'}
 				on:click={() => toggleTrainFilter('running')}
 				title={activeTrainStatus === 'running'
-					? 'Kliknij, aby wyłączyć filtr'
-					: 'Podświetl pociągi w drodze'}
+					? $t('header.filter.disable')
+					: $t('header.filter.running')}
 			>
-				<span>W drodze</span>
+				<span>{$t('header.metric.running')}</span>
 				<strong>{runningCount}</strong>
 				{#if activeTrainStatus === 'running'}<span class="clear-mark">×</span>{/if}
 			</button>
@@ -132,10 +117,10 @@
 				aria-pressed={activeTrainStatus === 'dwelling'}
 				on:click={() => toggleTrainFilter('dwelling')}
 				title={activeTrainStatus === 'dwelling'
-					? 'Kliknij, aby wyłączyć filtr'
-					: 'Podświetl pociągi na przerwie'}
+					? $t('header.filter.disable')
+					: $t('header.filter.dwelling')}
 			>
-				<span>Przerwa</span>
+				<span>{$t('header.metric.dwelling')}</span>
 				<strong>{dwellingCount}</strong>
 				{#if activeTrainStatus === 'dwelling'}<span class="clear-mark">×</span>{/if}
 			</button>
@@ -147,10 +132,10 @@
 				aria-pressed={activeTrainStatus === 'waiting'}
 				on:click={() => toggleTrainFilter('waiting')}
 				title={activeTrainStatus === 'waiting'
-					? 'Kliknij, aby wyłączyć filtr'
-					: 'Podświetl pociągi zatrzymane'}
+					? $t('header.filter.disable')
+					: $t('header.filter.waiting')}
 			>
-				<span>Zatrzymane</span>
+				<span>{$t('header.metric.waiting')}</span>
 				<strong>{waitingCount}</strong>
 				{#if activeTrainStatus === 'waiting'}<span class="clear-mark">×</span>{/if}
 			</button>
@@ -162,10 +147,10 @@
 				aria-pressed={activeTrainStatus === 'derailed'}
 				on:click={() => toggleTrainFilter('derailed')}
 				title={activeTrainStatus === 'derailed'
-					? 'Kliknij, aby wyłączyć filtr'
-					: 'Podświetl pociągi wykolejone'}
+					? $t('header.filter.disable')
+					: $t('header.filter.derailed')}
 			>
-				<span>Wykolejone</span>
+				<span>{$t('header.metric.derailed')}</span>
 				<strong>{derailedCount}</strong>
 				{#if activeTrainStatus === 'derailed'}<span class="clear-mark">×</span>{/if}
 			</button>
@@ -176,56 +161,66 @@
 				class:active={incidentsActive}
 				aria-pressed={incidentsActive}
 				on:click={toggleIncidentFilter}
-				title={incidentsActive
-					? 'Kliknij, aby wyłączyć filtr'
-					: 'Podświetl incydenty i dotknięte nimi elementy'}
+				title={incidentsActive ? $t('header.filter.disable') : $t('header.filter.incidents')}
 			>
-				<span>Incydenty</span>
+				<span>{$t('header.metric.incidents')}</span>
 				<strong>{activeIncidents}</strong>
 				{#if incidentsActive}<span class="clear-mark">×</span>{/if}
 			</button>
 		</div>
 
-		<div class="sim-controls">
-			<button
-				type="button"
-				class="ctrl-btn"
-				class:ctrl-paused={pausedView}
-				on:click={togglePause}
-				disabled={controlBusy}
-				title={pausedView ? 'Wznów symulację' : 'Zatrzymaj symulację'}
-			>
-				{pausedView ? '▶ Wznów' : '⏸ Zatrzymaj'}
-			</button>
-			<button
-				type="button"
-				class="ctrl-btn ctrl-danger"
-				on:click={handleClearTrains}
-				disabled={controlBusy || snapshot.trains.length === 0}
-				title="Usuń z sieci wszystkie pociągi obecnego scenariusza"
-			>
-				🗑 Usuń pociągi
-			</button>
-		</div>
+		{#if !readOnly}
+			<div class="sim-controls">
+				<button
+					type="button"
+					class="ctrl-btn ctrl-danger"
+					on:click={handleClearTrains}
+					disabled={controlBusy || snapshot.trains.length === 0}
+					title={$t('header.clearTrainsTitle')}
+				>
+					🗑 {$t('header.clearTrains')}
+				</button>
+			</div>
+		{/if}
 
-		<div
-			class="status-strip"
-			title="Stan połączenia z symulacją — ostatnia aktualizacja {lastUpdateLabel}"
-		>
-			{#if pausedView}
+		<div class="status-strip" title={$t('header.connectionTitle', { time: lastUpdateLabel })}>
+			{#if paused}
 				<span class="status-dot dot-amber"></span>
-				<span class="status-label">Wstrzymano</span>
+				<span class="status-label">{$t('header.paused')}</span>
 			{:else}
 				<span class="status-dot {statusDotClass[status]}"></span>
-				<span class="status-label">{statusLabels[status]}</span>
+				<span class="status-label">{connectionLabel(status)}</span>
 			{/if}
 			<span class="status-time">{lastUpdateLabel}</span>
 		</div>
 
-		{#if debugMode}
+		{#if debugMode && !readOnly}
 			<button type="button" class="debug-btn" on:click={triggerRandomEvent} disabled={triggering}>
-				{triggering ? 'Wywoływanie…' : '🎲 Zdarzenie'}
+				{triggering ? $t('header.triggering') : `🎲 ${$t('header.event')}`}
 			</button>
+		{/if}
+
+		<LanguageSwitcher />
+
+		{#if user}
+			<div class="account">
+				{#if isGuest}
+					<span class="guest-badge">{$t('header.guestBadge')}</span>
+					<a class="account-btn" href="/login" data-sveltekit-preload-data="off">
+						{$t('header.login')}
+					</a>
+				{:else}
+					{#if isAdmin}
+						<a class="account-btn account-admin" href="/admin" data-sveltekit-preload-data="off">
+							🛠 {$t('header.admin')}
+						</a>
+					{/if}
+					<span class="account-email" title={user.email}>{user.email}</span>
+					<form method="POST" action="/wyloguj">
+						<button class="account-btn" type="submit">{$t('header.logout')}</button>
+					</form>
+				{/if}
+			</div>
 		{/if}
 	</div>
 </header>
@@ -243,6 +238,18 @@
 		border: 1px solid rgba(148, 163, 184, 0.18);
 		box-shadow: 0 24px 60px rgba(15, 23, 42, 0.45);
 		backdrop-filter: blur(12px);
+		font-family: 'Inter Variable', sans-serif;
+		font-weight: 300;
+	}
+	.guest-badge {
+		border: 1px solid rgba(203, 213, 225, 0.28);
+		border-radius: 9px;
+		color: #cbd5e1;
+		padding: 6px 9px;
+		font-size: 0.66rem;
+		font-weight: 300;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 	}
 
 	.eyebrow {
@@ -264,6 +271,53 @@
 		align-items: center;
 		gap: 10px;
 		flex-wrap: wrap;
+	}
+
+	.right form {
+		margin: 0;
+	}
+
+	.account {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+
+	.account-email {
+		max-width: 180px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.72rem;
+		color: #cbd5e1;
+	}
+
+	.account-btn {
+		border: 1px solid rgba(148, 163, 184, 0.28);
+		border-radius: 9px;
+		background: rgba(15, 23, 42, 0.45);
+		color: #cbd5e1;
+		padding: 7px 10px;
+		font: inherit;
+		font-size: 0.7rem;
+		text-decoration: none;
+		cursor: pointer;
+	}
+
+	.account-btn:hover {
+		border-color: #5eead4;
+		color: #f8fafc;
+	}
+
+	.account-admin {
+		border-color: rgba(96, 165, 250, 0.55);
+		color: #bfdbfe;
+	}
+
+	.account-admin:hover {
+		border-color: #60a5fa;
+		color: #f8fafc;
 	}
 
 	.metrics {
@@ -425,12 +479,6 @@
 	.ctrl-btn:disabled {
 		opacity: 0.5;
 		cursor: default;
-	}
-
-	.ctrl-paused {
-		border-color: rgba(245, 158, 11, 0.55);
-		background: rgba(120, 53, 15, 0.35);
-		color: #fbbf24;
 	}
 
 	.ctrl-danger:hover:not(:disabled) {

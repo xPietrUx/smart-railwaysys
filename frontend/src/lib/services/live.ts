@@ -10,6 +10,10 @@ export type LiveSnapshot = {
 	events: RailEventNode[];
 	scenario: ActiveScenarioInfo | null;
 	paused: boolean;
+	/** Mnożnik tempa symulacji (0.5–2). */
+	speed: number;
+	/** Zegar symulacji w minutach (tempo skalowane prędkością, bez okresów pauzy). */
+	simClockMinutes: number;
 	timestamp: number;
 };
 
@@ -94,6 +98,8 @@ export function createLiveStore(
 				events: eventsData.events,
 				scenario: prev.scenario,
 				paused: prev.paused,
+				speed: prev.speed,
+				simClockMinutes: prev.simClockMinutes,
 				timestamp: trainsData.timestamp
 			}));
 		} catch {
@@ -157,6 +163,8 @@ export function createLiveStore(
 						events: payload.events,
 						scenario: payload.scenario ?? null,
 						paused: payload.paused ?? false,
+						speed: payload.speed ?? 1,
+						simClockMinutes: payload.simClockMinutes ?? 0,
 						timestamp: payload.timestamp
 					});
 				}
