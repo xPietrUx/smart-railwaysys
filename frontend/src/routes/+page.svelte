@@ -1,7 +1,52 @@
 <script lang="ts">
 	import PublicNav from '$lib/components/site/PublicNav.svelte';
+	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 	export let data: PageData;
+
+	let scrollProgress = 0;
+	let cursorX = 0;
+	let cursorY = 0;
+	let cursorVisible = false;
+	let cursorHover = false;
+
+	onMount(() => {
+		const updateScrollProgress = () => {
+			const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+			scrollProgress = maxScroll > 0 ? window.scrollY / maxScroll : 0;
+		};
+
+		document.documentElement.classList.add('dot-scrollbar');
+		updateScrollProgress();
+		window.addEventListener('scroll', updateScrollProgress, { passive: true });
+
+		return () => {
+			window.removeEventListener('scroll', updateScrollProgress);
+			document.documentElement.classList.remove('dot-scrollbar');
+		};
+	});
+
+	onMount(() => {
+		if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+		const updateCursor = (event: PointerEvent) => {
+			cursorX = event.clientX;
+			cursorY = event.clientY;
+			cursorVisible = true;
+			cursorHover = event.target instanceof Element && Boolean(event.target.closest('a, button'));
+		};
+		const hideCursor = () => (cursorVisible = false);
+
+		document.documentElement.classList.add('dot-cursor');
+		window.addEventListener('pointermove', updateCursor);
+		window.addEventListener('blur', hideCursor);
+
+		return () => {
+			document.documentElement.classList.remove('dot-cursor');
+			window.removeEventListener('pointermove', updateCursor);
+			window.removeEventListener('blur', hideCursor);
+		};
+	});
 </script>
 
 <svelte:head
@@ -13,6 +58,15 @@
 
 <div class="landing">
 	<PublicNav authenticated={data.authenticated} />
+	<div class="scroll-dot" style={`--scroll-progress: ${scrollProgress}`} aria-hidden="true"></div>
+	<div
+		class="custom-cursor"
+		class:is-visible={cursorVisible}
+		style={`--cursor-x: ${cursorX}px; --cursor-y: ${cursorY}px`}
+		aria-hidden="true"
+	>
+		<span class="cursor-dot" class:is-hovering={cursorHover}></span>
+	</div>
 	<main>
 		<section class="hero" aria-label="Sekcja główna">
 			<div class="hero-inner">
@@ -75,6 +129,12 @@
 	:global(html) {
 		scroll-behavior: smooth;
 	}
+	:global(html.dot-scrollbar) {
+		scrollbar-width: none;
+	}
+	:global(html.dot-scrollbar::-webkit-scrollbar) {
+		display: none;
+	}
 	:global(body) {
 		margin: 0;
 		background: #333333;
@@ -95,6 +155,56 @@
 		transition:
 			background-color 350ms ease,
 			color 350ms ease;
+	}
+	.scroll-dot {
+		position: fixed;
+		top: calc(50% - 60px);
+		right: clamp(12px, 2vw, 28px);
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: #f4f1eb;
+		transform: translateY(calc(var(--scroll-progress) * 120px));
+		transition:
+			background-color 350ms ease,
+			transform 80ms linear;
+		pointer-events: none;
+		z-index: 30;
+	}
+	:global(html.light-mode) .scroll-dot {
+		background: #1f2933;
+	}
+	.custom-cursor {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 0;
+		height: 0;
+		z-index: 100;
+		opacity: 0;
+		pointer-events: none;
+		transform: translate3d(var(--cursor-x), var(--cursor-y), 0);
+		transition: opacity 120ms ease;
+	}
+	.custom-cursor.is-visible {
+		opacity: 1;
+	}
+	.cursor-dot {
+		display: block;
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		background: #fff;
+		mix-blend-mode: difference;
+		transform: translate(-50%, -50%) scale(1);
+		transition: transform 180ms ease;
+	}
+	:global(html.light-mode) .cursor-dot {
+		background: #111827;
+		mix-blend-mode: normal;
+	}
+	.cursor-dot.is-hovering {
+		transform: translate(-50%, -50%) scale(1.7);
 	}
 	.hero {
 		min-height: calc(100vh - 76px);
@@ -337,6 +447,25 @@
 		footer,
 		footer a {
 			transition-duration: 0ms;
+		}
+		.scroll-dot {
+			transition: none;
+		}
+		.cursor-dot {
+			transition: none;
+		}
+	}
+	@media (hover: hover) and (pointer: fine) {
+		:global(html.dot-cursor),
+		:global(html.dot-cursor body),
+		:global(html.dot-cursor a),
+		:global(html.dot-cursor button) {
+			cursor: none;
+		}
+	}
+	@media not all and (hover: hover) and (pointer: fine) {
+		.custom-cursor {
+			display: none;
 		}
 	}
 </style>
