@@ -60,12 +60,6 @@
 		</button>
 	</p>
 
-	{#if error || (formSubmittedAttempt && (!isEmailValid || !isPasswordValid || (register && !isConfirmValid)))}
-		<div class="error-banner" role="alert">
-			<span class="error-icon">!</span>
-			<span>{error || 'Sprawdź i uzupełnij poprawnie formularz.'}</span>
-		</div>
-	{/if}
 
 	<form method="POST" action={register ? '/rejestracja' : '/login'} on:submit={handleSubmit} novalidate>
 		<div class="form-group">
@@ -222,44 +216,6 @@
 	}
 	.switch-mode-btn:hover {
 		opacity: 0.65;
-	}
-
-	.error-banner {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		padding: 12px 14px;
-		border-radius: 9px;
-		background: rgba(239, 68, 68, 0.15);
-		border-left: 3px solid #ef4444;
-		color: #fca5a5;
-		font-size: 0.82rem;
-		font-weight: 300;
-		margin-bottom: 20px;
-		text-align: left;
-		animation: shake 300ms ease-in-out;
-	}
-	:global(html.light-mode) .error-banner {
-		background: #fee2e2;
-		color: #991b1b;
-	}
-	.error-icon {
-		display: grid;
-		place-items: center;
-		width: 18px;
-		height: 18px;
-		border-radius: 50%;
-		background: #ef4444;
-		color: #fff;
-		font-size: 0.7rem;
-		font-weight: 700;
-		flex-shrink: 0;
-	}
-
-	@keyframes shake {
-		0%, 100% { transform: translateX(0); }
-		20%, 60% { transform: translateX(-4px); }
-		40%, 80% { transform: translateX(4px); }
 	}
 
 	form {
