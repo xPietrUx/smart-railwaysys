@@ -1,5 +1,4 @@
 <script lang="ts">
-	import FeatureDiagram from '$lib/components/site/FeatureDiagram.svelte';
 	import PublicNav from '$lib/components/site/PublicNav.svelte';
 	import AuthCard from '$lib/components/site/AuthCard.svelte';
 	import { onMount } from 'svelte';
@@ -11,22 +10,22 @@
 
 	const features = [
 		{
-			kind: 'network' as const,
+			id: 'network',
 			title: 'Sieć na żywo',
 			copy: 'Pełny obraz ruchu i stanu infrastruktury w jednej, czytelnej mapie.'
 		},
 		{
-			kind: 'incidents' as const,
+			id: 'incidents',
 			title: 'Szybka reakcja',
 			copy: 'Incydenty trafiają do operatora natychmiast, wraz z kontekstem.'
 		},
 		{
-			kind: 'timetable' as const,
+			id: 'timetable',
 			title: 'Rozkłady jazdy',
 			copy: 'Rozkłady i symulacja pokazują, co dzieje się teraz i co będzie dalej.'
 		},
 		{
-			kind: 'scenarios' as const,
+			id: 'scenarios',
 			title: 'Scenariusze',
 			copy: 'Bezpiecznie sprawdzaj kolejne kroki, zanim zmienisz rzeczywisty ruch.'
 		}
@@ -52,16 +51,24 @@
 	];
 
 	let showAuthModal = false;
+	let isClosingAuthModal = false;
 	let authMode: 'login' | 'register' = 'login';
 
 	function openAuthModal(mode: 'login' | 'register' = 'login', e?: Event) {
 		if (e) e.preventDefault();
 		authMode = mode;
+		isClosingAuthModal = false;
 		showAuthModal = true;
 	}
 
 	function closeAuthModal() {
-		showAuthModal = false;
+		if (!showAuthModal || isClosingAuthModal) return;
+		isClosingAuthModal = true;
+
+		setTimeout(() => {
+			showAuthModal = false;
+			isClosingAuthModal = false;
+		}, 250);
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -118,7 +125,6 @@
 						xPercent: -50,
 						yPercent: -50,
 						x: isActive ? 0 : shift,
-						'--ag-gray': isActive ? 0 : 1,
 						duration: dur,
 						ease
 					},
@@ -395,7 +401,6 @@
 	</div>
 
 	<main>
-		<!-- HERO SECTION -->
 		<section
 			class="hero"
 			on:pointermove={handleHeroPointerMove}
@@ -411,7 +416,6 @@
 			</div>
 		</section>
 
-		<!-- SEKCJA FEATURES -->
 		<section id="jak-to-dziala" class="features" aria-labelledby="features-heading">
 			<h2 id="features-heading">FUNKCJE</h2>
 
@@ -437,9 +441,7 @@
 					>
 						<div class="panel-inner">
 							<div bind:this={featureMediaRefs[i]} class="media-container">
-								<div class="feature-diagram-wrapper">
-									<FeatureDiagram kind={feature.kind} />
-								</div>
+								<div class="feature-image-placeholder"></div>
 							</div>
 						</div>
 
@@ -454,7 +456,6 @@
 			</div>
 		</section>
 
-		<!-- SEKCJA FAQ -->
 		<section id="faq" class="faq" aria-labelledby="faq-heading">
 			<p id="faq-heading" class="faq-eyebrow">FAQ</p>
 
@@ -483,18 +484,10 @@
 			</div>
 		</section>
 
-		<!-- SEKCJA KONTAKT -->
 		<section id="kontakt" class="contact" aria-labelledby="contact-heading">
 			<p id="contact-heading" class="contact-eyebrow">KONTAKT</p>
 
 			<form class="contact-form" on:submit={handleSubmitContact} novalidate>
-				{#if formSubmittedAttempt && (!isNameValid || !isEmailValid || !isMessageValid)}
-					<div class="error-banner">
-						<span class="error-icon">!</span>
-						<span>Wypełnij poprawnie wszystkie pola formularza przed wysłaniem.</span>
-					</div>
-				{/if}
-
 				<div class="form-group">
 					<label for="name">Imię i nazwisko</label>
 					<input
@@ -565,7 +558,6 @@
 			</form>
 		</section>
 
-		<!-- FOOTER -->
 		<footer bind:this={footerElement}>
 			<div class="footer-inner">
 				<span class="copyright">
@@ -578,15 +570,15 @@
 		</footer>
 	</main>
 
-	<!-- OVERLAY LOGOWANIA / REJESTRACJI (NIE WSTRZYMUJE SCROLLOWANIA STRONY W TLE) -->
 	{#if showAuthModal}
 		<div
 			class="modal-backdrop"
+			class:is-closing={isClosingAuthModal}
 			role="dialog"
 			aria-modal="true"
 			aria-label="Konto"
 		>
-			<div class="modal-card">
+			<div class="modal-card" class:is-closing={isClosingAuthModal}>
 				<button class="modal-close" type="button" on:click={closeAuthModal} aria-label="Zamknij">✕</button>
 				<AuthCard mode={authMode} error={form?.error} email={form?.email} />
 			</div>
@@ -611,10 +603,9 @@
 		font-family: 'Inter Variable', Inter, sans-serif;
 		font-size: 16px;
 		font-weight: 300;
-		transition: background-color 350ms ease, color 350ms ease;
+		transition: background-color 400ms cubic-bezier(0.16, 1, 0.3, 1), color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 
-	/* WSPARCIE DLA LIGHT-MODE */
 	:global(html.light-mode) :global(body),
 	:global(html.light-mode) .landing {
 		background: #f4f5f3;
@@ -623,7 +614,7 @@
 	.landing {
 		min-height: 100vh;
 		background: #111111;
-		transition: background-color 350ms ease, color 350ms ease;
+		transition: background-color 400ms cubic-bezier(0.16, 1, 0.3, 1), color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	.scroll-dot {
 		position: fixed;
@@ -636,6 +627,7 @@
 		transform: translateY(calc(var(--scroll-progress) * 120px));
 		pointer-events: none;
 		z-index: 30;
+		transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1), background-color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .scroll-dot {
 		background: #1f2933;
@@ -650,7 +642,7 @@
 		opacity: 0;
 		pointer-events: none;
 		transform: translate3d(var(--cursor-x), var(--cursor-y), 0);
-		transition: opacity 120ms ease;
+		transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	.custom-cursor.is-visible {
 		opacity: 1;
@@ -663,7 +655,7 @@
 		background: #fff;
 		mix-blend-mode: difference;
 		transform: translate(-50%, -50%) scale(1);
-		transition: transform 180ms ease;
+		transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .cursor-dot {
 		background: #111827;
@@ -679,7 +671,7 @@
 		width: 100%;
 		background: #111111;
 		overflow: hidden;
-		transition: background-color 350ms ease;
+		transition: background-color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .hero {
 		background: #e5e7eb;
@@ -689,7 +681,7 @@
 		inset: 0;
 		pointer-events: none;
 		opacity: 0;
-		transition: opacity 300ms ease;
+		transition: opacity 400ms cubic-bezier(0.16, 1, 0.3, 1);
 		-webkit-mask-image: radial-gradient(
 			circle 220px at var(--reveal-x) var(--reveal-y),
 			black 20%,
@@ -718,12 +710,11 @@
 			linear-gradient(90deg, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
 	}
 
-	/* Features */
 	.features {
 		padding: 80px clamp(24px, 8vw, 120px) 110px;
 		background: #111111;
 		scroll-margin-top: 76px;
-		transition: background-color 350ms ease;
+		transition: background-color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .features {
 		background: #f4f5f3;
@@ -736,7 +727,7 @@
 		letter-spacing: 0.18em;
 		text-transform: uppercase;
 		color: #dddddd;
-		transition: color 350ms ease;
+		transition: color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .features h2 {
 		color: #52606a;
@@ -764,7 +755,7 @@
 		will-change: flex-grow, transform;
 		box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.8);
 		border: 0;
-		transition: background-color 350ms ease;
+		transition: background-color 400ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .accordion-panel {
 		background: rgba(0, 0, 0, 0.04);
@@ -782,20 +773,15 @@
 		left: 50%;
 		width: var(--ag-media-size, 320px);
 		height: 100%;
-		filter: grayscale(var(--ag-gray, 1));
-		will-change: transform, filter;
+		will-change: transform;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
-	.feature-diagram-wrapper {
+	.feature-image-placeholder {
 		width: 100%;
 		height: 100%;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 24px;
-		box-sizing: border-box;
+		background: transparent;
 	}
 	.label-container {
 		pointer-events: none;
@@ -822,7 +808,7 @@
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		color: #ffffff;
-		transition: color 350ms ease;
+		transition: color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .label-content h3 {
 		color: #111827;
@@ -834,17 +820,16 @@
 		color: #97a5ad;
 		line-height: 1.4;
 		max-width: 34ch;
-		transition: color 350ms ease;
+		transition: color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .label-content p {
 		color: #6b7280;
 	}
 
-	/* FAQ */
 	.faq {
 		padding: 90px clamp(24px, 8vw, 120px);
 		background: #1a1a1a;
-		transition: background-color 350ms ease;
+		transition: background-color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .faq {
 		background: #e5e7eb;
@@ -857,7 +842,7 @@
 		font-size: 0.85rem;
 		font-weight: 300;
 		text-transform: uppercase;
-		transition: color 350ms ease;
+		transition: color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .faq-eyebrow {
 		color: #52606a;
@@ -874,7 +859,7 @@
 		border-radius: 12px;
 		background: rgba(255, 255, 255, 0.03);
 		overflow: hidden;
-		transition: background-color 350ms ease;
+		transition: background-color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .faq-item {
 		background: rgba(255, 255, 255, 0.6);
@@ -893,6 +878,10 @@
 		font-weight: 300;
 		text-align: left;
 		cursor: pointer;
+		transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1);
+	}
+	.faq-trigger:hover {
+		opacity: 0.7;
 	}
 	.faq-icon {
 		font-size: 1.5rem;
@@ -918,17 +907,16 @@
 		color: #87979f;
 		font-weight: 300;
 		line-height: 1.7;
-		transition: color 350ms ease;
+		transition: color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .faq-answer-inner p {
 		color: #52606a;
 	}
 
-	/* Kontakt */
 	.contact {
 		padding: 90px clamp(24px, 8vw, 120px);
 		background: #151515;
-		transition: background-color 350ms ease;
+		transition: background-color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .contact {
 		background: #ffffff;
@@ -941,7 +929,7 @@
 		font-size: 0.85rem;
 		font-weight: 300;
 		text-transform: uppercase;
-		transition: color 350ms ease;
+		transition: color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .contact-eyebrow {
 		color: #52606a;
@@ -952,28 +940,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 20px;
-	}
-	.error-banner {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 14px 18px;
-		border-radius: 9px;
-		background: rgba(239, 68, 68, 0.15);
-		border-left: 3px solid #ef4444;
-		color: #fca5a5;
-		font-size: 0.88rem;
-	}
-	.error-icon {
-		display: grid;
-		place-items: center;
-		width: 20px;
-		height: 20px;
-		border-radius: 50%;
-		background: #ef4444;
-		color: #fff;
-		font-size: 0.75rem;
-		font-weight: 700;
 	}
 	.form-group {
 		display: flex;
@@ -986,7 +952,7 @@
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: #87979f;
-		transition: color 350ms ease;
+		transition: color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .form-group label {
 		color: #52606a;
@@ -1004,7 +970,7 @@
 		font-weight: 300;
 		box-sizing: border-box;
 		outline: none;
-		transition: border-color 200ms ease, background-color 350ms ease, color 350ms ease;
+		transition: border-color 250ms ease, background-color 400ms cubic-bezier(0.16, 1, 0.3, 1), color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .form-group input,
 	:global(html.light-mode) .form-group textarea {
@@ -1037,10 +1003,14 @@
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 		cursor: pointer;
+		transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1), background-color 300ms ease, color 300ms ease;
 	}
 	.cta-primary {
 		background: #f4f1eb;
 		color: #171717;
+	}
+	.cta:hover {
+		opacity: 0.8;
 	}
 	.submit-btn.is-success {
 		background: #22c55e;
@@ -1051,7 +1021,7 @@
 		padding: 40px clamp(24px, 8vw, 120px);
 		background: #0d0d0d;
 		border-top: 1px solid rgba(255, 255, 255, 0.05);
-		transition: background-color 350ms ease, border-color 350ms ease;
+		transition: background-color 400ms cubic-bezier(0.16, 1, 0.3, 1), border-color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) footer {
 		background: #f4f5f3;
@@ -1070,7 +1040,7 @@
 		font-size: 0.85rem;
 		font-family: 'Inter Variable', Inter, sans-serif;
 		font-weight: 300;
-		transition: color 350ms ease;
+		transition: color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .copyright {
 		color: #6b7280;
@@ -1081,7 +1051,7 @@
 		text-decoration: none;
 		font-family: 'Inter Variable', Inter, sans-serif;
 		font-weight: 300;
-		transition: color 300ms ease;
+		transition: color 400ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	:global(html.light-mode) .footer-link {
 		color: #1f2933;
@@ -1097,7 +1067,6 @@
 		will-change: contents;
 	}
 
-	/* NIE-WSTRZYMUJĄCY SCROLLA OVERLAY DLA POPUPU LOGOWANIA/REJESTRACJI */
 	.modal-backdrop {
 		position: fixed;
 		inset: 0;
@@ -1109,20 +1078,28 @@
 		align-items: center;
 		justify-content: center;
 		padding: 24px;
-		pointer-events: none; 
-		animation: fadeIn 250ms ease forwards;
+		pointer-events: none;
+		animation: fadeIn 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	}
+	.modal-backdrop.is-closing {
+		animation: fadeOut 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	}
+
 	.modal-card {
 		position: relative;
 		width: 100%;
 		max-width: 440px;
-		pointer-events: auto; 
+		pointer-events: auto;
 		animation: slideUp 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	}
+	.modal-card.is-closing {
+		animation: slideDown 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	}
+
 	.modal-close {
 		position: absolute;
 		top: 18px;
-		right: 32px; 
+		right: 32px;
 		z-index: 20;
 		background: none;
 		border: 0;
@@ -1131,7 +1108,7 @@
 		cursor: pointer;
 		padding: 4px;
 		line-height: 1;
-		transition: color 200ms ease;
+		transition: color 200ms cubic-bezier(0.16, 1, 0.3, 1);
 	}
 	.modal-close:hover {
 		color: #ffffff;
@@ -1141,11 +1118,39 @@
 	}
 
 	@keyframes fadeIn {
-		from { opacity: 0; }
-		to { opacity: 1; }
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+	@keyframes fadeOut {
+		from {
+			opacity: 1;
+		}
+		to {
+			opacity: 0;
+		}
 	}
 	@keyframes slideUp {
-		from { opacity: 0; transform: translateY(20px); }
-		to { opacity: 1; transform: translateY(0); }
+		from {
+			opacity: 0;
+			transform: translateY(20px) scale(0.98);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+		}
+	}
+	@keyframes slideDown {
+		from {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+		}
+		to {
+			opacity: 0;
+			transform: translateY(16px) scale(0.97);
+		}
 	}
 </style>
