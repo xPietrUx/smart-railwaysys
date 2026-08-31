@@ -2,35 +2,39 @@
     import { page } from '$app/stores';
     import { onMount } from 'svelte';
     import { locale, setLocale } from '$lib/i18n';
-	import { createEventDispatcher } from 'svelte';
-	const dispatch = createEventDispatcher();
+    import { createEventDispatcher } from 'svelte';
+    const dispatch = createEventDispatcher();
 
     export let authenticated = false;
     let menuOpen = false;
     let lightMode = false;
     let navElement: HTMLElement;
     $: path = $page.url.pathname;
-    const navItems = [
-        { label: 'Jak to działa', href: '/#jak-to-dziala' },
-        { label: 'O wa.gone', href: '/#o-wa-gone' },
+
+    $: navItems = [
+        { label: $locale === 'en' ? 'How it works' : 'Jak to działa', href: '/#jak-to-dziala' },
+        { label: $locale === 'en' ? 'About wa.gone' : 'O wa.gone', href: '/#o-wa-gone' },
         { 
-            label: 'Dokumentacja', 
+            label: $locale === 'en' ? 'Documentation' : 'Dokumentacja', 
             href: 'https://github.com/xPietrUx/smart-railwaysys#readme', 
             target: '_blank', 
             rel: 'noreferrer' 
         },
-        { label: 'Kontakt', href: '/#kontakt' }
+        { label: $locale === 'en' ? 'Contact' : 'Kontakt', href: '/#kontakt' }
     ];
-    $: actionLabel = authenticated ? 'Przejdź do systemu' : 'Zaloguj się';
+
+    $: actionLabel = authenticated 
+        ? ($locale === 'en' ? 'Go to system' : 'Przejdź do systemu') 
+        : ($locale === 'en' ? 'Sign in' : 'Zaloguj się');
 
     function closeMenu() {
         menuOpen = false;
     }
 
-	function handleLoginClick(e: MouseEvent) {
-		e.preventDefault();
-		dispatch('openLogin');
-	}
+    function handleLoginClick(e: MouseEvent) {
+        e.preventDefault();
+        dispatch('openLogin');
+    }
 
     function toggleLanguage() {
         setLocale($locale === 'pl' ? 'en' : 'pl');
@@ -179,12 +183,12 @@
             >
         </button>
         <a 
-	class="login" 
-	href={authenticated ? '/panel' : '/login'} 
-	on:click={authenticated ? null : handleLoginClick}
->
-	{actionLabel}
-</a>
+            class="login" 
+            href={authenticated ? '/panel' : '/login'} 
+            on:click={authenticated ? null : handleLoginClick}
+        >
+            {actionLabel}
+        </a>
     </div>
 </header>
 
