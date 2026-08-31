@@ -1,10 +1,15 @@
 <script lang="ts">
+	import { createEventDispatcher } from 'svelte';
+
 	export let mode: 'login' | 'register';
 	export let error: string | undefined = undefined;
 	export let email = '';
 
+	const dispatch = createEventDispatcher();
+
 	$: register = mode === 'register';
 
+	let formElement: HTMLFormElement;
 	let password = '';
 	let passwordConfirm = '';
 
@@ -44,10 +49,15 @@
 		}
 
 		formStatus = 'submitting';
+	}
 
-		setTimeout(() => {
-			formStatus = 'success';
-		}, 1200);
+	function handleGuestSubmit(e: MouseEvent) {
+		e.preventDefault();
+		if (!formElement) return;
+		formStatus = 'submitting';
+		formElement.action = '/?/guest';
+		formElement.noValidate = true;
+		formElement.submit();
 	}
 </script>
 
@@ -60,8 +70,17 @@
 		</button>
 	</p>
 
+	{#if error}
+		<div class="field-error-msg global-err">{error}</div>
+	{/if}
 
-	<form method="POST" action={register ? '/rejestracja' : '/login'} on:submit={handleSubmit} novalidate>
+	<form
+		bind:this={formElement}
+		method="POST"
+		action={register ? '/rejestracja' : '/login'}
+		on:submit={handleSubmit}
+		novalidate
+	>
 		<div class="form-group">
 			<label for="auth-email">E-MAIL</label>
 			<input
@@ -145,9 +164,8 @@
 
 			<button
 				class="guest-btn"
-				type="submit"
-				formaction="/?/guest"
-				formnovalidate
+				type="button"
+				on:click={handleGuestSubmit}
 				disabled={formStatus !== 'idle'}
 			>
 				KONTYNUUJ<br />JAKO GOŚĆ
@@ -282,6 +300,10 @@
 		font-size: 0.78rem;
 		color: #fca5a5;
 		font-weight: 300;
+	}
+	.global-err {
+		margin-bottom: 12px;
+		text-align: center;
 	}
 	:global(html.light-mode) .field-error-msg {
 		color: #dc2626;
