@@ -77,7 +77,7 @@
 	<form
 		bind:this={formElement}
 		method="POST"
-		action={register ? '/rejestracja' : '/login'}
+		action={register ? '/rejestracja?/register' : '/login?/login'}
 		on:submit={handleSubmit}
 		novalidate
 	>
@@ -93,7 +93,7 @@
 				class:is-invalid={showEmailError}
 				class:is-valid={emailTouched && isEmailValid}
 				placeholder="operator@smartrailway.pl"
-				disabled={formStatus !== 'idle'}
+				readonly={formStatus !== 'idle'}
 				required
 			/>
 			{#if showEmailError}
@@ -113,7 +113,7 @@
 				class:is-invalid={showPasswordError}
 				class:is-valid={passwordTouched && isPasswordValid}
 				placeholder="Minimum 8 znaków"
-				disabled={formStatus !== 'idle'}
+				readonly={formStatus !== 'idle'}
 				required
 			/>
 			{#if showPasswordError}
@@ -135,7 +135,7 @@
 					class:is-invalid={showConfirmError}
 					class:is-valid={confirmTouched && isConfirmValid && passwordConfirm.length >= 8}
 					placeholder="Powtórz hasło"
-					disabled={formStatus !== 'idle'}
+					readonly={formStatus !== 'idle'}
 					required
 				/>
 				{#if showConfirmError}
