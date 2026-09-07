@@ -1,220 +1,403 @@
 <script lang="ts">
+	import { createEventDispatcher } from 'svelte';
+
 	export let mode: 'login' | 'register';
 	export let error: string | undefined = undefined;
 	export let email = '';
-	const register = mode === 'register';
+
+	const dispatch = createEventDispatcher();
+
+	$: register = mode === 'register';
+
+	let formElement: HTMLFormElement;
 	let password = '';
 	let passwordConfirm = '';
+
+	let emailTouched = false;
+	let passwordTouched = false;
 	let confirmTouched = false;
-	$: passwordsMismatch = register && confirmTouched && password !== passwordConfirm;
+
+	let formSubmittedAttempt = false;
+	let formStatus: 'idle' | 'submitting' | 'success' = 'idle';
+
+	$: isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+	$: isPasswordValid = password.length >= 8;
+	$: isConfirmValid = !register || (password === passwordConfirm && passwordConfirm.length >= 8);
+
+	$: showEmailError = (emailTouched || formSubmittedAttempt) && !isEmailValid;
+	$: showPasswordError = (passwordTouched || formSubmittedAttempt) && !isPasswordValid;
+	$: showConfirmError = register && (confirmTouched || formSubmittedAttempt) && !isConfirmValid;
+
+	function toggleMode(e: Event) {
+		e.preventDefault();
+		mode = register ? 'login' : 'register';
+		emailTouched = false;
+		passwordTouched = false;
+		confirmTouched = false;
+		formSubmittedAttempt = false;
+		password = '';
+		passwordConfirm = '';
+		formStatus = 'idle';
+	}
+
+	function handleSubmit(e: SubmitEvent) {
+		formSubmittedAttempt = true;
+
+		if (!isEmailValid || !isPasswordValid || (register && !isConfirmValid)) {
+			e.preventDefault();
+			return;
+		}
+
+		formStatus = 'submitting';
+	}
+
+	function handleGuestSubmit(e: MouseEvent) {
+		e.preventDefault();
+		if (!formElement) return;
+		formStatus = 'submitting';
+		formElement.action = '/?/guest';
+		formElement.noValidate = true;
+		formElement.submit();
+	}
 </script>
 
 <section class="card">
-	<h1>{register ? 'Rejestracja' : 'Logowanie'}</h1>
-	<p>
-		{register ? 'Masz już konto?' : 'Nie posiadasz konta?'}
-		<a href={register ? '/login' : '/rejestracja'}>{register ? 'Zaloguj się' : 'Zarejestruj się'}</a
-		>
+	<h1>{register ? 'REJESTRACJA' : 'LOGOWANIE'}</h1>
+	<p class="subtitle">
+		{register ? 'MASZ JUŻ KONTO?' : 'NIE POSIADASZ KONTA?'}
+		<button type="button" class="switch-mode-btn" on:click={toggleMode}>
+			{register ? 'ZALOGUJ SIĘ' : 'ZAREJESTRUJ SIĘ'}
+		</button>
 	</p>
-	{#if error}<div class="error" role="alert">{error}</div>{/if}
-	<form method="POST" action={register ? '?/register' : '?/login'}>
-		<label
-			>E-mail<input
+
+	{#if error}
+		<div class="field-error-msg global-err">{error}</div>
+	{/if}
+
+	<form
+		bind:this={formElement}
+		method="POST"
+		action={register ? '/rejestracja' : '/login'}
+		on:submit={handleSubmit}
+		novalidate
+	>
+		<div class="form-group">
+			<label for="auth-email">E-MAIL</label>
+			<input
+				id="auth-email"
 				name="email"
 				type="email"
 				autocomplete="email"
-				value={email}
+				bind:value={email}
+				on:blur={() => (emailTouched = true)}
+				class:is-invalid={showEmailError}
+				class:is-valid={emailTouched && isEmailValid}
 				placeholder="operator@smartrailway.pl"
+				disabled={formStatus !== 'idle'}
 				required
-			/></label
-		>
-		<label
-			>Hasło<input
+			/>
+			{#if showEmailError}
+				<span class="field-error-msg">Wprowadź poprawny adres e-mail.</span>
+			{/if}
+		</div>
+
+		<div class="form-group">
+			<label for="auth-password">HASŁO</label>
+			<input
+				id="auth-password"
 				name="password"
 				type="password"
 				autocomplete={register ? 'new-password' : 'current-password'}
-				minlength="8"
-				placeholder="Minimum 8 znaków"
-				required
 				bind:value={password}
-			/></label
-		>
-		{#if register}<label
-				>Powtórz hasło<input
+				on:blur={() => (passwordTouched = true)}
+				class:is-invalid={showPasswordError}
+				class:is-valid={passwordTouched && isPasswordValid}
+				placeholder="Minimum 8 znaków"
+				disabled={formStatus !== 'idle'}
+				required
+			/>
+			{#if showPasswordError}
+				<span class="field-error-msg">Hasło musi mieć co najmniej 8 znaków.</span>
+			{/if}
+		</div>
+
+		{#if register}
+			<div class="form-group">
+				<label for="auth-confirm">POWTÓRZ HASŁO</label>
+				<input
+					id="auth-confirm"
 					name="passwordConfirm"
 					type="password"
 					autocomplete="new-password"
-					minlength="8"
-					required
 					bind:value={passwordConfirm}
+					on:blur={() => (confirmTouched = true)}
 					on:input={() => (confirmTouched = true)}
-					aria-invalid={passwordsMismatch}
-					aria-describedby="password-feedback"
-				/></label
-			>{/if}
-		{#if register}<p
-				id="password-feedback"
-				class:mismatch={passwordsMismatch}
-				class="password-feedback"
-				aria-live="polite"
-			>
-				{#if passwordsMismatch}Hasła nie są takie same.{:else if confirmTouched && passwordConfirm}Hasła
-					są zgodne.{/if}
-			</p>{/if}
+					class:is-invalid={showConfirmError}
+					class:is-valid={confirmTouched && isConfirmValid && passwordConfirm.length >= 8}
+					placeholder="Powtórz hasło"
+					disabled={formStatus !== 'idle'}
+					required
+				/>
+				{#if showConfirmError}
+					<span class="field-error-msg">Hasła muszą być identyczne.</span>
+				{/if}
+			</div>
+		{/if}
+
 		<div class="submit-row">
-			<button class="submit-btn" type="submit" disabled={passwordsMismatch}
-				>{register ? 'Stwórz konto' : 'Zaloguj się'} <b>→</b></button
+			<button
+				class="submit-btn"
+				class:is-submitting={formStatus === 'submitting'}
+				class:is-success={formStatus === 'success'}
+				type="submit"
+				disabled={formStatus !== 'idle'}
 			>
-			<button class="guest-btn" type="submit" formaction="?/guest" formnovalidate
-				>Kontynuuj<br />jako gość</button
+				{#if formStatus === 'submitting'}
+					<span class="loading-spinner"></span>
+					<span>TRWA WYSYŁANIE...</span>
+				{:else if formStatus === 'success'}
+					<span>✓ {register ? 'KONTO UTWORZONE!' : 'ZALOGOWANO!'}</span>
+				{:else}
+					<span>{register ? 'STWÓRZ KONTO' : 'ZALOGUJ SIĘ'}</span>
+				{/if}
+			</button>
+
+			<button
+				class="guest-btn"
+				type="button"
+				on:click={handleGuestSubmit}
+				disabled={formStatus !== 'idle'}
 			>
+				KONTYNUUJ<br />JAKO GOŚĆ
+			</button>
 		</div>
 	</form>
 </section>
 
 <style>
 	.card {
+		position: relative;
 		width: min(430px, calc(100vw - 40px));
 		box-sizing: border-box;
-		padding: 42px 46px 38px;
+		padding: 42px 42px 38px;
 		background: #1b1b1b;
 		border: 0;
 		border-radius: 18px;
-		box-shadow: none;
+		box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
 		text-align: center;
-		transition: opacity 180ms ease;
+		transition: background-color 350ms ease, color 350ms ease;
 	}
-	.card:hover {
-		opacity: 0.96;
+	:global(html.light-mode) .card {
+		background: #ffffff;
+		box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
 	}
+
 	.card h1 {
 		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		font-size: 1.35rem;
-		margin: 0 0 7px;
+		letter-spacing: 0.08em;
+		font-size: 1.25rem;
+		font-weight: 300;
+		margin: 0 0 8px;
+		color: #ffffff;
 	}
-	.card > p {
-		margin: 0 0 34px;
-		color: #aaaaaa;
+	:global(html.light-mode) .card h1 {
+		color: #111827;
+	}
+
+	.subtitle {
+		margin: 0 0 28px;
+		color: #87979f;
 		font-size: 0.72rem;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
+		font-weight: 300;
 	}
-	.card a {
+	:global(html.light-mode) .subtitle {
+		color: #6b7280;
+	}
+
+	.switch-mode-btn {
+		background: none;
+		border: 0;
+		padding: 0;
+		margin-left: 4px;
 		color: #ffffff;
-		text-decoration: none;
+		font: inherit;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		text-decoration: underline;
+		cursor: pointer;
+		transition: opacity 180ms ease;
 	}
-	.card a:hover {
+	:global(html.light-mode) .switch-mode-btn {
+		color: #111827;
+	}
+	.switch-mode-btn:hover {
 		opacity: 0.65;
 	}
-	.error {
-		background: #2b2b2b;
-		border: 1px solid #777777;
-		color: #ffffff;
-		border-radius: 7px;
-		padding: 10px;
-		margin-bottom: 16px;
-		font-size: 0.78rem;
-		text-align: left;
-	}
+
 	form {
 		text-align: left;
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
 	}
-	label {
-		display: block;
+
+	.form-group {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.form-group label {
 		text-transform: uppercase;
-		letter-spacing: 0.11em;
-		color: #aaaaaa;
-		font-size: 0.62rem;
-		margin: 20px 0;
+		letter-spacing: 0.08em;
+		color: #87979f;
+		font-size: 0.7rem;
+		font-weight: 300;
 	}
-	input {
-		display: block;
+	:global(html.light-mode) .form-group label {
+		color: #52606a;
+	}
+
+	.form-group input {
 		width: 100%;
+		padding: 12px 16px;
+		border-radius: 9px;
+		border: 1.5px solid transparent;
+		background: rgba(255, 255, 255, 0.05);
+		color: #f5f7f8;
+		font-family: inherit;
+		font-size: 0.95rem;
+		font-weight: 300;
 		box-sizing: border-box;
-		border: 0;
-		border-bottom: 1px solid #3b494e;
-		background: transparent;
-		color: white;
-		padding: 10px 1px 12px;
-		margin-top: 5px;
-		outline: 0;
-		font: inherit;
-		font-size: 0.84rem;
-		text-transform: none;
-		letter-spacing: 0;
+		outline: none;
+		transition: border-color 200ms ease, background-color 200ms ease, box-shadow 200ms ease;
 	}
-	input:hover {
-		opacity: 0.75;
+	:global(html.light-mode) .form-group input {
+		background: #e5e7eb;
+		color: #1f2933;
 	}
-	input:focus {
-		border-color: #ffffff;
+
+	.form-group input.is-invalid {
+		border-color: #ef4444 !important;
+		background: rgba(239, 68, 68, 0.06) !important;
+		box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
 	}
-	input[aria-invalid='true'] {
-		border-color: #ffffff;
+	:global(html.light-mode) .form-group input.is-invalid {
+		background: #fef2f2 !important;
 	}
-	.password-feedback {
-		min-height: 18px;
-		margin: -12px 0 8px;
-		color: #aaaaaa;
-		font-size: 0.68rem;
+
+	.form-group input.is-valid {
+		border-color: #22c55e !important;
+		background: rgba(34, 197, 94, 0.04) !important;
 	}
-	.password-feedback.mismatch {
-		color: #ffffff;
-		font-weight: 600;
+	:global(html.light-mode) .form-group input.is-valid {
+		background: #f0fdf4 !important;
 	}
+
+	.field-error-msg {
+		font-size: 0.78rem;
+		color: #fca5a5;
+		font-weight: 300;
+	}
+	.global-err {
+		margin-bottom: 12px;
+		text-align: center;
+	}
+	:global(html.light-mode) .field-error-msg {
+		color: #dc2626;
+	}
+
 	.submit-row {
 		display: flex;
 		flex-direction: row-reverse;
 		align-items: center;
 		justify-content: space-between;
-		gap: 20px;
-		margin-top: 38px;
+		gap: 16px;
+		margin-top: 12px;
 	}
-	.submit-row button {
-		white-space: nowrap;
+
+	.submit-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
 		border: 0;
-		border-radius: 8px;
+		border-radius: 9px;
 		background: #f4f1eb;
 		color: #171717;
-		padding: 12px 16px;
+		padding: 12px 20px;
 		text-transform: uppercase;
 		letter-spacing: 0.07em;
-		font-weight: 750;
-		font-size: 0.66rem;
+		font-weight: 300;
+		font-size: 0.72rem;
 		cursor: pointer;
-		transition: opacity 180ms ease;
+		transition: opacity 180ms ease, background-color 300ms ease, color 300ms ease;
 	}
-	.submit-row button:hover:not(:disabled) {
+	:global(html.light-mode) .submit-btn {
+		background: #111827;
+		color: #ffffff;
+	}
+	.submit-btn:hover:not(:disabled) {
+		opacity: 0.75;
+	}
+	.submit-btn.is-submitting {
 		opacity: 0.7;
+		cursor: wait;
 	}
-	.submit-row button:disabled {
-		cursor: not-allowed;
-		opacity: 0.45;
+	.submit-btn.is-success {
+		background: #22c55e !important;
+		color: #ffffff !important;
+		opacity: 1;
 	}
-	.submit-row .guest-btn {
+
+	.loading-spinner {
+		width: 12px;
+		height: 12px;
+		border: 2px solid rgba(0, 0, 0, 0.2);
+		border-top-color: currentColor;
+		border-radius: 50%;
+		animation: spin 600ms linear infinite;
+	}
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
+
+	.guest-btn {
 		background: transparent;
-		color: #cccccc;
+		border: 0;
+		color: #87979f;
 		padding: 0;
-		font-weight: 400;
+		font-weight: 300;
+		font-size: 0.72rem;
 		line-height: 1.35;
+		letter-spacing: 0.07em;
+		text-transform: uppercase;
+		cursor: pointer;
+		text-align: left;
+		transition: color 200ms ease;
 	}
-	.submit-row .guest-btn:hover {
-		opacity: 0.6;
+	.guest-btn:hover {
+		color: #ffffff;
 	}
-	.submit-row b {
-		margin-left: 7px;
+	:global(html.light-mode) .guest-btn:hover {
+		color: #111827;
 	}
+
 	@media (max-width: 480px) {
 		.card {
-			padding: 34px 25px;
+			padding: 34px 24px;
 		}
 		.submit-row {
 			align-items: stretch;
 			flex-direction: column;
 		}
-		.submit-row button {
+		.submit-btn {
 			width: 100%;
+		}
+		.guest-btn {
+			text-align: center;
 		}
 	}
 </style>
