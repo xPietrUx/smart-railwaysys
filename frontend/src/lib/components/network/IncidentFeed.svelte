@@ -1,273 +1,344 @@
 <script lang="ts">
-	import { onDestroy, onMount } from 'svelte';
-	import { t } from '$lib/i18n';
-	import { EVENT_ICON, eventLabel, formatEventMessage } from '$lib/services/labels';
-	import type { RailEventNode } from '$lib/types/event';
-	import type { StationNode } from '$lib/types/network';
-	import type { Selected } from '$lib/types/selection';
+    import { onDestroy, onMount } from 'svelte';
+    import { t } from '$lib/i18n';
+    import { eventLabel, formatEventMessage } from '$lib/services/labels';
+    import type { RailEventNode } from '$lib/types/event';
+    import type { StationNode } from '$lib/types/network';
+    import type { Selected } from '$lib/types/selection';
 
-	export let events: RailEventNode[];
-	export let stations: StationNode[] = [];
-	export let onSelect: (selected: Selected) => void = () => {};
+    export let events: RailEventNode[];
+    export let stations: StationNode[] = [];
+    export let onSelect: (selected: Selected) => void = () => {};
 
-	let nowSec = Date.now() / 1000;
-	let interval: ReturnType<typeof setInterval>;
+    let nowSec = Date.now() / 1000;
+    let interval: ReturnType<typeof setInterval>;
 
-	onMount(() => {
-		interval = setInterval(() => {
-			nowSec = Date.now() / 1000;
-		}, 1000);
-	});
-	onDestroy(() => clearInterval(interval));
+    const INCIDENT_ICONS: Record<string, string> = {
+        signal_failure: 'electric_bolt',
+        derailment: 'warning',
+        track_blockage: 'do_not_disturb_on',
+        default: 'error'
+    };
 
-	function countdownLabel(resolvesAt: number): string {
-		const remaining = Math.max(0, Math.round(resolvesAt - nowSec));
-		if (remaining <= 0) return $t('incidents.soon');
-		const minutes = Math.floor(remaining / 60);
-		const seconds = remaining % 60;
-		return minutes > 0 ? `${minutes} min ${seconds}s` : `${seconds}s`;
-	}
+    onMount(() => {
+        interval = setInterval(() => {
+            nowSec = Date.now() / 1000;
+        }, 1000);
+    });
+    onDestroy(() => clearInterval(interval));
 
-	$: stationById = new Map(stations.map((station) => [station.id, station.name]));
+    function countdownLabel(resolvesAt: number): string {
+        const remaining = Math.max(0, Math.round(resolvesAt - nowSec));
+        if (remaining <= 0) return $t('incidents.soon');
+        const minutes = Math.floor(remaining / 60);
+        const seconds = remaining % 60;
+        return minutes > 0 ? `${minutes} min ${seconds}s` : `${seconds}s`;
+    }
 
-	function stationName(id: string | null): string {
-		if (!id) return '—';
-		return stationById.get(id) ?? id;
-	}
+    $: stationById = new Map(stations.map((station) => [station.id, station.name]));
 
-	function selectIncident(event: RailEventNode) {
-		if (event.type === 'derailment' && event.trainId) {
-			onSelect({ kind: 'train', id: event.trainId });
-		} else if (event.stationId) {
-			onSelect({ kind: 'station', id: event.stationId });
-		} else if (event.segmentId) {
-			onSelect({ kind: 'segment', id: event.segmentId });
-		}
-	}
+    function stationName(id: string | null): string {
+        if (!id) return '—';
+        return stationById.get(id) ?? id;
+    }
 
-	$: activeEvents = events
-		.filter((event) => event.status === 'active')
-		.slice()
-		.sort((a, b) => b.startedAt - a.startedAt);
+    function selectIncident(event: RailEventNode) {
+        if (event.type === 'derailment' && event.trainId) {
+            onSelect({ kind: 'train', id: event.trainId });
+        } else if (event.stationId) {
+            onSelect({ kind: 'station', id: event.stationId });
+        } else if (event.segmentId) {
+            onSelect({ kind: 'segment', id: event.segmentId });
+        }
+    }
 
-	$: resolvedEvents = events
-		.filter((event) => event.status === 'resolved')
-		.slice()
-		.sort((a, b) => (b.resolvedAt ?? 0) - (a.resolvedAt ?? 0))
-		.slice(0, 5);
+    $: activeEvents = events
+        .filter((event) => event.status === 'active')
+        .slice()
+        .sort((a, b) => b.startedAt - a.startedAt);
+
+    $: resolvedEvents = events
+        .filter((event) => event.status === 'resolved')
+        .slice()
+        .sort((a, b) => (b.resolvedAt ?? 0) - (a.resolvedAt ?? 0))
+        .slice(0, 5);
 </script>
 
+<svelte:head>
+    <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+    />
+</svelte:head>
+
 <div class="panel incidents">
-	<div class="panel-header">
-		<div>
-			<p class="panel-label">{$t('incidents.live')}</p>
-			<h2>
-				{$t('incidents.title')}
-				{#if activeEvents.length > 0}
-					<span class="count">{activeEvents.length}</span>
-				{/if}
-			</h2>
-		</div>
-	</div>
+    <div class="panel-header">
+        <div>
+            <p class="panel-label">{$t('incidents.live')}</p>
+            <h2>
+                {$t('incidents.title')}
+                {#if activeEvents.length > 0}
+                    <span class="count">{activeEvents.length}</span>
+                {/if}
+            </h2>
+        </div>
+    </div>
 
-	<div class="scroll-area">
-		{#if activeEvents.length === 0}
-			<p class="empty">{$t('incidents.empty')}</p>
-		{:else}
-			<ul class="incident-list">
-				{#each activeEvents as event (event.id)}
-					<li>
-						<button
-							type="button"
-							class="incident active-incident severity-{event.severity}"
-							on:click={() => selectIncident(event)}
-							title={$t('incidents.showOnMap')}
-						>
-							<span class="icon">{EVENT_ICON[event.type] ?? '⚠️'}</span>
-							<div class="incident-body">
-								<strong>{eventLabel(event.type, $t)}</strong>
-								<p>{formatEventMessage(event, $t, stationName)}</p>
-								<small
-									>{$t('incidents.resolvesIn', { time: countdownLabel(event.resolvesAt) })}</small
-								>
-							</div>
-						</button>
-					</li>
-				{/each}
-			</ul>
-		{/if}
+    <div class="scroll-area">
+        {#if activeEvents.length === 0}
+            <p class="empty">{$t('incidents.empty')}</p>
+        {:else}
+            <ul class="incident-list">
+                {#each activeEvents as event (event.id)}
+                    <li>
+                        <button
+                            type="button"
+                            class="incident active-incident severity-{event.severity}"
+                            on:click={() => selectIncident(event)}
+                            title={$t('incidents.showOnMap')}
+                        >
+                            <span class="material-symbols-outlined icon" aria-hidden="true">
+                                {INCIDENT_ICONS[event.type] ?? INCIDENT_ICONS.default}
+                            </span>
+                            <div class="incident-body">
+                                <strong>{eventLabel(event.type, $t)}</strong>
+                                <p>{formatEventMessage(event, $t, stationName)}</p>
+                                <small>
+                                    {$t('incidents.resolvesIn', { time: countdownLabel(event.resolvesAt) })}
+                                </small>
+                            </div>
+                        </button>
+                    </li>
+                {/each}
+            </ul>
+        {/if}
 
-		{#if resolvedEvents.length > 0}
-			<div class="section">
-				<h3>{$t('incidents.recentlyResolved')}</h3>
-				<ul class="incident-list resolved">
-					{#each resolvedEvents as event (event.id)}
-						<li>
-							<div class="incident">
-								<span class="icon">{EVENT_ICON[event.type] ?? '⚠️'}</span>
-								<div class="incident-body">
-									<strong>{eventLabel(event.type, $t)}</strong>
-									<p>{formatEventMessage(event, $t, stationName)}</p>
-								</div>
-							</div>
-						</li>
-					{/each}
-				</ul>
-			</div>
-		{/if}
-	</div>
+        {#if resolvedEvents.length > 0}
+            <div class="section">
+                <h3>{$t('incidents.recentlyResolved')}</h3>
+                <ul class="incident-list resolved">
+                    {#each resolvedEvents as event (event.id)}
+                        <li>
+                            <div class="incident">
+                                <span class="material-symbols-outlined icon" aria-hidden="true">
+                                    {INCIDENT_ICONS[event.type] ?? INCIDENT_ICONS.default}
+                                </span>
+                                <div class="incident-body">
+                                    <strong>{eventLabel(event.type, $t)}</strong>
+                                    <p>{formatEventMessage(event, $t, stationName)}</p>
+                                </div>
+                            </div>
+                        </li>
+                    {/each}
+                </ul>
+            </div>
+        {/if}
+    </div>
 </div>
 
 <style>
-	.panel {
-		background: rgba(15, 23, 42, 0.82);
-		border: 1px solid rgba(148, 163, 184, 0.18);
-		box-shadow: 0 24px 60px rgba(15, 23, 42, 0.45);
-		backdrop-filter: blur(12px);
-		border-radius: 18px;
-		padding: 18px;
-		display: flex;
-		flex-direction: column;
-		min-height: 0;
-	}
+    .material-symbols-outlined {
+        font-family: 'Material Symbols Outlined' !important;
+        font-weight: normal;
+        font-style: normal;
+        font-size: 19px;
+        line-height: 1;
+        letter-spacing: normal;
+        text-transform: none;
+        display: inline-block;
+        white-space: nowrap;
+        word-wrap: normal;
+        direction: ltr;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        -moz-osx-font-smoothing: grayscale;
+        font-feature-settings: 'liga';
+        font-variation-settings:
+            'FILL' 0,
+            'wght' 200,
+            'GRAD' 0,
+            'opsz' 24;
+        user-select: none;
+        vertical-align: middle;
+    }
 
-	.panel-header {
-		margin-bottom: 12px;
-		flex-shrink: 0;
-	}
+    .panel {
+        background: rgba(20, 20, 20, 0.94);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 0;
+        box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+        border-radius: 14px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        font-family: 'Inter Variable', Inter, sans-serif;
+        color: #f5f7f8;
+    }
 
-	.panel-label {
-		margin: 0 0 6px;
-		text-transform: uppercase;
-		letter-spacing: 0.14em;
-		font-size: 0.72rem;
-		color: #93c5fd;
-	}
+    .panel-header {
+        margin-bottom: 14px;
+        flex-shrink: 0;
+    }
 
-	h2,
-	h3 {
-		margin: 0;
-	}
+    .panel-label {
+        margin: 0 0 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.66rem;
+        font-weight: 300;
+        color: #97a5ad;
+    }
 
-	h2 {
-		font-size: 1.2rem;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
+    h2,
+    h3 {
+        margin: 0;
+    }
 
-	.count {
-		background: rgba(239, 68, 68, 0.25);
-		border: 1px solid rgba(239, 68, 68, 0.45);
-		color: #fca5a5;
-		border-radius: 999px;
-		font-size: 0.78rem;
-		font-weight: 700;
-		padding: 2px 9px;
-		line-height: 1.2;
-	}
+    h2 {
+        font-size: 1.1rem;
+        font-weight: 400;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
 
-	.scroll-area {
-		overflow-y: auto;
-		min-height: 0;
-	}
+    .count {
+        background: rgba(222, 132, 137, 0.15);
+        color: #de8489;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 400;
+        padding: 2px 8px;
+        line-height: 1.2;
+    }
 
-	.empty {
-		margin: 0;
-		color: #94a3b8;
-		font-size: 0.9rem;
-		line-height: 1.5;
-	}
+    .scroll-area {
+        overflow-y: auto;
+        min-height: 0;
+    }
 
-	.incident-list {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: grid;
-		gap: 8px;
-	}
+    .empty {
+        margin: 0;
+        color: #97a5ad;
+        font-size: 0.76rem;
+        font-weight: 300;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
 
-	.incident {
-		display: flex;
-		gap: 10px;
-		align-items: flex-start;
-		padding: 10px 12px;
-		border-radius: 12px;
-		background: rgba(30, 41, 59, 0.72);
-		border: 1px solid rgba(148, 163, 184, 0.14);
-		width: 100%;
-		text-align: left;
-		color: inherit;
-	}
+    .incident-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 6px;
+    }
 
-	button.incident {
-		cursor: pointer;
-	}
+    .incident {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 0;
+        width: 100%;
+        text-align: left;
+        color: inherit;
+        box-sizing: border-box;
+        transition: background-color 150ms ease;
+    }
 
-	button.incident:hover {
-		border-color: rgba(59, 130, 246, 0.55);
-	}
+    button.incident {
+        cursor: pointer;
+    }
 
-	.active-incident.severity-major {
-		border-color: rgba(239, 68, 68, 0.45);
-		background: rgba(127, 29, 29, 0.22);
-	}
+    button.incident:hover {
+        background: rgba(255, 255, 255, 0.07);
+    }
 
-	.active-incident.severity-major:hover {
-		border-color: rgba(239, 68, 68, 0.75);
-	}
+    .active-incident.severity-major {
+        background: rgba(222, 132, 137, 0.1);
+    }
 
-	.active-incident.severity-minor {
-		border-color: rgba(245, 158, 11, 0.4);
-		background: rgba(120, 53, 15, 0.2);
-	}
+    .active-incident.severity-major:hover {
+        background: rgba(222, 132, 137, 0.16);
+    }
 
-	.active-incident.severity-minor:hover {
-		border-color: rgba(245, 158, 11, 0.7);
-	}
+    .active-incident.severity-minor {
+        background: rgba(240, 194, 154, 0.1);
+    }
 
-	.icon {
-		font-size: 1.25rem;
-		line-height: 1;
-	}
+    .active-incident.severity-minor:hover {
+        background: rgba(240, 194, 154, 0.16);
+    }
 
-	.incident-body {
-		min-width: 0;
-	}
+    .icon {
+        font-size: 18px;
+        color: #97a5ad;
+        margin-top: 1px;
+    }
 
-	.incident-body strong {
-		display: block;
-		font-size: 0.87rem;
-	}
+    .severity-major .icon {
+        color: #de8489;
+    }
 
-	.incident-body p {
-		margin: 3px 0 0;
-		font-size: 0.83rem;
-		color: #cbd5e1;
-		line-height: 1.4;
-	}
+    .severity-minor .icon {
+        color: #f0c29a;
+    }
 
-	.incident-body small {
-		display: block;
-		margin-top: 5px;
-		color: #fca5a5;
-		font-size: 0.76rem;
-		font-weight: 600;
-	}
+    .incident-body {
+        min-width: 0;
+        flex: 1;
+    }
 
-	.section {
-		margin-top: 16px;
-	}
+    .incident-body strong {
+        display: block;
+        font-size: 0.76rem;
+        font-weight: 400;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #f5f7f8;
+    }
 
-	.section h3 {
-		margin-bottom: 10px;
-		font-size: 0.85rem;
-		color: #94a3b8;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-	}
+    .incident-body p {
+        margin: 3px 0 0;
+        font-size: 0.74rem;
+        font-weight: 300;
+        color: #97a5ad;
+        line-height: 1.4;
+        letter-spacing: 0.02em;
+    }
 
-	.resolved .incident {
-		opacity: 0.6;
-	}
+    .incident-body small {
+        display: block;
+        margin-top: 4px;
+        color: #f0c29a;
+        font-size: 0.68rem;
+        font-weight: 400;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .section {
+        margin-top: 18px;
+    }
+
+    .section h3 {
+        margin-bottom: 8px;
+        font-size: 0.68rem;
+        font-weight: 400;
+        color: #97a5ad;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .resolved .incident {
+        opacity: 0.5;
+    }
 </style>
