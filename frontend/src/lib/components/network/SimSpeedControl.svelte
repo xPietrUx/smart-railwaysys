@@ -1,346 +1,278 @@
 <script lang="ts">
-	import { t } from '$lib/i18n';
-	import type { LiveSnapshot } from '$lib/services/live';
-	import { pauseSimulation, resumeSimulation, setSimulationSpeed } from '$lib/services/simulation';
+    import { t } from '$lib/i18n';
+    import type { LiveSnapshot } from '$lib/services/live';
+    import { pauseSimulation, resumeSimulation, setSimulationSpeed } from '$lib/services/simulation';
 
-	export let snapshot: LiveSnapshot;
-	export let apiBaseUrl: string;
-	// Gość ogląda symulację, ale nie może zmieniać jej tempa ani jej wstrzymać.
-	export let readOnly = false;
+    export let snapshot: LiveSnapshot;
+    export let apiBaseUrl: string;
+    export let readOnly = false;
 
-	// Ćwiartka koła w stylu EU4, zagnieżdżona w dolnym-lewym rogu mapy: wachlarz
-	// klinów prędkości od pionu (najwolniej) zgodnie z zegarem do poziomu
-	// (najszybciej) + przycisk start/stop w samym narożniku.
-	const SPEEDS = [0.5, 1, 1.5, 2];
-	const CX = 6;
-	const CY = 110;
-	const R_INNER = 40;
-	const R_OUTER = 78;
-	const R_RIM = 84;
-	const CORE_R = 32;
-	const GAP_DEG = 1.6;
-	const SPAN_DEG = 90 / SPEEDS.length;
+    const SPEEDS = [0.5, 1, 1.5, 2];
+    const CX = 90;
+    const CY = 90;
+    const R_INNER = 40;
+    const R_OUTER = 82;
+    const CORE_R = 30;
+    const GAP_DEG = 4;
+    const SPAN_DEG = 360 / SPEEDS.length;
 
-	function polar(radius: number, deg: number): { x: number; y: number } {
-		const rad = (deg * Math.PI) / 180;
-		return { x: CX + radius * Math.cos(rad), y: CY + radius * Math.sin(rad) };
-	}
+    function polar(radius: number, deg: number): { x: number; y: number } {
+        const rad = (deg * Math.PI) / 180;
+        return { x: CX + radius * Math.cos(rad), y: CY + radius * Math.sin(rad) };
+    }
 
-	function point(radius: number, deg: number): string {
-		const { x, y } = polar(radius, deg);
-		return `${x.toFixed(2)} ${y.toFixed(2)}`;
-	}
+    function point(radius: number, deg: number): string {
+        const { x, y } = polar(radius, deg);
+        return `${x.toFixed(2)} ${y.toFixed(2)}`;
+    }
 
-	function wedgePath(index: number): string {
-		const from = -90 + index * SPAN_DEG + GAP_DEG;
-		const to = -90 + (index + 1) * SPAN_DEG - GAP_DEG;
-		return [
-			`M ${point(R_OUTER, from)}`,
-			`A ${R_OUTER} ${R_OUTER} 0 0 1 ${point(R_OUTER, to)}`,
-			`L ${point(R_INNER, to)}`,
-			`A ${R_INNER} ${R_INNER} 0 0 0 ${point(R_INNER, from)}`,
-			'Z'
-		].join(' ');
-	}
+    function wedgePath(index: number): string {
+        const startAngle = index * SPAN_DEG - 90;
+        const from = startAngle + GAP_DEG;
+        const to = startAngle + SPAN_DEG - GAP_DEG;
+        return [
+            `M ${point(R_OUTER, from)}`,
+            `A ${R_OUTER} ${R_OUTER} 0 0 1 ${point(R_OUTER, to)}`,
+            `L ${point(R_INNER, to)}`,
+            `A ${R_INNER} ${R_INNER} 0 0 0 ${point(R_INNER, from)}`,
+            'Z'
+        ].join(' ');
+    }
 
-	function labelPos(index: number): { x: number; y: number } {
-		return polar((R_INNER + R_OUTER) / 2, -90 + (index + 0.5) * SPAN_DEG);
-	}
+    function labelPos(index: number): { x: number; y: number } {
+        const startAngle = index * SPAN_DEG - 90;
+        return polar((R_INNER + R_OUTER) / 2, startAngle + SPAN_DEG / 2);
+    }
 
-	const RIM_PATH = `M ${point(R_RIM, -90)} A ${R_RIM} ${R_RIM} 0 0 1 ${point(R_RIM, 0)}`;
+    function formatSimClock(clockMinutes: number): string {
+        const simMinutes = Math.max(0, Math.floor(clockMinutes));
+        const pad = (value: number) => String(value).padStart(2, '0');
+        return `${pad(Math.floor(simMinutes / 60) % 24)}:${pad(simMinutes % 60)}`;
+    }
 
-	// Zegar symulacji podawany przez backend już w minutach (tempo skalowane
-	// prędkością). Godziny zawijamy modulo 24 — to zegar dobowy 24h, a nie licznik
-	// narastający.
-	function formatSimClock(clockMinutes: number): string {
-		const simMinutes = Math.max(0, Math.floor(clockMinutes));
-		const pad = (value: number) => String(value).padStart(2, '0');
-		return `${pad(Math.floor(simMinutes / 60) % 24)}:${pad(simMinutes % 60)}`;
-	}
+    let busy = false;
+    let optimisticPaused: boolean | null = null;
+    let optimisticSpeed: number | null = null;
+    $: paused = optimisticPaused ?? snapshot.paused;
+    $: speed = optimisticSpeed ?? snapshot.speed;
 
-	let busy = false;
-	// Optymistyczny stan pauzy/prędkości do czasu potwierdzenia następnym tickiem WS.
-	let optimisticPaused: boolean | null = null;
-	let optimisticSpeed: number | null = null;
-	$: paused = optimisticPaused ?? snapshot.paused;
-	$: speed = optimisticSpeed ?? snapshot.speed;
-	// Reaktywne użycie jest rozpoznawane przez Svelte, ale nie przez bazową regułę ESLint.
-	// eslint-disable-next-line no-useless-assignment
-	$: if (optimisticPaused !== null && snapshot.paused === optimisticPaused) optimisticPaused = null;
-	// eslint-disable-next-line no-useless-assignment
-	$: if (optimisticSpeed !== null && snapshot.speed === optimisticSpeed) optimisticSpeed = null;
+    $: if (optimisticPaused !== null && snapshot.paused === optimisticPaused) optimisticPaused = null;
+    $: if (optimisticSpeed !== null && snapshot.speed === optimisticSpeed) optimisticSpeed = null;
 
-	async function togglePause() {
-		if (busy || readOnly) return;
-		busy = true;
-		try {
-			if (paused) {
-				await resumeSimulation(fetch, apiBaseUrl);
-				optimisticPaused = false;
-			} else {
-				await pauseSimulation(fetch, apiBaseUrl);
-				optimisticPaused = true;
-			}
-		} catch {
-			// 409 przy podwójnym kliknięciu -- następny tick pokaże właściwy stan.
-		} finally {
-			busy = false;
-		}
-	}
+    async function togglePause() {
+        if (busy || readOnly) return;
+        busy = true;
+        try {
+            if (paused) {
+                await resumeSimulation(fetch, apiBaseUrl);
+                optimisticPaused = false;
+            } else {
+                await pauseSimulation(fetch, apiBaseUrl);
+                optimisticPaused = true;
+            }
+        } catch {
+            // Ignorujemy błąd
+        } finally {
+            busy = false;
+        }
+    }
 
-	async function pickSpeed(option: number) {
-		if (busy || readOnly || option === speed) return;
-		busy = true;
-		try {
-			await setSimulationSpeed(fetch, apiBaseUrl, option);
-			optimisticSpeed = option;
-		} catch {
-			// Błąd sieci/walidacji -- następny tick pokaże faktyczną prędkość.
-		} finally {
-			busy = false;
-		}
-	}
+    async function pickSpeed(option: number) {
+        if (busy || readOnly || option === speed) return;
+        busy = true;
+        try {
+            await setSimulationSpeed(fetch, apiBaseUrl, option);
+            optimisticSpeed = option;
+        } catch {
+            // Ignorujemy błąd
+        } finally {
+            busy = false;
+        }
+    }
 
-	function activateOnKey(event: KeyboardEvent, action: () => void) {
-		if (event.key === 'Enter' || event.key === ' ') {
-			event.preventDefault();
-			action();
-		}
-	}
+    function activateOnKey(event: KeyboardEvent, action: () => void) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            action();
+        }
+    }
 </script>
 
-<div class="corner" class:paused class:read-only={readOnly}>
-	<svg
-		viewBox="0 0 116 116"
-		width="116"
-		height="116"
-		role="group"
-		aria-label={$t('header.speed.title', { speed })}
-	>
-		<defs>
-			<linearGradient id="ssc-wedge-on" x1="0" y1="1" x2="1" y2="0">
-				<stop offset="0" stop-color="#1d4ed8" />
-				<stop offset="1" stop-color="#60a5fa" />
-			</linearGradient>
-			<radialGradient id="ssc-core" cx="0.25" cy="0.75" r="1">
-				<stop offset="0" stop-color="#1e293b" />
-				<stop offset="1" stop-color="#0f172a" />
-			</radialGradient>
-		</defs>
+<svelte:head>
+    <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+    />
+</svelte:head>
 
-		<path d={RIM_PATH} class="rim" />
+<div class="speed-dial" class:paused class:read-only={readOnly}>
+    <svg
+        viewBox="0 0 180 180"
+        width="150"
+        height="150"
+        role="group"
+        aria-label={$t('header.speed.title', { speed })}
+    >
+        <circle cx={CX} cy={CY} r={R_OUTER + 3} class="dial-base" />
 
-		{#each SPEEDS as option, index (option)}
-			<path
-				d={wedgePath(index)}
-				class="wedge"
-				class:on={option <= speed}
-				role="button"
-				tabindex={readOnly ? -1 : 0}
-				aria-disabled={readOnly}
-				aria-label={$t('header.speed.set', { speed: option })}
-				aria-pressed={option === speed}
-				on:click={() => pickSpeed(option)}
-				on:keydown={(event) => activateOnKey(event, () => pickSpeed(option))}
-			>
-				<title>{$t('header.speed.set', { speed: option })}</title>
-			</path>
-			<text
-				x={labelPos(index).x.toFixed(2)}
-				y={labelPos(index).y.toFixed(2)}
-				class="wedge-label"
-				class:lit={option <= speed}
-			>
-				{option}
-			</text>
-		{/each}
+        {#each SPEEDS as option, index (option)}
+            {@const active = option <= speed}
+            <path
+                d={wedgePath(index)}
+                class="wedge"
+                class:active
+                role="button"
+                tabindex={readOnly ? -1 : 0}
+                aria-disabled={readOnly}
+                aria-label={$t('header.speed.set', { speed: option })}
+                aria-pressed={option === speed}
+                on:click={() => pickSpeed(option)}
+                on:keydown={(event) => activateOnKey(event, () => pickSpeed(option))}
+            >
+                <title>{$t('header.speed.set', { speed: option })}</title>
+            </path>
+            <text
+                x={labelPos(index).x.toFixed(2)}
+                y={labelPos(index).y.toFixed(2)}
+                class="wedge-label"
+                class:lit={active}
+            >
+                {option}×
+            </text>
+        {/each}
 
-		<circle
-			cx={CX}
-			cy={CY}
-			r={CORE_R}
-			class="core"
-			role="button"
-			tabindex={readOnly ? -1 : 0}
-			aria-disabled={readOnly}
-			aria-label={paused ? $t('header.resumeTitle') : $t('header.pauseTitle')}
-			on:click={togglePause}
-			on:keydown={(event) => activateOnKey(event, togglePause)}
-		>
-			<title>{paused ? $t('header.resumeTitle') : $t('header.pauseTitle')}</title>
-		</circle>
-		<text x="21" y="95.5" class="core-icon">{paused ? '▶' : '⏸'}</text>
-	</svg>
+        <circle
+            cx={CX}
+            cy={CY}
+            r={CORE_R}
+            class="core"
+            role="button"
+            tabindex={readOnly ? -1 : 0}
+            aria-disabled={readOnly}
+            aria-label={paused ? $t('header.resumeTitle') : $t('header.pauseTitle')}
+            on:click={togglePause}
+            on:keydown={(event) => activateOnKey(event, togglePause)}
+        >
+            <title>{paused ? $t('header.resumeTitle') : $t('header.pauseTitle')}</title>
+        </circle>
 
-	<div class="readout">
-		<span class="clock" title={$t('header.elapsedTitle')}>
-			{formatSimClock(snapshot.simClockMinutes)}
-		</span>
-		<span class="speed-line">
-			{#if paused}
-				<span class="paused-badge">⏸ {$t('header.paused')}</span>
-			{:else}
-				{speed}×
-			{/if}
-		</span>
-	</div>
+        <foreignObject x={CX - 14} y={CY - 18} width="28" height="28" style="overflow: visible;">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="core-center-content">
+                <span class="material-symbols-outlined core-icon" aria-hidden="true">
+                    {paused ? 'play_arrow' : 'pause'}
+                </span>
+                <span class="core-clock">{formatSimClock(snapshot.simClockMinutes)}</span>
+            </div>
+        </foreignObject>
+    </svg>
 </div>
 
 <style>
-	.corner {
-		display: flex;
-		align-items: flex-end;
-		gap: 10px;
-		padding: 0 0 0 0;
-		pointer-events: none;
-	}
+    .speed-dial {
+        position: relative;
+        display: inline-block;
+        font-family: 'Inter Variable', Inter, sans-serif;
+        pointer-events: auto;
+    }
 
-	.corner svg,
-	.corner .readout {
-		pointer-events: auto;
-	}
+    svg {
+        display: block;
+        overflow: visible;
+        filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.65));
+        font-family: inherit;
+    }
 
-	svg {
-		display: block;
-		overflow: hidden;
-		filter: drop-shadow(0 12px 28px rgba(2, 6, 23, 0.65));
-		font-family: inherit;
-	}
+    .dial-base {
+        fill: rgba(20, 20, 20, 0.96);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+    }
 
-	.rim {
-		fill: none;
-		stroke: rgba(148, 163, 184, 0.25);
-		stroke-width: 1.5;
-		pointer-events: none;
-	}
+    .read-only .wedge,
+    .read-only .core {
+        pointer-events: none;
+        cursor: default;
+    }
 
-	/* Gość: koło prędkości jest widoczne, ale nieinteraktywne. */
-	.read-only .wedge,
-	.read-only .core {
-		pointer-events: none;
-		cursor: default;
-	}
+    .wedge {
+        fill: rgba(255, 255, 255, 0.04);
+        cursor: pointer;
+        outline: none;
+        rx: 10px;
+        transition: fill 200ms ease, opacity 200ms ease;
+    }
 
-	.wedge {
-		fill: rgba(15, 23, 42, 0.88);
-		stroke: rgba(148, 163, 184, 0.35);
-		stroke-width: 1;
-		cursor: pointer;
-		outline: none;
-		transition:
-			fill 0.25s,
-			stroke 0.25s,
-			opacity 0.25s;
-	}
+    .wedge:hover:not(:disabled) {
+        fill: rgba(255, 255, 255, 0.09);
+    }
 
-	.wedge:hover,
-	.wedge:focus-visible {
-		stroke: rgba(96, 165, 250, 0.95);
-	}
+    .wedge.active {
+        fill: #f5f7f8;
+    }
 
-	.wedge.on {
-		fill: url(#ssc-wedge-on);
-		stroke: rgba(147, 197, 253, 0.9);
-	}
+    .paused .wedge.active {
+        fill: rgba(245, 247, 248, 0.3);
+    }
 
-	.paused .wedge.on {
-		opacity: 0.45;
-	}
+    .wedge-label {
+        font-size: 11px;
+        font-weight: 300;
+        fill: #97a5ad;
+        text-anchor: middle;
+        dominant-baseline: central;
+        pointer-events: none;
+        user-select: none;
+        letter-spacing: 0.04em;
+        transition: fill 200ms ease;
+    }
 
-	.wedge-label {
-		font-size: 8px;
-		font-weight: 600;
-		fill: #64748b;
-		text-anchor: middle;
-		dominant-baseline: central;
-		pointer-events: none;
-		user-select: none;
-		transition: fill 0.25s;
-	}
+    .wedge-label.lit {
+        fill: #141414;
+        font-weight: 500;
+    }
 
-	.wedge-label.lit {
-		fill: #f8fafc;
-	}
+    .paused .wedge-label.lit {
+        fill: #f5f7f8;
+    }
 
-	.paused .wedge-label.lit {
-		fill: #cbd5e1;
-	}
+    .core {
+        fill: #141414;
+        cursor: pointer;
+        outline: none;
+        transition: fill 200ms ease;
+    }
 
-	.core {
-		fill: url(#ssc-core);
-		stroke: rgba(148, 163, 184, 0.5);
-		stroke-width: 1.2;
-		cursor: pointer;
-		outline: none;
-		transition:
-			fill 0.25s,
-			stroke 0.25s;
-	}
+    .core:hover {
+        fill: #1a1a1a;
+    }
 
-	.core:hover,
-	.core:focus-visible {
-		stroke: rgba(96, 165, 250, 0.95);
-	}
+    .core-center-content {
+        width: 28px;
+        height: 36px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        transform: translateX(-4px);
+    }
 
-	.paused .core {
-		fill: rgba(120, 53, 15, 0.75);
-		stroke: rgba(245, 158, 11, 0.85);
-	}
+    .core-icon {
+        font-size: 16px;
+        color: #f5f7f8;
+        line-height: 1;
+    }
 
-	.core-icon {
-		font-size: 14px;
-		fill: #e2e8f0;
-		text-anchor: middle;
-		dominant-baseline: central;
-		pointer-events: none;
-		user-select: none;
-	}
+    .paused .core-icon {
+        color: #f0c29a;
+    }
 
-	.paused .core-icon {
-		fill: #fbbf24;
-		animation: blink 1.6s ease-in-out infinite;
-	}
-
-	@keyframes blink {
-		0%,
-		100% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.45;
-		}
-	}
-
-	.readout {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		margin-bottom: 10px;
-		padding: 8px 14px;
-		border-radius: 14px;
-		background: rgba(15, 23, 42, 0.85);
-		border: 1px solid rgba(148, 163, 184, 0.22);
-		backdrop-filter: blur(10px);
-		box-shadow: 0 16px 40px rgba(2, 6, 23, 0.45);
-		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
-	}
-
-	.clock {
-		font-size: 1.35rem;
-		font-weight: 600;
-		line-height: 1.1;
-		letter-spacing: 0.04em;
-		color: #f8fafc;
-	}
-
-	.speed-line {
-		font-size: 0.78rem;
-		font-weight: 600;
-		color: #93c5fd;
-	}
-
-	.paused-badge {
-		color: #fbbf24;
-	}
+    .core-clock {
+        font-size: 8.5px;
+        font-weight: 300;
+        letter-spacing: 0.02em;
+        color: #97a5ad;
+        margin-top: 2px;
+        font-variant-numeric: tabular-nums;
+    }
 </style>
