@@ -19,10 +19,10 @@
 
 	const CATEGORY_IDS: CategoryId[] = ['station', 'train', 'segment', 'incident'];
 	const CATEGORY_ICONS: Record<CategoryId, string> = {
-		station: '🚉',
-		train: '🚆',
-		segment: '🛤️',
-		incident: '⚠️'
+		station: 'train',
+		train: 'directions_subway',
+		segment: 'conversion_path',
+		incident: 'warning'
 	};
 
 	let query = '';
@@ -33,7 +33,6 @@
 	let input: HTMLInputElement;
 	let list: HTMLUListElement;
 
-	/** Składanie do ASCII: wielkość liter i polskie znaki nie psują dopasowania. */
 	function fold(text: string): string {
 		return text
 			.toLowerCase()
@@ -42,7 +41,6 @@
 			.replace(/[̀-ͯ]/g, '');
 	}
 
-	/** Klucze i18n budowane dynamicznie (kategoria/typ/status) — rzut na typ kluczy. */
 	function key(dynamicKey: string): TranslationKey {
 		return dynamicKey as TranslationKey;
 	}
@@ -163,8 +161,6 @@
 			label: categoryLabel(id, translator),
 			count: counts[id]
 		}));
-		// Bez frazy podpowiadamy tylko kategorie; z frazą dokładamy do nich
-		// elementy ze wszystkich kategorii (po kilka na kategorię).
 		if (!needle) return categories;
 		const elements = CATEGORY_IDS.flatMap((id) => elementsOf(id, needle, translator).slice(0, 4));
 		return [...categories, ...elements].slice(0, 14);
@@ -237,11 +233,18 @@
 	}
 </script>
 
+<svelte:head>
+	<link
+		rel="stylesheet"
+		href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+	/>
+</svelte:head>
+
 <svelte:window on:mousedown={handleWindowPointerDown} />
 
 <div class="search" bind:this={root} role="search" aria-label={$t('search.aria')}>
 	<div class="field" class:field-open={open && suggestions.length > 0}>
-		<span class="icon" aria-hidden="true">🔍</span>
+		<span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
 		{#if category !== null}
 			<button
 				type="button"
@@ -252,9 +255,9 @@
 					input?.focus();
 				}}
 			>
-				{CATEGORY_ICONS[category]}
-				{categoryLabel(category, $t)}
-				<span class="chip-x">×</span>
+				<span class="material-symbols-outlined chip-icon" aria-hidden="true">{CATEGORY_ICONS[category]}</span>
+				<span>{categoryLabel(category, $t)}</span>
+				<span class="material-symbols-outlined chip-x" aria-hidden="true">close</span>
 			</button>
 		{/if}
 		<input
@@ -278,7 +281,7 @@
 		/>
 		{#if query !== '' || category !== null}
 			<button type="button" class="clear" title={$t('search.clear')} on:click={clearAll}>
-				×
+				<span class="material-symbols-outlined" aria-hidden="true">close</span>
 			</button>
 		{/if}
 	</div>
@@ -302,10 +305,10 @@
 							on:click={() => pick(suggestion)}
 							on:mousemove={() => (activeIndex = index)}
 						>
-							<span class="item-icon">{CATEGORY_ICONS[suggestion.id]}</span>
+							<span class="material-symbols-outlined item-icon" aria-hidden="true">{CATEGORY_ICONS[suggestion.id]}</span>
 							<span class="item-label">{suggestion.label}</span>
 							<span class="item-count">{suggestion.count}</span>
-							<span class="item-go">→</span>
+							<span class="material-symbols-outlined item-go" aria-hidden="true">chevron_right</span>
 						</button>
 					</li>
 				{:else}
@@ -324,7 +327,7 @@
 							on:click={() => pick(suggestion)}
 							on:mousemove={() => (activeIndex = index)}
 						>
-							<span class="item-icon">{CATEGORY_ICONS[suggestion.categoryId]}</span>
+							<span class="material-symbols-outlined item-icon" aria-hidden="true">{CATEGORY_ICONS[suggestion.categoryId]}</span>
 							<span class="item-label">{suggestion.label}</span>
 							<span class="item-sub">{suggestion.sub}</span>
 						</button>
@@ -341,118 +344,191 @@
 <style>
 	.search {
 		position: relative;
-		width: min(430px, 92vw);
-		font-family: 'Inter Variable', sans-serif;
+		width: min(340px, 92vw);
+		font-family: 'Inter Variable', Inter, sans-serif;
+	}
+
+	.material-symbols-outlined {
+		font-family: 'Material Symbols Outlined' !important;
+		font-weight: normal;
+		font-style: normal;
+		font-size: 18px;
+		line-height: 1;
+		letter-spacing: normal;
+		text-transform: none;
+		display: inline-block;
+		white-space: nowrap;
+		word-wrap: normal;
+		direction: ltr;
+		-webkit-font-smoothing: antialiased;
+		text-rendering: optimizeLegibility;
+		-moz-osx-font-smoothing: grayscale;
+		font-feature-settings: 'liga';
+		font-variation-settings:
+			'FILL' 0,
+			'wght' 300,
+			'GRAD' 0,
+			'opsz' 24;
+		user-select: none;
+		vertical-align: middle;
 	}
 
 	.field {
 		display: flex;
 		align-items: center;
-		gap: 7px;
-		padding: 8px 12px;
-		border-radius: 14px;
-		background: rgba(15, 23, 42, 0.88);
-		border: 1px solid rgba(148, 163, 184, 0.25);
-		backdrop-filter: blur(10px);
-		box-shadow: 0 16px 40px rgba(2, 6, 23, 0.4);
-		transition: border-color 0.25s;
+		gap: 8px;
+		height: 38px;
+		padding: 0 12px;
+		border-radius: 999px;
+		background: transparent;
+		border: 1px solid rgba(255, 255, 255, 0.22);
+		box-sizing: border-box;
+		transition: border-radius 200ms ease, border-color 200ms ease;
 	}
 
 	.field:focus-within {
-		border-color: rgba(96, 165, 250, 0.7);
+		border-color: rgba(255, 255, 255, 0.6);
 	}
 
 	.field-open {
-		border-bottom-left-radius: 4px;
-		border-bottom-right-radius: 4px;
+		border-bottom-left-radius: 12px;
+		border-bottom-right-radius: 12px;
 	}
 
-	.icon {
-		font-size: 0.85rem;
-		opacity: 0.8;
+	.search-icon {
+		font-size: 18px;
+		color: #97a5ad;
+		flex-shrink: 0;
 	}
 
 	.chip {
 		display: inline-flex;
 		align-items: center;
-		gap: 5px;
-		padding: 3px 9px;
-		border-radius: 999px;
-		border: 1px solid rgba(96, 165, 250, 0.55);
-		background: rgba(37, 99, 235, 0.25);
-		color: #bfdbfe;
-		font: inherit;
-		font-size: 0.74rem;
-		font-weight: 600;
+		gap: 4px;
+		height: 24px;
+		padding: 0 8px;
+		border-radius: 6px;
+		border: 0;
+		background: rgba(255, 255, 255, 0.08);
+		color: #f5f7f8;
+		font-family: inherit;
+		font-size: 0.66rem;
+		font-weight: 400;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 		white-space: nowrap;
 		cursor: pointer;
+		box-sizing: border-box;
+		transition: background-color 150ms ease;
 	}
 
-	.chip:hover .chip-x {
-		color: #f8fafc;
+	.chip:hover {
+		background: rgba(255, 255, 255, 0.14);
+	}
+
+	.chip-icon {
+		font-size: 14px;
+		color: #97a5ad;
 	}
 
 	.chip-x {
-		color: #93c5fd;
-		font-weight: 700;
+		font-size: 13px;
+		color: #97a5ad;
+		margin-left: 2px;
 	}
 
 	input {
 		flex: 1;
 		min-width: 0;
-		border: none;
+		height: 100%;
+		border: 0;
 		background: transparent;
-		color: #f1f5f9;
-		font: inherit;
-		font-size: 0.86rem;
+		color: #f5f7f8;
+		font-family: inherit;
+		font-size: 0.76rem;
+		font-weight: 300;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 		outline: none;
 	}
 
 	input::placeholder {
-		color: #64748b;
+		color: #97a5ad;
+		font-weight: 300;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 	}
 
 	.clear {
-		border: none;
+		border: 0;
 		background: transparent;
-		color: #94a3b8;
-		font-size: 1.05rem;
-		line-height: 1;
+		color: #97a5ad;
 		cursor: pointer;
-		padding: 0 2px;
+		width: 24px;
+		height: 24px;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 6px;
+		transition: color 150ms ease, background-color 150ms ease;
+	}
+
+	.clear .material-symbols-outlined {
+		font-size: 16px;
 	}
 
 	.clear:hover {
-		color: #f8fafc;
+		color: #ffffff;
+		background: rgba(255, 255, 255, 0.06);
 	}
 
 	.dropdown {
 		position: absolute;
-		top: calc(100% + 6px);
+		top: calc(100% + 4px);
 		left: 0;
 		right: 0;
 		margin: 0;
 		padding: 6px;
 		list-style: none;
-		border-radius: 14px;
-		background: rgba(15, 23, 42, 0.94);
-		border: 1px solid rgba(148, 163, 184, 0.25);
-		backdrop-filter: blur(12px);
-		box-shadow: 0 24px 60px rgba(2, 6, 23, 0.55);
-		max-height: 330px;
+		border-radius: 12px;
+		background: rgba(20, 20, 20, 0.96);
+		border: 0;
+		backdrop-filter: blur(16px);
+		-webkit-backdrop-filter: blur(16px);
+		box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+		max-height: 280px;
 		overflow-y: auto;
+		z-index: 40;
+		animation: dropdown-fade 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+		transform-origin: top;
+	}
+
+	@keyframes dropdown-fade {
+		from {
+			opacity: 0;
+			transform: translateY(-6px) scale(0.98);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+		}
 	}
 
 	.dropdown.empty {
 		padding: 14px;
-		color: #94a3b8;
-		font-size: 0.82rem;
+		color: #97a5ad;
+		font-size: 0.72rem;
+		font-weight: 300;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		text-align: center;
 	}
 
 	.group-header {
 		padding: 6px 10px 4px;
-		font-size: 0.64rem;
-		font-weight: 600;
+		font-size: 0.6rem;
+		font-weight: 400;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: #64748b;
@@ -461,31 +537,36 @@
 	.item button {
 		display: flex;
 		align-items: center;
-		gap: 9px;
+		gap: 10px;
 		width: 100%;
-		padding: 8px 10px;
-		border: none;
-		border-radius: 9px;
+		padding: 6px 10px;
+		border: 0;
+		border-radius: 8px;
 		background: transparent;
 		color: inherit;
-		font: inherit;
+		font-family: inherit;
 		text-align: left;
 		cursor: pointer;
+		transition: background-color 150ms ease;
 	}
 
+	.item button:hover,
 	.item.active button {
-		background: rgba(37, 99, 235, 0.3);
+		background: rgba(255, 255, 255, 0.06);
 	}
 
 	.item-icon {
-		font-size: 0.85rem;
+		font-size: 17px;
+		color: #97a5ad;
 		flex: 0 0 auto;
 	}
 
 	.item-label {
-		color: #f1f5f9;
-		font-size: 0.85rem;
-		font-weight: 500;
+		color: #f5f7f8;
+		font-size: 0.74rem;
+		font-weight: 400;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -493,8 +574,11 @@
 
 	.item-sub {
 		margin-left: auto;
-		color: #94a3b8;
-		font-size: 0.72rem;
+		color: #97a5ad;
+		font-size: 0.66rem;
+		font-weight: 300;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -503,25 +587,27 @@
 
 	.item-count {
 		margin-left: auto;
-		padding: 1px 8px;
+		padding: 2px 6px;
 		border-radius: 999px;
-		background: rgba(30, 41, 59, 0.9);
-		border: 1px solid rgba(148, 163, 184, 0.25);
-		color: #cbd5e1;
-		font-size: 0.7rem;
+		background: rgba(255, 255, 255, 0.05);
+		color: #97a5ad;
+		font-size: 0.64rem;
+		font-weight: 300;
 	}
 
 	.item-go {
+		font-size: 16px;
 		color: #64748b;
-		font-size: 0.8rem;
 	}
 
 	.hint {
-		padding: 7px 10px 3px;
-		border-top: 1px solid rgba(148, 163, 184, 0.15);
+		padding: 8px 10px 4px;
 		margin-top: 4px;
-		color: #475569;
-		font-size: 0.68rem;
+		color: #64748b;
+		font-size: 0.62rem;
+		font-weight: 300;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 		text-align: center;
 	}
 </style>
