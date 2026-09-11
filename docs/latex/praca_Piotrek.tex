@@ -314,9 +314,9 @@ bla bla jadi jadi jada
 W niniejszym rozdziale szczegółowo opisano stos technologiczny oraz założenia wzorców projektowych wykorzystanych w aplikacji. 
 Architektura systemu opiera się na trzech głównych filarach:
 \begin{itemize}
-    \item Warstwa prezentacyjna (ang. \emph{Frontend}) – to interfejs użytkownika oraz wszelkie elementy interaktywne aplikacji. Odbiorca za pomocą używania interfejsu dokonuje pożądanych przez niego zmian, przewidzianych w ramach funkcjonalności programu.
-    \item Warstwa komunikacyjno-zarządzająca (ang. \emph{Backend} - są to procesy niezależne i niewidoczne dla użytkownika końcowego. Odpowiada za całą logikę aplikacji, komunikację z pozostałymi warstwami, niezbędne obliczenia oraz procesy uwierzytelniania i autoryzacji.
-    \item Warstwa bazodanowa -służy do trwałego przechowywania danych aplikacji. Zapisywane są w niej między innymi dane logowania, konfiguracja poszczególnych stacji oraz inne parametry niezbędne do poprawnego działania symulacji.
+    \item Warstwa prezentacyjna (ang. \emph{Frontend}) -- to interfejs użytkownika oraz wszelkie elementy interaktywne aplikacji. Odbiorca za pomocą używania interfejsu dokonuje pożądanych przez niego zmian, przewidzianych w ramach funkcjonalności programu.
+    \item Warstwa komunikacyjno-zarządzająca (ang. \emph{Backend}) -- są to procesy niezależne i niewidoczne dla użytkownika końcowego. Odpowiada za całą logikę aplikacji, komunikację z pozostałymi warstwami, niezbędne obliczenia oraz procesy uwierzytelniania i autoryzacji.
+    \item Warstwa bazodanowa -- służy do trwałego przechowywania danych aplikacji. Zapisywane są w niej między innymi dane logowania, konfiguracja poszczególnych stacji oraz inne parametry niezbędne do poprawnego działania symulacji.
 \end{itemize}
 Dopełnieniem wymienionych wcześniej filarów jest ich fundament, czyli środowisko wirtualizacyjne. Wirtualizacja odpowiada za poszczególne połączenia między warstwami oraz znacząco ułatwia współpracę w~zespole. Powyższy wstęp zarysowuje główne zadania każdej z~warstw. Podrozdziały mają na celu szczegółowe i~merytoryczne wyjaśnienie działania komponentów, które składają się na całość opisywanego oprogramowania.
 % Opisanie dockera i jego sieci-podsieci
