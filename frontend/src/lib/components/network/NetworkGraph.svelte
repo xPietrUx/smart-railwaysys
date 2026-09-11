@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { createEventDispatcher } from 'svelte';
     import {
         EVENT_ICON,
         eventLabel,
@@ -18,6 +19,9 @@
     export let events: RailEventNode[] = [];
     export let selected: Selected | null = null;
     export let highlight: HighlightFilter | null = null;
+    export let isFullscreen = false;
+
+    const dispatch = createEventDispatcher<{ toggleFullscreen: void }>();
 
     const padding = 56;
     const graphWidth = 1000;
@@ -181,6 +185,10 @@
 
     function handleSvgKeydown(event: KeyboardEvent) {
         if (event.key === 'Escape') {
+            if (isFullscreen) {
+                dispatch('toggleFullscreen');
+                return;
+            }
             selected = null;
             highlight = null;
         }
@@ -416,7 +424,7 @@
     />
 </svelte:head>
 
-<div class="map-root">
+<div class="map-root" class:fullscreen={isFullscreen}>
     {#if stations.length > 0 && bounds}
         <!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
         <svg
@@ -676,6 +684,19 @@
         </svg>
 
         <div class="zoom-controls">
+            <!-- Przycisk Fullscreen umieszczony nad przyciskami zooma -->
+            <button
+                type="button"
+                class="ctrl-btn"
+                on:click={() => dispatch('toggleFullscreen')}
+                aria-label={isFullscreen ? 'Wyłącz pełny ekran' : 'Włącz pełny ekran'}
+                title={isFullscreen ? 'Wyłącz pełny ekran' : 'Włącz pełny ekran'}
+            >
+                <span class="material-symbols-outlined ctrl-icon" aria-hidden="true">
+                    {isFullscreen ? 'fullscreen_exit' : 'fullscreen'}
+                </span>
+            </button>
+
             <button
                 type="button"
                 class="ctrl-btn"
@@ -705,20 +726,21 @@
             </button>
         </div>
 
-        <div class="map-legend">
-            <div class="legend-group">
-                <span><i class="legend-shape hub"></i>{$t('map.legend.hub')}</span>
-                <span><i class="legend-shape through"></i>{$t('map.legend.through')}</span>
-                <span><i class="legend-shape terminus"></i>{$t('map.legend.terminus')}</span>
+        <div class="map-legend-container">
+            <div class="map-legend">
+                <div class="legend-group">
+                    <span><i class="legend-shape hub"></i>{$t('map.legend.hub')}</span>
+                    <span><i class="legend-shape through"></i>{$t('map.legend.through')}</span>
+                    <span><i class="legend-shape terminus"></i>{$t('map.legend.terminus')}</span>
+                </div>
+                <span class="legend-divider"></span>
+                <div class="legend-group">
+                    <span><i class="legend-line active"></i>{$t('map.legend.active')}</span>
+                    <span><i class="legend-line restricted"></i>{$t('map.legend.restricted')}</span>
+                    <span><i class="legend-line blocked"></i>{$t('map.legend.blocked')}</span>
+                </div>
             </div>
-            <span class="legend-divider"></span>
-            <div class="legend-group">
-                <span><i class="legend-line active"></i>{$t('map.legend.active')}</span>
-                <span><i class="legend-line restricted"></i>{$t('map.legend.restricted')}</span>
-                <span><i class="legend-line blocked"></i>{$t('map.legend.blocked')}</span>
-            </div>
-            <span class="legend-divider"></span>
-            <span class="legend-hint">{$t('map.legend.hint')}</span>
+            <div class="legend-hint">{$t('map.legend.hint')}</div>
         </div>
     {:else}
         <div class="empty-state">{$t('map.empty')}</div>
@@ -726,17 +748,25 @@
 </div>
 
 <style>
-    .graph *:focus,
-    .graph *:focus-visible {
-        outline: none !important;
-    }
-
     .map-root {
         position: relative;
         width: 100%;
         height: 100%;
         background: #141414;
         font-family: 'Inter Variable', Inter, sans-serif;
+    }
+
+    .map-root.fullscreen {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 1000 !important;
+    }
+
+    .graph *:focus,
+    .graph *:focus-visible {
+        outline: none !important;
     }
 
     .graph {
@@ -942,17 +972,17 @@
         stroke: none;
     }
 
+    /* Styl bazowy tła badge'a incydentu (usunięto border, dodano kolorowe tło bazowe) */
     .incident-badge .badge-bg {
-        fill: #1c1c1c;
-        stroke-width: 1.5;
+        stroke: none;
     }
 
     .incident-badge.severity-major .badge-bg {
-        stroke: #de8489;
+        fill: rgba(222, 132, 137, 0.25);
     }
 
     .incident-badge.severity-minor .badge-bg {
-        stroke: #f0c29a;
+        fill: rgba(240, 194, 154, 0.25);
     }
 
     .incident-badge {
@@ -1032,34 +1062,40 @@
         user-select: none;
     }
 
-    .map-legend {
+    .map-legend-container {
         position: absolute;
         left: 50%;
         transform: translateX(-50%);
         bottom: 20px;
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 12px;
-        padding: 6px 14px;
+        gap: 6px;
+        z-index: 10;
+        max-width: min(92vw, 780px);
+    }
+
+    .map-legend {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 6px 16px;
         border-radius: 10px;
         background: rgba(20, 20, 20, 0.92);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
-        border: 0;
         box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
         color: #87979f;
         font-size: 0.68rem;
         font-weight: 300;
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        max-width: min(92vw, 780px);
-        z-index: 10;
     }
 
     .legend-group {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 14px;
     }
 
     .map-legend span {
@@ -1071,6 +1107,9 @@
     .legend-hint {
         color: #55626b;
         font-size: 0.62rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        text-align: center;
     }
 
     .legend-divider {
@@ -1129,7 +1168,7 @@
     }
 
     @media (max-width: 900px) {
-        .map-legend {
+        .map-legend-container {
             display: none;
         }
     }

@@ -118,41 +118,45 @@
             <ul class="scenario-list">
                 {#each scenarios as item (item.id)}
                     <li class="scenario" class:active={scenario?.id === item.id}>
-                        <span class="material-symbols-outlined icon" aria-hidden="true">
-                            {SCENARIO_ICONS[item.id] ?? SCENARIO_ICONS.default}
-                        </span>
+                        <div class="scenario-top">
+                            <div class="scenario-title-group">
+                                <span class="material-symbols-outlined icon" aria-hidden="true">
+                                    {SCENARIO_ICONS[item.id] ?? SCENARIO_ICONS.default}
+                                </span>
+                                <strong>{localizedScenarioField(item.id, 'name', item.name, $t)}</strong>
+                            </div>
+                            {#if !readOnly}
+                                <div class="scenario-actions">
+                                    <button
+                                        type="button"
+                                        class="run-btn"
+                                        on:click={() => handleRun(item.id)}
+                                        disabled={busyId !== null}
+                                        title={$t('timetable.runTitle')}
+                                    >
+                                        {#if busyId === item.id}
+                                            <span class="material-symbols-outlined spinning" aria-hidden="true">progress_activity</span>
+                                        {:else}
+                                            <span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
+                                        {/if}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="details-btn"
+                                        on:click={() => onDetails(item)}
+                                        title={$t('timetable.detailsTitle')}
+                                    >
+                                        {$t('timetable.details')}
+                                    </button>
+                                </div>
+                            {/if}
+                        </div>
                         <div class="scenario-body">
-                            <strong>{localizedScenarioField(item.id, 'name', item.name, $t)}</strong>
                             {#if item.description}
                                 <p>{localizedScenarioField(item.id, 'description', item.description, $t)}</p>
                             {/if}
                             <small>{trainsCountLabel(item.trains.length)}</small>
                         </div>
-                        {#if !readOnly}
-                            <div class="scenario-actions">
-                                <button
-                                    type="button"
-                                    class="run-btn"
-                                    on:click={() => handleRun(item.id)}
-                                    disabled={busyId !== null}
-                                    title={$t('timetable.runTitle')}
-                                >
-                                    {#if busyId === item.id}
-                                        <span class="material-symbols-outlined spinning" aria-hidden="true">progress_activity</span>
-                                    {:else}
-                                        <span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
-                                    {/if}
-                                </button>
-                                <button
-                                    type="button"
-                                    class="details-btn"
-                                    on:click={() => onDetails(item)}
-                                    title={$t('timetable.detailsTitle')}
-                                >
-                                    {$t('timetable.details')}
-                                </button>
-                            </div>
-                        {/if}
                     </li>
                 {/each}
             </ul>
@@ -289,14 +293,14 @@
         margin: 0 0 14px;
         padding: 0;
         display: grid;
-        gap: 6px;
+        gap: 8px;
     }
 
     .scenario {
         display: flex;
-        gap: 10px;
-        align-items: flex-start;
-        padding: 10px 12px;
+        flex-direction: column;
+        gap: 6px;
+        padding: 12px;
         border-radius: 10px;
         background: rgba(255, 255, 255, 0.03);
         transition: background-color 150ms ease;
@@ -306,28 +310,45 @@
         background: rgba(255, 255, 255, 0.07);
     }
 
-    .icon {
-        font-size: 18px;
-        color: #97a5ad;
-        margin-top: 1px;
+    .scenario-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
     }
 
-    .scenario-body {
+    .scenario-title-group {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
         min-width: 0;
         flex: 1;
     }
 
-    .scenario-body strong {
-        display: block;
+    .icon {
+        font-size: 18px;
+        color: #97a5ad;
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+
+    .scenario-title-group strong {
         font-size: 0.78rem;
         font-weight: 400;
         letter-spacing: 0.06em;
         text-transform: uppercase;
         color: #f5f7f8;
+        /* Usunięto nowrap, aby tekst ładnie się zawijał w razie potrzeby */
+        word-break: break-word;
+        line-height: 1.3;
+    }
+
+    .scenario-body {
+        width: 100%;
     }
 
     .scenario-body p {
-        margin: 3px 0 0;
+        margin: 0;
         font-size: 0.74rem;
         font-weight: 300;
         color: #97a5ad;
@@ -347,14 +368,15 @@
 
     .scenario-actions {
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
         gap: 6px;
-        align-items: stretch;
+        align-items: center;
+        flex-shrink: 0;
     }
 
     .run-btn {
-        width: 30px;
-        height: 30px;
+        width: 28px;
+        height: 28px;
         padding: 0;
         border-radius: 6px;
         border: 0;
@@ -368,7 +390,7 @@
     }
 
     .run-btn .material-symbols-outlined {
-        font-size: 16px;
+        font-size: 15px;
     }
 
     .run-btn:hover:not(:disabled) {
@@ -381,7 +403,7 @@
     }
 
     .details-btn {
-        padding: 6px 10px;
+        padding: 5px 9px;
         border-radius: 6px;
         border: 0;
         background: rgba(255, 255, 255, 0.04);

@@ -10,10 +10,10 @@
     const SPEEDS = [0.5, 1, 1.5, 2];
     const CX = 90;
     const CY = 90;
-    const R_INNER = 40;
-    const R_OUTER = 82;
-    const CORE_R = 30;
-    const GAP_DEG = 4;
+    const R_INNER = 42;
+    const R_OUTER = 84;
+    const CORE_R = 32;
+    const GAP_DEG = 3;
     const SPAN_DEG = 360 / SPEEDS.length;
 
     function polar(radius: number, deg: number): { x: number; y: number } {
@@ -105,74 +105,95 @@
     />
 </svelte:head>
 
-<div class="speed-dial" class:paused class:read-only={readOnly}>
-    <svg
-        viewBox="0 0 180 180"
-        width="150"
-        height="150"
-        role="group"
-        aria-label={$t('header.speed.title', { speed })}
-    >
-        <circle cx={CX} cy={CY} r={R_OUTER + 3} class="dial-base" />
+<div class="speed-control-wrapper" class:paused class:read-only={readOnly}>
+    <div class="speed-dial">
+        <svg
+            viewBox="0 0 180 180"
+            width="156"
+            height="156"
+            role="group"
+            aria-label={$t('header.speed.title', { speed })}
+        >
+            <circle cx={CX} cy={CY} r={R_OUTER + 2} class="dial-base" />
 
-        {#each SPEEDS as option, index (option)}
-            {@const active = option <= speed}
-            <path
-                d={wedgePath(index)}
-                class="wedge"
-                class:active
+            {#each SPEEDS as option, index (option)}
+                {@const active = option <= speed}
+                <path
+                    d={wedgePath(index)}
+                    class="wedge"
+                    class:active
+                    role="button"
+                    tabindex={readOnly ? -1 : 0}
+                    aria-disabled={readOnly}
+                    aria-label={$t('header.speed.set', { speed: option })}
+                    aria-pressed={option === speed}
+                    on:click={() => pickSpeed(option)}
+                    on:keydown={(event) => activateOnKey(event, () => pickSpeed(option))}
+                >
+                    <title>{$t('header.speed.set', { speed: option })}</title>
+                </path>
+                <text
+                    x={labelPos(index).x.toFixed(2)}
+                    y={labelPos(index).y.toFixed(2)}
+                    class="wedge-label"
+                    class:lit={active}
+                >
+                    {option}×
+                </text>
+            {/each}
+
+            <circle
+                cx={CX}
+                cy={CY}
+                r={CORE_R}
+                class="core"
                 role="button"
                 tabindex={readOnly ? -1 : 0}
                 aria-disabled={readOnly}
-                aria-label={$t('header.speed.set', { speed: option })}
-                aria-pressed={option === speed}
-                on:click={() => pickSpeed(option)}
-                on:keydown={(event) => activateOnKey(event, () => pickSpeed(option))}
+                aria-label={paused ? $t('header.resumeTitle') : $t('header.pauseTitle')}
+                on:click={togglePause}
+                on:keydown={(event) => activateOnKey(event, togglePause)}
             >
-                <title>{$t('header.speed.set', { speed: option })}</title>
-            </path>
-            <text
-                x={labelPos(index).x.toFixed(2)}
-                y={labelPos(index).y.toFixed(2)}
-                class="wedge-label"
-                class:lit={active}
-            >
-                {option}×
-            </text>
-        {/each}
+                <title>{paused ? $t('header.resumeTitle') : $t('header.pauseTitle')}</title>
+            </circle>
 
-        <circle
-            cx={CX}
-            cy={CY}
-            r={CORE_R}
-            class="core"
-            role="button"
-            tabindex={readOnly ? -1 : 0}
-            aria-disabled={readOnly}
-            aria-label={paused ? $t('header.resumeTitle') : $t('header.pauseTitle')}
-            on:click={togglePause}
-            on:keydown={(event) => activateOnKey(event, togglePause)}
-        >
-            <title>{paused ? $t('header.resumeTitle') : $t('header.pauseTitle')}</title>
-        </circle>
+            <foreignObject x={CX - 12} y={CY - 12} width="24" height="24" style="overflow: visible;">
+                <div xmlns="http://www.w3.org/1999/xhtml" class="core-center-content">
+                    <span class="material-symbols-outlined core-icon" aria-hidden="true">
+                        {paused ? 'play_arrow' : 'pause'}
+                    </span>
+                </div>
+            </foreignObject>
+        </svg>
+    </div>
 
-        <foreignObject x={CX - 14} y={CY - 18} width="28" height="28" style="overflow: visible;">
-            <div xmlns="http://www.w3.org/1999/xhtml" class="core-center-content">
-                <span class="material-symbols-outlined core-icon" aria-hidden="true">
-                    {paused ? 'play_arrow' : 'pause'}
-                </span>
-                <span class="core-clock">{formatSimClock(snapshot.simClockMinutes)}</span>
-            </div>
-        </foreignObject>
-    </svg>
+    <!-- Pigułka z czasem symulacji -->
+    <div class="clock-badge" title={$t('header.elapsedTitle')}>
+        <span class="clock-time">{formatSimClock(snapshot.simClockMinutes)}</span>
+        <span class="clock-divider">·</span>
+        <span class="clock-speed">
+            {#if paused}
+                <span class="paused-text">{$t('header.paused')}</span>
+            {:else}
+                {speed}×
+            {/if}
+        </span>
+    </div>
 </div>
 
 <style>
+    .speed-control-wrapper {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        font-family: 'Inter Variable', Inter, sans-serif;
+        pointer-events: auto;
+    }
+
     .speed-dial {
         position: relative;
         display: inline-block;
-        font-family: 'Inter Variable', Inter, sans-serif;
-        pointer-events: auto;
     }
 
     svg {
@@ -195,15 +216,14 @@
     }
 
     .wedge {
-        fill: rgba(255, 255, 255, 0.04);
+        fill: rgba(255, 255, 255, 0.03);
         cursor: pointer;
         outline: none;
-        rx: 10px;
-        transition: fill 200ms ease, opacity 200ms ease;
+        transition: fill 150ms ease;
     }
 
     .wedge:hover:not(:disabled) {
-        fill: rgba(255, 255, 255, 0.09);
+        fill: rgba(255, 255, 255, 0.08);
     }
 
     .wedge.active {
@@ -211,11 +231,11 @@
     }
 
     .paused .wedge.active {
-        fill: rgba(245, 247, 248, 0.3);
+        fill: rgba(245, 247, 248, 0.25);
     }
 
     .wedge-label {
-        font-size: 11px;
+        font-size: 11.5px;
         font-weight: 300;
         fill: #97a5ad;
         text-anchor: middle;
@@ -223,7 +243,7 @@
         pointer-events: none;
         user-select: none;
         letter-spacing: 0.04em;
-        transition: fill 200ms ease;
+        transition: fill 150ms ease;
     }
 
     .wedge-label.lit {
@@ -239,7 +259,7 @@
         fill: #141414;
         cursor: pointer;
         outline: none;
-        transition: fill 200ms ease;
+        transition: fill 150ms ease;
     }
 
     .core:hover {
@@ -247,18 +267,16 @@
     }
 
     .core-center-content {
-        width: 28px;
-        height: 36px;
+        width: 24px;
+        height: 24px;
         display: flex;
-        flex-direction: column;
         align-items: center;
         justify-content: center;
         pointer-events: none;
-        transform: translateX(-4px);
     }
 
     .core-icon {
-        font-size: 16px;
+        font-size: 18px;
         color: #f5f7f8;
         line-height: 1;
     }
@@ -267,12 +285,41 @@
         color: #f0c29a;
     }
 
-    .core-clock {
-        font-size: 8.5px;
-        font-weight: 300;
-        letter-spacing: 0.02em;
-        color: #97a5ad;
-        margin-top: 2px;
+    .clock-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: rgba(20, 20, 20, 0.92);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    .clock-time {
+        font-size: 0.82rem;
+        font-weight: 400;
+        letter-spacing: 0.06em;
+        color: #ffffff;
+    }
+
+    .clock-divider {
+        color: #55626b;
+        font-size: 0.7rem;
+    }
+
+    .clock-speed {
+        font-size: 0.72rem;
+        font-weight: 300;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #97a5ad;
+    }
+
+    .paused-text {
+        color: #f0c29a;
     }
 </style>

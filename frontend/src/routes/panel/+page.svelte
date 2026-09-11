@@ -1,319 +1,354 @@
 <script lang="ts">
-	import { onDestroy, onMount } from 'svelte';
-	import DetailsPanel from '$lib/components/network/DetailsPanel.svelte';
-	import IncidentFeed from '$lib/components/network/IncidentFeed.svelte';
-	import MapSearch from '$lib/components/network/MapSearch.svelte';
-	import NetworkGraph from '$lib/components/network/NetworkGraph.svelte';
-	import SimSpeedControl from '$lib/components/network/SimSpeedControl.svelte';
-	import SimulationHeader from '$lib/components/network/SimulationHeader.svelte';
-	import TimetableEditorModal from '$lib/components/network/TimetableEditorModal.svelte';
-	import TimetablePanel from '$lib/components/network/TimetablePanel.svelte';
-	import { createLiveStore } from '$lib/services/live';
-	import { applyEventsToSegments } from '$lib/services/liveNetwork';
-	import type { Scenario } from '$lib/types/scenario';
-	import type { HighlightFilter, Selected } from '$lib/types/selection';
-	import type { PageData } from './$types';
+    import { onDestroy, onMount } from 'svelte';
+    import DetailsPanel from '$lib/components/network/DetailsPanel.svelte';
+    import IncidentFeed from '$lib/components/network/IncidentFeed.svelte';
+    import MapSearch from '$lib/components/network/MapSearch.svelte';
+    import NetworkGraph from '$lib/components/network/NetworkGraph.svelte';
+    import SimSpeedControl from '$lib/components/network/SimSpeedControl.svelte';
+    import SimulationHeader from '$lib/components/network/SimulationHeader.svelte';
+    import TimetableEditorModal from '$lib/components/network/TimetableEditorModal.svelte';
+    import TimetablePanel from '$lib/components/network/TimetablePanel.svelte';
+    import { createLiveStore } from '$lib/services/live';
+    import { applyEventsToSegments } from '$lib/services/liveNetwork';
+    import type { Scenario } from '$lib/types/scenario';
+    import type { HighlightFilter, Selected } from '$lib/types/selection';
+    import type { PageData } from './$types';
 
-	export let data: PageData;
+    export let data: PageData;
 
-	// Uprawnienia z backendu decydują, co użytkownik może zrobić. Gość ma tylko
-	// `simulation.view`, więc wszystkie akcje są przed nim ukryte.
-	$: permissions = data.user.permissions ?? [];
-	$: canControl = permissions.includes('simulation.control');
-	$: canManageTimetable = permissions.includes('timetable.manage');
+    $: permissions = data.user.permissions ?? [];
+    $: canControl = permissions.includes('simulation.control');
+    $: canManageTimetable = permissions.includes('timetable.manage');
 
-	const live = createLiveStore(fetch, data.apiBaseUrl, {
-		trains: data.trains,
-		events: data.events,
-		scenario: null,
-		paused: false,
-		speed: 1,
-		simClockMinutes: 0,
-		timestamp: data.timestamp
-	});
-	const { snapshot, status } = live;
+    const live = createLiveStore(fetch, data.apiBaseUrl, {
+        trains: data.trains,
+        events: data.events,
+        scenario: null,
+        paused: false,
+        speed: 1,
+        simClockMinutes: 0,
+        timestamp: data.timestamp
+    });
+    const { snapshot, status } = live;
 
-	onMount(() => live.connect());
-	onDestroy(() => live.disconnect());
+    onMount(() => live.connect());
+    onDestroy(() => live.disconnect());
 
-	let selected: Selected | null = null;
-	let highlight: HighlightFilter | null = null;
-	let mapComponent: NetworkGraph | undefined;
+    let selected: Selected | null = null;
+    let highlight: HighlightFilter | null = null;
+    let mapComponent: NetworkGraph | undefined;
 
-	// Modal szczegółów rozkładu renderowany na poziomie strony (na środku mapy),
-	// nie w docku — dock ma backdrop-filter, który uwięziłby position:fixed.
-	let editorOpen = false;
-	let editorScenario: Scenario | null = null;
-	let scenariosRefreshKey = 0;
+    let isFullscreen = false;
 
-	function openScenarioDetails(scenario: Scenario) {
-		editorScenario = scenario;
-		editorOpen = true;
-	}
+    let editorOpen = false;
+    let editorScenario: Scenario | null = null;
+    let scenariosRefreshKey = 0;
 
-	function openScenarioCreate() {
-		editorScenario = null;
-		editorOpen = true;
-	}
+    function openScenarioDetails(scenario: Scenario) {
+        editorScenario = scenario;
+        editorOpen = true;
+    }
 
-	function handleEditorClose(changed: boolean) {
-		editorOpen = false;
-		if (changed) scenariosRefreshKey += 1;
-	}
+    function openScenarioCreate() {
+        editorScenario = null;
+        editorOpen = true;
+    }
 
-	// Stany torów (blokady, ograniczenia) wyliczane na żywo z aktywnych zdarzeń --
-	// graf z SSR jest tylko migawką startową i sam by się nie aktualizował.
-	$: liveGraph = {
-		...data.graph,
-		segments: applyEventsToSegments(data.graph.segments, $snapshot.events)
-	};
+    function handleEditorClose(changed: boolean) {
+        editorOpen = false;
+        if (changed) scenariosRefreshKey += 1;
+    }
 
-	function handleWindowKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && !editorOpen) {
-			selected = null;
-			highlight = null;
-		}
-	}
+    $: liveGraph = {
+        ...data.graph,
+        segments: applyEventsToSegments(data.graph.segments, $snapshot.events)
+    };
 
-	// Wspólne dla feedu incydentów i wyszukiwarki: zaznacza element i centruje mapę.
-	function handleMapSelect(sel: Selected) {
-		selected = sel;
-		mapComponent?.focusOn(sel);
-	}
+    function handleWindowKeydown(event: KeyboardEvent) {
+        if (event.key === 'Escape') {
+            if (isFullscreen) {
+                isFullscreen = false;
+                return;
+            }
+            if (!editorOpen) {
+                selected = null;
+                highlight = null;
+            }
+        }
+    }
+
+    function handleMapSelect(sel: Selected) {
+        selected = sel;
+        mapComponent?.focusOn(sel);
+    }
 </script>
 
 <svelte:head>
-	<title>Smart Railway System — autonomiczna sieć kolejowa</title>
-	<meta
-		name="description"
-		content="Autonomiczna symulacja pociągów na sieci kolejowej województwa śląskiego, na żywo z Memgraph."
-	/>
+    <title>Smart Railway System — autonomiczna sieć kolejowa</title>
+    <meta
+        name="description"
+        content="Autonomiczna symulacja pociągów na sieci kolejowej województwa śląskiego, na żywo z Memgraph."
+    />
 </svelte:head>
 
 <svelte:window on:keydown={handleWindowKeydown} />
 
-<main class="stage">
-	<div class="map-layer">
-		<NetworkGraph
-			bind:this={mapComponent}
-			graph={liveGraph}
-			trains={$snapshot.trains}
-			events={$snapshot.events}
-			bind:highlight
-			bind:selected
-		/>
-		<!-- Ćwiartka koła w stylu EU4 zagnieżdżona w dolnym-lewym rogu mapy. -->
-		<div class="speed-corner">
-			<SimSpeedControl snapshot={$snapshot} apiBaseUrl={data.apiBaseUrl} readOnly={!canControl} />
-		</div>
-	</div>
+<main class="stage" class:fullscreen-mode={isFullscreen}>
+    <div class="map-layer">
+        <NetworkGraph
+            bind:this={mapComponent}
+            graph={liveGraph}
+            trains={$snapshot.trains}
+            events={$snapshot.events}
+            bind:highlight
+            bind:selected
+            {isFullscreen}
+            on:toggleFullscreen={() => (isFullscreen = !isFullscreen)}
+        />
+        {#if !isFullscreen}
+            <div class="speed-corner">
+                <SimSpeedControl snapshot={$snapshot} apiBaseUrl={data.apiBaseUrl} readOnly={!canControl} />
+            </div>
+        {/if}
+    </div>
 
-	<div class="topbar">
-		<SimulationHeader
-			snapshot={$snapshot}
-			status={$status}
-			apiBaseUrl={data.apiBaseUrl}
-			bind:highlight
-			user={data.user}
-			readOnly={!canControl}
-		/>
-	</div>
+    {#if !isFullscreen}
+        <div class="topbar">
+            <SimulationHeader
+                snapshot={$snapshot}
+                status={$status}
+                apiBaseUrl={data.apiBaseUrl}
+                bind:highlight
+                user={data.user}
+                readOnly={!canControl}
+            />
+        </div>
 
-	<div class="search-layer">
-		<MapSearch
-			graph={liveGraph}
-			trains={$snapshot.trains}
-			events={$snapshot.events}
-			onSelect={handleMapSelect}
-		/>
-	</div>
+        <div class="search-layer">
+            <MapSearch
+                graph={liveGraph}
+                trains={$snapshot.trains}
+                events={$snapshot.events}
+                onSelect={handleMapSelect}
+            />
+        </div>
+    {/if}
 
-	<aside class="dock dock-left">
-		<IncidentFeed events={$snapshot.events} onSelect={handleMapSelect} />
-	</aside>
+    <aside class="dock dock-left" class:hidden={isFullscreen}>
+        <IncidentFeed events={$snapshot.events} onSelect={handleMapSelect} />
+    </aside>
 
-	<aside class="dock dock-right">
-		{#if selected}
-			<DetailsPanel
-				graph={liveGraph}
-				trains={$snapshot.trains}
-				events={$snapshot.events}
-				bind:selected
-			/>
-		{/if}
-		<TimetablePanel
-			apiBaseUrl={data.apiBaseUrl}
-			scenario={$snapshot.scenario}
-			refreshKey={scenariosRefreshKey}
-			onDetails={openScenarioDetails}
-			onCreate={openScenarioCreate}
-			readOnly={!canManageTimetable}
-		/>
-	</aside>
+    <aside class="dock dock-right" class:hidden={isFullscreen}>
+        {#if selected}
+            <DetailsPanel
+                graph={liveGraph}
+                trains={$snapshot.trains}
+                events={$snapshot.events}
+                bind:selected
+            />
+        {/if}
+        <TimetablePanel
+            apiBaseUrl={data.apiBaseUrl}
+            scenario={$snapshot.scenario}
+            refreshKey={scenariosRefreshKey}
+            onDetails={openScenarioDetails}
+            onCreate={openScenarioCreate}
+            readOnly={!canManageTimetable}
+        />
+    </aside>
 
-	{#if editorOpen}
-		<TimetableEditorModal
-			apiBaseUrl={data.apiBaseUrl}
-			graph={liveGraph}
-			scenario={editorScenario}
-			onClose={handleEditorClose}
-		/>
-	{/if}
+    {#if editorOpen}
+        <TimetableEditorModal
+            apiBaseUrl={data.apiBaseUrl}
+            graph={liveGraph}
+            scenario={editorScenario}
+            onClose={handleEditorClose}
+        />
+    {/if}
 </main>
 
 <style>
-	:global(html),
-	:global(body) {
-		height: 100%;
-	}
+    :global(html),
+    :global(body) {
+        height: 100%;
+    }
 
-	:global(body) {
-		margin: 0;
-		font-family: 'Inter Variable', sans-serif;
-		background:
-			radial-gradient(circle at top, rgba(37, 99, 235, 0.2), transparent 35%),
-			linear-gradient(180deg, #0f172a 0%, #111827 100%);
-		color: #e5eefb;
-	}
+    :global(body) {
+        margin: 0;
+        font-family: 'Inter Variable', Inter, sans-serif;
+        background: #141414;
+        color: #f5f7f8;
+        font-weight: 300;
+    }
 
-	.stage {
-		position: relative;
-		height: 100dvh;
-		overflow: hidden;
-	}
+    .stage {
+        position: relative;
+        height: 100dvh;
+        overflow: hidden;
+    }
 
-	.map-layer {
-		position: absolute;
-		inset: 0;
-	}
+    .map-layer {
+        position: absolute;
+        inset: 0;
+    }
 
-	.speed-corner {
-		position: absolute;
-		left: 0;
-		bottom: 0;
-		z-index: 15;
-	}
+    .speed-corner {
+        position: absolute;
+        left: 20px;
+        bottom: 20px;
+        z-index: 15;
+    }
 
-	/* Wyszukiwarka pływa nad mapą, wyśrodkowana pod paskiem górnym — docki
-	   zostają po bokach, więc nic na nią nie nachodzi. */
-	.search-layer {
-		position: absolute;
-		top: 96px;
-		left: 50%;
-		transform: translateX(-50%);
-		z-index: 18;
-	}
+    .search-layer {
+        position: absolute;
+        top: 118px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 18;
+    }
 
-	.topbar {
-		position: absolute;
-		top: 12px;
-		left: 16px;
-		right: 16px;
-		z-index: 20;
-		pointer-events: none;
-	}
+    .topbar {
+        position: absolute;
+        top: 20px;
+        left: 24px;
+        right: 24px;
+        z-index: 20;
+        pointer-events: none;
+    }
 
-	.topbar :global(.bar) {
-		pointer-events: auto;
-	}
+    .topbar :global(.bar) {
+        pointer-events: auto;
+    }
 
-	.dock {
-		position: absolute;
-		top: 96px;
-		bottom: 68px;
-		z-index: 10;
-		width: min(330px, 86vw);
-		display: flex;
-		flex-direction: column;
-		align-items: stretch;
-		gap: 12px;
-		pointer-events: none;
-	}
+    .dock {
+        position: absolute;
+        top: 96px;
+        bottom: 24px;
+        z-index: 10;
+        width: min(320px, 86vw);
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        pointer-events: none;
+        transition: opacity 200ms ease, transform 200ms ease;
+    }
 
-	/* flex-shrink + min-height pozwalają dwóm panelom (szczegóły + scenariusze)
-	   podzielić się wysokością docka zamiast wystawać poza ekran. */
-	.dock > :global(*) {
-		pointer-events: auto;
-		max-height: 100%;
-		overflow-y: auto;
-		flex: 0 1 auto;
-		min-height: 0;
-	}
+    /* Poszerzony prawy panel (rozkłady jazdy / detali) */
+    .dock-right {
+        right: 24px;
+        width: min(400px, 90vw);
+    }
 
-	.dock-left {
-		left: 16px;
-		/* Kończy się wyżej, żeby nie nachodzić na selektor prędkości w rogu mapy. */
-		bottom: 140px;
-	}
+    .dock.hidden {
+        opacity: 0;
+        pointer-events: none;
+        transform: scale(0.98);
+    }
 
-	.dock-right {
-		right: 16px;
-	}
+    .dock > :global(*) {
+        pointer-events: auto;
+        max-height: 100%;
+        overflow-y: auto;
+        flex: 0 1 auto;
+        min-height: 0;
+    }
 
-	/* Gdy topbar zawija się do dwóch wierszy, panele muszą zacząć niżej. */
-	@media (max-width: 1400px) {
-		.dock {
-			top: 132px;
-		}
+    /* Minimalistyczny scrollbar w formie kropki/pigułki dla elementów wewnątrz doków */
+    .dock > :global(*)::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
 
-		.search-layer {
-			top: 132px;
-		}
-	}
+    .dock > :global(*)::-webkit-scrollbar-track {
+        background: transparent;
+    }
 
-	/* Wąskie ekrany: zwykły układ pionowy zamiast nakładek. */
-	@media (max-width: 900px) {
-		.stage {
-			height: auto;
-			min-height: 100dvh;
-			overflow: visible;
-			display: flex;
-			flex-direction: column;
-			gap: 12px;
-			padding: 12px;
-			box-sizing: border-box;
-		}
+    .dock > :global(*)::-webkit-scrollbar-thumb {
+        background: rgba(245, 247, 248, 0.4);
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+    }
 
-		.map-layer {
-			position: relative;
-			inset: auto;
-			height: 60vh;
-			border-radius: 16px;
-			overflow: hidden;
-			border: 1px solid rgba(148, 163, 184, 0.18);
-			order: 2;
-		}
+    .dock > :global(*)::-webkit-scrollbar-thumb:hover {
+        background: rgba(245, 247, 248, 0.75);
+    }
 
-		.topbar {
-			position: static;
-			pointer-events: auto;
-			order: 1;
-		}
+    .dock-left {
+        left: 24px;
+        bottom: 24px;
+    }
 
-		.search-layer {
-			position: static;
-			transform: none;
-			align-self: center;
-			order: 1;
-		}
+    @media (max-width: 1400px) {
+        .dock {
+            top: 110px;
+        }
 
-		.dock {
-			position: static;
-			width: auto;
-			pointer-events: auto;
-		}
+        .search-layer {
+            top: 128px;
+        }
+    }
 
-		.dock > :global(*) {
-			max-height: none;
-			overflow-y: visible;
-		}
+    @media (max-width: 900px) {
+        .stage {
+            height: auto;
+            min-height: 100dvh;
+            overflow: visible;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 12px;
+            box-sizing: border-box;
+        }
 
-		.dock-right {
-			order: 3;
-		}
+        .map-layer {
+            position: relative;
+            inset: auto;
+            height: 60vh;
+            border-radius: 14px;
+            overflow: hidden;
+            order: 2;
+        }
 
-		.dock-left {
-			order: 4;
-		}
-	}
+        .topbar {
+            position: static;
+            pointer-events: auto;
+            order: 1;
+        }
+
+        .search-layer {
+            position: static;
+            transform: none;
+            align-self: center;
+            order: 1;
+        }
+
+        .dock {
+            position: static;
+            width: auto;
+            pointer-events: auto;
+        }
+
+        .dock-right {
+            width: auto;
+        }
+
+        .dock.hidden {
+            display: none;
+        }
+
+        .dock > :global(*) {
+            max-height: none;
+            overflow-y: visible;
+        }
+
+        .dock-right {
+            order: 3;
+        }
+
+        .dock-left {
+            order: 4;
+        }
+    }
 </style>
