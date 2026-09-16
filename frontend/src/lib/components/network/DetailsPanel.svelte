@@ -398,15 +398,71 @@
     }
 
     .panel {
-        background: rgba(20, 20, 20, 0.94);
+        --panel-bg: rgba(20, 20, 20, 0.94);
+        --panel-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+        --panel-border: 1px solid rgba(255, 255, 255, 0.06);
+        --panel-title: #ffffff;
+        --panel-text: #f5f7f8;
+        --panel-muted: #97a5ad;
+        --panel-dim: #55626b;
+        --card-bg: rgba(255, 255, 255, 0.03);
+        --card-bg-hover: rgba(255, 255, 255, 0.06);
+        --relation-bg: rgba(255, 255, 255, 0.04);
+        --bullet-base: rgba(255, 255, 255, 0.2);
+        --bullet-passed: rgba(255, 255, 255, 0.08);
+        --bullet-current: #f5f7f8;
+        --bullet-current-shadow: 0 0 8px rgba(245, 247, 248, 0.6);
+        --delay-bg: rgba(222, 132, 137, 0.1);
+        --delay-color: #de8489;
+        --status-active: #6cb09f;
+        --status-restricted: #f0c29a;
+        --status-blocked: #de8489;
+        --focus-ring: rgba(255, 255, 255, 0.65);
+
+        background: var(--panel-bg);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
-        border: 0;
-        box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+        border: var(--panel-border);
+        box-shadow: var(--panel-shadow);
         border-radius: 14px;
         padding: 20px;
         font-family: 'Inter Variable', Inter, sans-serif;
-        color: #f5f7f8;
+        color: var(--panel-text);
+        transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+    }
+
+    :global(html.light-mode) .panel.details,
+    :global([data-theme='light']) .panel.details,
+    :global(.light) .panel.details {
+        --panel-bg: rgba(244, 245, 243, 0.96);
+        --panel-shadow: 0 20px 48px rgba(0, 0, 0, 0.08);
+        --panel-border: 1px solid rgba(0, 0, 0, 0.08);
+        --panel-title: #111827;
+        --panel-text: #1f2933;
+        --panel-muted: #52606a;
+        --panel-dim: #8c9ba5;
+        --card-bg: rgba(0, 0, 0, 0.03);
+        --card-bg-hover: rgba(0, 0, 0, 0.06);
+        --relation-bg: rgba(0, 0, 0, 0.04);
+        --bullet-base: rgba(0, 0, 0, 0.2);
+        --bullet-passed: rgba(0, 0, 0, 0.08);
+        --bullet-current: #111827;
+        --bullet-current-shadow: 0 0 8px rgba(17, 24, 39, 0.35);
+        --delay-bg: rgba(201, 81, 88, 0.12);
+        --delay-color: #c95158;
+        --status-active: #2e8570;
+        --status-restricted: #c97d39;
+        --status-blocked: #c95158;
+        --focus-ring: rgba(17, 24, 39, 0.65);
+    }
+
+    button:focus {
+        outline: none;
+    }
+
+    button:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
     }
 
     .panel-header {
@@ -423,7 +479,7 @@
         letter-spacing: 0.08em;
         font-size: 0.66rem;
         font-weight: 300;
-        color: #97a5ad;
+        color: var(--panel-muted);
     }
 
     h2,
@@ -437,13 +493,13 @@
         font-weight: 400;
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        color: #ffffff;
+        color: var(--panel-title);
     }
 
     .close {
         border: 0;
         background: transparent;
-        color: #97a5ad;
+        color: var(--panel-muted);
         width: 28px;
         height: 28px;
         border-radius: 6px;
@@ -460,8 +516,8 @@
     }
 
     .close:hover {
-        color: #ffffff;
-        background: rgba(255, 255, 255, 0.06);
+        color: var(--panel-title);
+        background: var(--card-bg-hover);
     }
 
     .detail-grid {
@@ -471,7 +527,7 @@
     }
 
     .detail-grid > div {
-        background: rgba(255, 255, 255, 0.03);
+        background: var(--card-bg);
         border-radius: 10px;
         padding: 10px 12px;
     }
@@ -479,7 +535,7 @@
     .detail-grid span,
     .connections small {
         display: block;
-        color: #97a5ad;
+        color: var(--panel-muted);
         font-size: 0.68rem;
         font-weight: 300;
         letter-spacing: 0.06em;
@@ -492,26 +548,26 @@
         font-size: 0.88rem;
         font-weight: 400;
         letter-spacing: 0.04em;
-        color: #f5f7f8;
+        color: var(--panel-text);
     }
 
     .train-relation {
         margin: 0 0 14px;
         padding: 10px 12px;
         border-radius: 10px;
-        background: rgba(255, 255, 255, 0.04);
+        background: var(--relation-bg);
         font-weight: 400;
         font-size: 0.78rem;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: #f5f7f8;
+        color: var(--panel-text);
     }
 
     .delay-card {
         margin-top: 14px;
         padding: 12px;
         border-radius: 10px;
-        background: rgba(222, 132, 137, 0.1);
+        background: var(--delay-bg);
     }
 
     .delay-title {
@@ -522,7 +578,7 @@
         font-weight: 400;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: #de8489;
+        color: var(--delay-color);
     }
 
     .inline-icon {
@@ -534,7 +590,7 @@
         font-size: 0.74rem;
         font-weight: 300;
         letter-spacing: 0.02em;
-        color: #f5f7f8;
+        color: var(--panel-text);
         line-height: 1.4;
     }
 
@@ -561,47 +617,48 @@
         width: 6px;
         height: 6px;
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.2);
+        background: var(--bullet-base);
     }
 
     .route-list li.passed::before {
-        background: rgba(255, 255, 255, 0.08);
+        background: var(--bullet-passed);
     }
 
     .route-list li.current::before {
-        background: #f5f7f8;
-        box-shadow: 0 0 8px rgba(245, 247, 248, 0.6);
+        background: var(--bullet-current);
+        box-shadow: var(--bullet-current-shadow);
     }
 
     .route-list button {
         background: none;
         border: 0;
-        color: #97a5ad;
+        color: var(--panel-muted);
         font-family: inherit;
         font-size: 0.76rem;
         font-weight: 300;
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        padding: 4px 0;
+        padding: 4px 6px;
+        border-radius: 4px;
         cursor: pointer;
         text-align: left;
     }
 
     .route-list li.passed button {
-        color: #55626b;
+        color: var(--panel-dim);
     }
 
     .route-list li.current button {
-        color: #ffffff;
+        color: var(--panel-title);
         font-weight: 400;
     }
 
     .route-list button:hover {
-        color: #ffffff;
+        color: var(--panel-title);
     }
 
     .route-list small {
-        color: #97a5ad;
+        color: var(--panel-muted);
         font-size: 0.68rem;
         font-weight: 300;
         letter-spacing: 0.04em;
@@ -618,7 +675,7 @@
         font-weight: 400;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: #97a5ad;
+        color: var(--panel-muted);
     }
 
     .direction-grid {
@@ -630,7 +687,7 @@
     .direction-card {
         border-radius: 10px;
         padding: 10px 12px;
-        background: rgba(255, 255, 255, 0.03);
+        background: var(--card-bg);
     }
 
     .direction-card span {
@@ -639,7 +696,7 @@
         font-weight: 300;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: #97a5ad;
+        color: var(--panel-muted);
     }
 
     .direction-card strong {
@@ -649,13 +706,13 @@
         font-weight: 400;
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        color: #f5f7f8;
+        color: var(--panel-text);
     }
 
     .direction-card small {
         display: block;
         margin-top: 4px;
-        color: #f0c29a;
+        color: var(--status-restricted);
         font-size: 0.68rem;
         font-weight: 300;
         letter-spacing: 0.04em;
@@ -663,15 +720,15 @@
     }
 
     .direction-card.status-active strong {
-        color: #6cb09f;
+        color: var(--status-active);
     }
 
     .direction-card.status-restricted strong {
-        color: #f0c29a;
+        color: var(--status-restricted);
     }
 
     .direction-card.status-blocked strong {
-        color: #de8489;
+        color: var(--status-blocked);
     }
 
     .connections {
@@ -686,7 +743,7 @@
         width: 100%;
         text-align: left;
         border: 0;
-        background: rgba(255, 255, 255, 0.03);
+        background: var(--card-bg);
         color: inherit;
         padding: 10px 12px;
         border-radius: 10px;
@@ -699,7 +756,7 @@
     }
 
     .connections button:hover {
-        background: rgba(255, 255, 255, 0.06);
+        background: var(--card-bg-hover);
     }
 
     .connections strong {
@@ -708,12 +765,12 @@
         font-weight: 400;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: #f5f7f8;
+        color: var(--panel-text);
     }
 
     .connections span {
         display: block;
-        color: #97a5ad;
+        color: var(--panel-muted);
         font-size: 0.72rem;
         font-weight: 300;
         letter-spacing: 0.04em;
@@ -727,12 +784,12 @@
         font-weight: 400;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: #f5f7f8;
+        color: var(--panel-text);
     }
 
     .train-chip span {
         display: block;
-        color: #97a5ad;
+        color: var(--panel-muted);
         font-size: 0.72rem;
         font-weight: 300;
         letter-spacing: 0.04em;
@@ -748,14 +805,14 @@
     }
 
     .train-chip.status-waiting small {
-        color: #f0c29a;
+        color: var(--status-restricted);
     }
 
     .train-chip.status-derailed small {
-        color: #de8489;
+        color: var(--status-blocked);
     }
 
     .train-chip.status-dwelling small {
-        color: #97a5ad;
+        color: var(--panel-muted);
     }
 </style>

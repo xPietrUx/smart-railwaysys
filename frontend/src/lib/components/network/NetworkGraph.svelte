@@ -1,7 +1,6 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
     import {
-        EVENT_ICON,
         eventLabel,
         formatEventMessage,
         trainEndpoints,
@@ -256,9 +255,9 @@
     }
 
     function segmentColor(state: DirectionalState): string {
-        if (state.status === 'blocked') return '#de8489';
-        if (state.status === 'restricted') return '#f0c29a';
-        return '#262a30';
+        if (state.status === 'blocked') return 'var(--color-blocked, #de8489)';
+        if (state.status === 'restricted') return 'var(--color-restricted, #f0c29a)';
+        return 'var(--track-base, #262a30)';
     }
 
     function segmentDashArray(state: DirectionalState): string | undefined {
@@ -274,10 +273,10 @@
     }
 
     function trainColor(train: TrainNode) {
-        if (train.status === 'derailed') return '#de8489';
-        if (train.status === 'waiting') return '#f0c29a';
-        if (train.status === 'dwelling') return '#87979f';
-        return '#f5f7f8';
+        if (train.status === 'derailed') return 'var(--color-blocked, #de8489)';
+        if (train.status === 'waiting') return 'var(--color-restricted, #f0c29a)';
+        if (train.status === 'dwelling') return 'var(--color-dwelling, #87979f)';
+        return 'var(--train-base, #f5f7f8)';
     }
 
     function getTrainPosition(
@@ -481,7 +480,7 @@
                         y1={source.y}
                         x2={target.x}
                         y2={target.y}
-                        stroke={segmentColor(segment.forward)}
+                        stroke={isSelected ? 'var(--track-selected, #ffffff)' : segmentColor(segment.forward)}
                         stroke-width={isSelected ? 5 : onTrainRoute ? 4.5 : 3.5}
                         stroke-dasharray={segmentDashArray(segment.forward)}
                         stroke-linecap="round"
@@ -534,7 +533,7 @@
                             {#if hasSignalFailure}
                                 <circle
                                     r={stationRadius(station) + 7}
-                                    stroke="#f0c29a"
+                                    stroke="var(--color-restricted, #f0c29a)"
                                     stroke-width="2"
                                     fill="none"
                                     class="signal-ring"
@@ -543,7 +542,7 @@
                             {#if isTrainTarget}
                                 <circle
                                     r={stationRadius(station) + 9}
-                                    stroke="#87979f"
+                                    stroke="var(--target-ring, #87979f)"
                                     stroke-width="2"
                                     stroke-dasharray="4,4"
                                     fill="none"
@@ -559,29 +558,29 @@
                                     height={stationRadius(station) * 1.6}
                                     rx="3"
                                     transform="rotate(45)"
-                                    fill="#f5f7f8"
+                                    fill="var(--hub-fill, #f5f7f8)"
                                     filter={isStationSelected ? 'url(#glow)' : undefined}
                                 />
                             {:else if shape === 'terminus'}
                                 <circle
                                     class="marker"
                                     r={stationRadius(station)}
-                                    fill="#f0c29a"
+                                    fill="var(--color-restricted, #f0c29a)"
                                     filter={isStationSelected ? 'url(#glow)' : undefined}
                                 />
-                                <circle r={stationRadius(station) * 0.4} fill="#141414" />
+                                <circle r={stationRadius(station) * 0.4} fill="var(--map-bg, #141414)" />
                             {:else}
                                 <circle
                                     class="marker"
                                     r={stationRadius(station)}
-                                    fill="#87979f"
+                                    fill="var(--color-dwelling, #87979f)"
                                     filter={isStationSelected ? 'url(#glow)' : undefined}
                                 />
                             {/if}
                             {#if isStationSelected}
                                 <circle
                                     r={stationRadius(station) + 5}
-                                    stroke="#f5f7f8"
+                                    stroke="var(--selection-ring-stroke, #f5f7f8)"
                                     stroke-width="1.5"
                                     fill="none"
                                     class="selection-ring"
@@ -684,7 +683,6 @@
         </svg>
 
         <div class="zoom-controls">
-            <!-- Przycisk Fullscreen umieszczony nad przyciskami zooma -->
             <button
                 type="button"
                 class="ctrl-btn"
@@ -743,17 +741,79 @@
             <div class="legend-hint">{$t('map.legend.hint')}</div>
         </div>
     {:else}
-        <div class="empty-state">{$t('map.empty')}</div>
+        <div class="empty-state" role="status">
+            <span class="material-symbols-outlined empty-state-icon" aria-hidden="true">map</span>
+            <p class="empty-state-text">{$t('map.empty')}</p>
+        </div>
     {/if}
 </div>
 
 <style>
     .map-root {
+        --map-bg: #141414;
+        --track-base: #262a30;
+        --track-selected: #ffffff;
+        --station-code: #f5f7f8;
+        --station-name: #87979f;
+        --hub-fill: #f5f7f8;
+        --selection-ring-stroke: #f5f7f8;
+        --target-ring: #87979f;
+        --train-base: #f5f7f8;
+        --train-label: #f5f7f8;
+        --train-warning-text: #141414;
+        --color-blocked: #de8489;
+        --color-restricted: #f0c29a;
+        --color-dwelling: #87979f;
+        --ctrl-bg: rgba(255, 255, 255, 0.08);
+        --ctrl-bg-hover: rgba(255, 255, 255, 0.14);
+        --ctrl-color: #f5f7f8;
+        --ctrl-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+        --legend-bg: rgba(20, 20, 20, 0.92);
+        --legend-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        --legend-text: #87979f;
+        --legend-hint: #55626b;
+        --legend-divider: rgba(255, 255, 255, 0.08);
+        --focus-ring: rgba(255, 255, 255, 0.65);
+        --badge-major-bg: rgba(222, 132, 137, 0.25);
+        --badge-minor-bg: rgba(240, 194, 154, 0.25);
+
         position: relative;
         width: 100%;
         height: 100%;
-        background: #141414;
+        background: var(--map-bg);
         font-family: 'Inter Variable', Inter, sans-serif;
+        transition: background-color 200ms ease;
+    }
+
+    :global(html.light-mode) .map-root,
+    :global([data-theme='light']) .map-root,
+    :global(.light) .map-root {
+        --map-bg: #f4f5f3;
+        --track-base: #d1d5db;
+        --track-selected: #111827;
+        --station-code: #111827;
+        --station-name: #52606a;
+        --hub-fill: #111827;
+        --selection-ring-stroke: #111827;
+        --target-ring: #8c9ba5;
+        --train-base: #1f2933;
+        --train-label: #111827;
+        --train-warning-text: #ffffff;
+        --color-blocked: #c95158;
+        --color-restricted: #c97d39;
+        --color-dwelling: #52606a;
+        --ctrl-bg: rgba(0, 0, 0, 0.05);
+        --ctrl-bg-hover: rgba(0, 0, 0, 0.1);
+        --ctrl-color: #1f2933;
+        --ctrl-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+        --legend-bg: rgba(255, 255, 255, 0.94);
+        --legend-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
+        --legend-text: #52606a;
+        --legend-hint: #8c9ba5;
+        --legend-divider: rgba(0, 0, 0, 0.08);
+        --focus-ring: rgba(17, 24, 39, 0.65);
+        --badge-major-bg: rgba(201, 81, 88, 0.2);
+        --badge-minor-bg: rgba(201, 125, 57, 0.2);
     }
 
     .map-root.fullscreen {
@@ -778,8 +838,9 @@
         cursor: grab;
         touch-action: none;
         outline: none;
-        background: #141414;
+        background: var(--map-bg);
         font-family: 'Inter Variable', Inter, sans-serif;
+        transition: background-color 200ms ease;
     }
 
     .graph.panning,
@@ -825,13 +886,13 @@
     }
 
     .graph :global(g.station.selected .marker) {
-        stroke: #f5f7f8;
+        stroke: var(--selection-ring-stroke);
         stroke-width: 2px;
     }
 
     .selection-ring {
         animation: selection-pulse 1.8s ease-in-out infinite;
-        stroke: #f5f7f8 !important;
+        stroke: var(--selection-ring-stroke) !important;
     }
 
     @keyframes selection-pulse {
@@ -877,7 +938,7 @@
     }
 
     .station-code {
-        fill: #f5f7f8;
+        fill: var(--station-code);
         font-size: 0.85rem;
         font-weight: 500;
         text-anchor: middle;
@@ -886,7 +947,7 @@
     }
 
     .station-name {
-        fill: #87979f;
+        fill: var(--station-name);
         font-size: 0.76rem;
         font-weight: 500;
         text-anchor: middle;
@@ -900,14 +961,14 @@
 
     .train-marker .selected-ring {
         fill: none;
-        stroke: #f5f7f8;
+        stroke: var(--selection-ring-stroke);
         stroke-width: 2.5;
         stroke-dasharray: 4, 4;
     }
 
     .train-marker .highlight-ring {
         fill: none;
-        stroke: #f0c29a;
+        stroke: var(--color-restricted);
         stroke-width: 2.5;
         animation: highlight-pulse 1.4s ease-in-out infinite;
     }
@@ -960,7 +1021,7 @@
     .train-label {
         font-size: 0.65rem;
         font-weight: 500;
-        fill: #f5f7f8;
+        fill: var(--train-label);
         stroke: none;
         letter-spacing: -0.01em;
     }
@@ -968,21 +1029,20 @@
     .train-warning {
         font-size: 0.65rem;
         font-weight: 800;
-        fill: #141414;
+        fill: var(--train-warning-text);
         stroke: none;
     }
 
-    /* Styl bazowy tła badge'a incydentu (usunięto border, dodano kolorowe tło bazowe) */
     .incident-badge .badge-bg {
         stroke: none;
     }
 
     .incident-badge.severity-major .badge-bg {
-        fill: rgba(222, 132, 137, 0.25);
+        fill: var(--badge-major-bg);
     }
 
     .incident-badge.severity-minor .badge-bg {
-        fill: rgba(240, 194, 154, 0.25);
+        fill: var(--badge-minor-bg);
     }
 
     .incident-badge {
@@ -1009,15 +1069,15 @@
 
     .badge-symbol {
         font-size: 13px;
-        color: #97a5ad;
+        color: var(--legend-text);
     }
 
     .severity-major .badge-symbol {
-        color: #de8489;
+        color: var(--color-blocked);
     }
 
     .severity-minor .badge-symbol {
-        color: #f0c29a;
+        color: var(--color-restricted);
     }
 
     .zoom-controls {
@@ -1031,23 +1091,34 @@
     }
 
     .ctrl-btn {
-        width: 40px;
-        height: 40px;
+        width: 38px;
+        height: 38px;
         border-radius: 50%;
         border: 0;
-        background: #f5f7f8;
-        color: #141414;
+        background: var(--ctrl-bg);
+        color: var(--ctrl-color);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         padding: 0;
-        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
-        transition: transform 120ms ease, opacity 150ms ease, background-color 150ms ease;
+        box-shadow: var(--ctrl-shadow);
+        transition: transform 140ms ease, background-color 150ms ease, color 150ms ease;
+    }
+
+    .ctrl-btn:focus {
+        outline: none;
+    }
+
+    .ctrl-btn:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
     }
 
     .ctrl-btn:hover {
-        opacity: 0.9;
+        background: var(--ctrl-bg-hover);
         transform: scale(1.05);
     }
 
@@ -1081,15 +1152,16 @@
         gap: 14px;
         padding: 6px 16px;
         border-radius: 10px;
-        background: rgba(20, 20, 20, 0.92);
+        background: var(--legend-bg);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
-        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-        color: #87979f;
+        box-shadow: var(--legend-shadow);
+        color: var(--legend-text);
         font-size: 0.68rem;
         font-weight: 300;
         letter-spacing: 0.04em;
         text-transform: uppercase;
+        transition: background-color 200ms ease, color 200ms ease;
     }
 
     .legend-group {
@@ -1105,7 +1177,7 @@
     }
 
     .legend-hint {
-        color: #55626b;
+        color: var(--legend-hint);
         font-size: 0.62rem;
         letter-spacing: 0.04em;
         text-transform: uppercase;
@@ -1115,7 +1187,7 @@
     .legend-divider {
         width: 1px;
         height: 12px;
-        background: rgba(255, 255, 255, 0.08);
+        background: var(--legend-divider);
     }
 
     .legend-shape {
@@ -1125,18 +1197,18 @@
     }
 
     .legend-shape.hub {
-        background: #f5f7f8;
+        background: var(--hub-fill);
         transform: rotate(45deg);
         border-radius: 1px;
     }
 
     .legend-shape.through {
-        background: #87979f;
+        background: var(--color-dwelling);
         border-radius: 999px;
     }
 
     .legend-shape.terminus {
-        background: #f0c29a;
+        background: var(--color-restricted);
         border-radius: 999px;
     }
 
@@ -1148,23 +1220,41 @@
     }
 
     .legend-line.active {
-        background: #262a30;
+        background: var(--track-base);
     }
 
     .legend-line.restricted {
-        background: #f0c29a;
+        background: var(--color-restricted);
     }
 
     .legend-line.blocked {
-        background: #de8489;
+        background: var(--color-blocked);
     }
 
     .empty-state {
         position: absolute;
         inset: 0;
-        display: grid;
-        place-items: center;
-        color: #87979f;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        color: var(--legend-text);
+        background: var(--map-bg);
+        transition: background-color 200ms ease, color 200ms ease;
+    }
+
+    .empty-state-icon {
+        font-size: 32px;
+        opacity: 0.6;
+    }
+
+    .empty-state-text {
+        margin: 0;
+        font-size: 0.76rem;
+        font-weight: 300;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
     }
 
     @media (max-width: 900px) {

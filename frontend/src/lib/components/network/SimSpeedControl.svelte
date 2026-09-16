@@ -10,10 +10,9 @@
     const SPEEDS = [0.5, 1, 1.5, 2];
     const CX = 90;
     const CY = 90;
-    const R_INNER = 42;
+    const R_INNER = 40;
     const R_OUTER = 84;
     const CORE_R = 32;
-    const GAP_DEG = 3;
     const SPAN_DEG = 360 / SPEEDS.length;
 
     function polar(radius: number, deg: number): { x: number; y: number } {
@@ -28,8 +27,8 @@
 
     function wedgePath(index: number): string {
         const startAngle = index * SPAN_DEG - 90;
-        const from = startAngle + GAP_DEG;
-        const to = startAngle + SPAN_DEG - GAP_DEG;
+        const from = startAngle;
+        const to = startAngle + SPAN_DEG;
         return [
             `M ${point(R_OUTER, from)}`,
             `A ${R_OUTER} ${R_OUTER} 0 0 1 ${point(R_OUTER, to)}`,
@@ -114,7 +113,7 @@
             role="group"
             aria-label={$t('header.speed.title', { speed })}
         >
-            <circle cx={CX} cy={CY} r={R_OUTER + 2} class="dial-base" />
+            <circle cx={CX} cy={CY} r={R_OUTER} class="dial-base" />
 
             {#each SPEEDS as option, index (option)}
                 {@const active = option <= speed}
@@ -167,7 +166,6 @@
         </svg>
     </div>
 
-    <!-- Pigułka z czasem symulacji -->
     <div class="clock-badge" title={$t('header.elapsedTitle')}>
         <span class="clock-time">{formatSimClock(snapshot.simClockMinutes)}</span>
         <span class="clock-divider">·</span>
@@ -182,13 +180,84 @@
 </div>
 
 <style>
+    .material-symbols-outlined {
+        font-family: 'Material Symbols Outlined' !important;
+        font-weight: normal;
+        font-style: normal;
+        font-size: 19px;
+        line-height: 1;
+        letter-spacing: normal;
+        text-transform: none;
+        display: inline-block;
+        white-space: nowrap;
+        word-wrap: normal;
+        direction: ltr;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        -moz-osx-font-smoothing: grayscale;
+        font-feature-settings: 'liga';
+        font-variation-settings:
+            'FILL' 0,
+            'wght' 200,
+            'GRAD' 0,
+            'opsz' 24;
+        user-select: none;
+        vertical-align: middle;
+    }
+
     .speed-control-wrapper {
+        --dial-base-fill: rgba(255, 255, 255, 0.04);
+        --dial-filter: drop-shadow(0 20px 48px rgba(0, 0, 0, 0.6));
+        --wedge-fill: transparent;
+        --wedge-hover: rgba(255, 255, 255, 0.06);
+        --wedge-active: rgba(255, 255, 255, 0.14);
+        --wedge-active-paused: rgba(255, 255, 255, 0.08);
+        --wedge-label: #97a5ad;
+        --wedge-label-lit: #ffffff;
+        --wedge-label-lit-paused: #97a5ad;
+        --core-fill: rgba(20, 20, 20, 0.95);
+        --core-hover: rgba(30, 30, 30, 0.95);
+        --core-icon: #f5f7f8;
+        --clock-bg: rgba(255, 255, 255, 0.04);
+        --clock-border: 0;
+        --clock-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+        --clock-time: #f5f7f8;
+        --clock-divider: #64748b;
+        --clock-speed: #97a5ad;
+        --color-paused: #f0c29a;
+        --focus-ring: rgba(255, 255, 255, 0.65);
+
         display: inline-flex;
         flex-direction: column;
         align-items: center;
         gap: 10px;
         font-family: 'Inter Variable', Inter, sans-serif;
         pointer-events: auto;
+    }
+
+    :global(html.light-mode) .speed-control-wrapper,
+    :global([data-theme='light']) .speed-control-wrapper,
+    :global(.light) .speed-control-wrapper {
+        --dial-base-fill: rgba(0, 0, 0, 0.04);
+        --dial-filter: drop-shadow(0 20px 48px rgba(0, 0, 0, 0.08));
+        --wedge-fill: transparent;
+        --wedge-hover: rgba(0, 0, 0, 0.04);
+        --wedge-active: rgba(0, 0, 0, 0.12);
+        --wedge-active-paused: rgba(0, 0, 0, 0.06);
+        --wedge-label: #64748b;
+        --wedge-label-lit: #111827;
+        --wedge-label-lit-paused: #64748b;
+        --core-fill: rgba(244, 245, 243, 0.98);
+        --core-hover: #ffffff;
+        --core-icon: #111827;
+        --clock-bg: rgba(0, 0, 0, 0.04);
+        --clock-border: 0;
+        --clock-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+        --clock-time: #111827;
+        --clock-divider: #94a3b8;
+        --clock-speed: #64748b;
+        --color-paused: #c97d39;
+        --focus-ring: rgba(17, 24, 39, 0.65);
     }
 
     .speed-dial {
@@ -199,14 +268,16 @@
     svg {
         display: block;
         overflow: visible;
-        filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.65));
+        filter: var(--dial-filter);
         font-family: inherit;
+        transition: filter 200ms ease;
     }
 
     .dial-base {
-        fill: rgba(20, 20, 20, 0.96);
+        fill: var(--dial-base-fill);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
+        transition: fill 200ms ease;
     }
 
     .read-only .wedge,
@@ -216,28 +287,39 @@
     }
 
     .wedge {
-        fill: rgba(255, 255, 255, 0.03);
+        fill: var(--wedge-fill);
+        stroke: transparent;
+        stroke-width: 0;
         cursor: pointer;
         outline: none;
         transition: fill 150ms ease;
     }
 
+    .wedge:focus {
+        outline: none;
+    }
+
+    .wedge:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: -2px;
+    }
+
     .wedge:hover:not(:disabled) {
-        fill: rgba(255, 255, 255, 0.08);
+        fill: var(--wedge-hover);
     }
 
     .wedge.active {
-        fill: #f5f7f8;
+        fill: var(--wedge-active);
     }
 
     .paused .wedge.active {
-        fill: rgba(245, 247, 248, 0.25);
+        fill: var(--wedge-active-paused);
     }
 
     .wedge-label {
-        font-size: 11.5px;
+        font-size: 11px;
         font-weight: 300;
-        fill: #97a5ad;
+        fill: var(--wedge-label);
         text-anchor: middle;
         dominant-baseline: central;
         pointer-events: none;
@@ -247,23 +329,34 @@
     }
 
     .wedge-label.lit {
-        fill: #141414;
+        fill: var(--wedge-label-lit);
         font-weight: 500;
     }
 
     .paused .wedge-label.lit {
-        fill: #f5f7f8;
+        fill: var(--wedge-label-lit-paused);
     }
 
     .core {
-        fill: #141414;
+        fill: var(--core-fill);
         cursor: pointer;
         outline: none;
+        stroke: transparent;
+        stroke-width: 0;
         transition: fill 150ms ease;
     }
 
+    .core:focus {
+        outline: none;
+    }
+
+    .core:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+    }
+
     .core:hover {
-        fill: #1a1a1a;
+        fill: var(--core-hover);
     }
 
     .core-center-content {
@@ -277,49 +370,52 @@
 
     .core-icon {
         font-size: 18px;
-        color: #f5f7f8;
+        color: var(--core-icon);
         line-height: 1;
+        transition: color 150ms ease;
     }
 
     .paused .core-icon {
-        color: #f0c29a;
+        color: var(--color-paused);
     }
 
     .clock-badge {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 6px 14px;
+        padding: 5px 12px;
         border-radius: 999px;
-        background: rgba(20, 20, 20, 0.92);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        background: var(--clock-bg);
+        border: var(--clock-border);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow: var(--clock-shadow);
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
+        transition: background-color 200ms ease, box-shadow 200ms ease;
     }
 
     .clock-time {
-        font-size: 0.82rem;
+        font-size: 0.78rem;
         font-weight: 400;
         letter-spacing: 0.06em;
-        color: #ffffff;
+        color: var(--clock-time);
     }
 
     .clock-divider {
-        color: #55626b;
-        font-size: 0.7rem;
+        color: var(--clock-divider);
+        font-size: 0.68rem;
     }
 
     .clock-speed {
-        font-size: 0.72rem;
+        font-size: 0.7rem;
         font-weight: 300;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: #97a5ad;
+        color: var(--clock-speed);
     }
 
     .paused-text {
-        color: #f0c29a;
+        color: var(--color-paused);
     }
 </style>
