@@ -31,6 +31,12 @@
         menuOpen = false;
     }
 
+    function handleKeydown(event: KeyboardEvent) {
+        if (event.key === 'Escape' && menuOpen) {
+            closeMenu();
+        }
+    }
+
     function handleLoginClick(e: MouseEvent) {
         e.preventDefault();
         dispatch('openLogin');
@@ -136,17 +142,24 @@
     });
 </script>
 
+<svelte:window on:keydown={handleKeydown} />
+
 <header class="site-header">
-    <a class="brand" href="/" aria-label="Strona główna">
+    <a class="brand" href="/" aria-label="Strona główna" tabindex="0">
         <img src={lightMode ? '/logo/logo_black.png' : '/logo/logo_white.png'} alt="wa.gone" />
     </a>
+
     <button
         class="menu"
         type="button"
         on:click={() => (menuOpen = !menuOpen)}
-        aria-label="Otwórz menu"
-        aria-expanded={menuOpen}>☰</button
+        aria-label={menuOpen ? 'Zamknij menu' : 'Otwórz menu'}
+        aria-expanded={menuOpen}
+        tabindex="0"
     >
+        ☰
+    </button>
+
     <nav bind:this={navElement} class:open={menuOpen} aria-label="Główna nawigacja">
         {#each navItems as item}
             <a
@@ -155,12 +168,15 @@
                 target={item.target ?? null}
                 rel={item.rel ?? null}
                 aria-label={item.label}
+                aria-current={path === item.href ? 'page' : undefined}
                 on:click={closeMenu}
+                tabindex="0"
             >
                 <span class="scrambled-text">{item.label}</span>
             </a>
         {/each}
     </nav>
+
     <div class="actions">
         <button
             class="icon-button"
@@ -168,24 +184,29 @@
             on:click={toggleLanguage}
             aria-label={$locale === 'pl' ? 'Zmień język na angielski' : 'Change language to Polish'}
             title={$locale === 'pl' ? 'English' : 'Polski'}
+            tabindex="0"
         >
             <span class="material-symbols-outlined" aria-hidden="true">language</span>
         </button>
+
         <button
             class="icon-button"
             type="button"
             on:click={toggleLightMode}
             aria-label={lightMode ? 'Włącz tryb ciemny' : 'Włącz tryb jasny'}
             title={lightMode ? 'Tryb ciemny' : 'Tryb jasny'}
+            tabindex="0"
         >
-            <span class="material-symbols-outlined" class:is-light={lightMode} aria-hidden="true"
-                >{lightMode ? 'dark_mode' : 'light_mode'}</span
-            >
+            <span class="material-symbols-outlined" class:is-light={lightMode} aria-hidden="true">
+                {lightMode ? 'dark_mode' : 'light_mode'}
+            </span>
         </button>
+
         <a 
             class="login" 
             href={authenticated ? '/panel' : '/login'} 
             on:click={authenticated ? null : handleLoginClick}
+            tabindex="0"
         >
             {actionLabel}
         </a>
@@ -205,21 +226,41 @@
         border-bottom: 0;
         background: transparent;
         box-sizing: border-box;
-        transition:
-            color 300ms ease,
-            background-color 300ms ease;
+        transition: color 300ms ease, background-color 300ms ease;
     }
+
+    /* Wyraźna tabulacja na całym pasku */
+    a:focus,
+    button:focus {
+        outline: none;
+    }
+
+    a:focus-visible,
+    button:focus-visible {
+        outline: 2px solid rgba(255, 255, 255, 0.7);
+        outline-offset: 3px;
+        border-radius: 6px;
+    }
+
+    :global(html.light-mode) a:focus-visible,
+    :global(html.light-mode) button:focus-visible {
+        outline-color: rgba(17, 24, 39, 0.7);
+    }
+
     .brand {
         position: absolute;
         left: clamp(20px, 5vw, 72px);
         display: flex;
         align-items: center;
+        border-radius: 8px;
     }
+
     .brand img {
         display: block;
         width: 44px;
         height: auto;
     }
+
     nav {
         display: flex;
         align-items: center;
@@ -227,6 +268,7 @@
         gap: 32px;
         flex-wrap: wrap;
     }
+
     nav a {
         color: #97a5ad;
         text-decoration: none;
@@ -236,14 +278,16 @@
         font-family: 'Inter Variable', Inter, sans-serif;
         font-style: normal;
         font-weight: 300;
+        padding: 4px 6px;
+        border-radius: 4px;
         transition: color 300ms ease;
     }
-    nav a.active {
-        color: #fff;
-    }
+
+    nav a.active,
     nav a:hover {
         color: #fff;
     }
+
     .actions {
         display: flex;
         align-items: center;
@@ -251,6 +295,7 @@
         position: absolute;
         right: clamp(20px, 5vw, 72px);
     }
+
     .login {
         color: #dddddd;
         background: #1c1c1c;
@@ -261,17 +306,18 @@
         font-weight: 500;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        transition:
-            color 300ms ease,
-            background-color 300ms ease,
-            opacity 180ms ease;
+        transition: color 300ms ease, background-color 300ms ease, opacity 180ms ease, transform 120ms ease;
     }
-    .login b {
-        margin-left: 7px;
-    }
+
     .login:hover {
-        opacity: 0.65;
+        opacity: 0.85;
+        transform: translateY(-1px);
     }
+
+    .login:active {
+        transform: translateY(0);
+    }
+
     .icon-button {
         display: grid;
         place-items: center;
@@ -279,45 +325,53 @@
         height: 36px;
         padding: 0;
         border: 0;
+        border-radius: 8px;
         background: transparent;
         color: #97a5ad;
         cursor: pointer;
-        transition: color 300ms ease;
+        transition: color 300ms ease, background-color 200ms ease;
     }
+
     .icon-button:hover {
         color: #fff;
+        background: rgba(255, 255, 255, 0.05);
     }
+
     .material-symbols-outlined {
         font-size: 21px;
-        font-variation-settings:
-            'FILL' 0,
-            'wght' 300,
-            'GRAD' 0,
-            'opsz' 24;
+        font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
         transition: transform 300ms ease;
     }
+
     .material-symbols-outlined.is-light {
         transform: rotate(180deg);
     }
+
     :global(.scrambled-char) {
         display: inline-block;
         will-change: contents;
     }
+
     :global(html.light-mode) .site-header {
         border-bottom: 0;
     }
+
     :global(html.light-mode) nav a,
     :global(html.light-mode) .icon-button {
         color: #52606a;
     }
+
     :global(html.light-mode) nav a:hover,
     :global(html.light-mode) .icon-button:hover {
         color: #111827;
+        background: rgba(0, 0, 0, 0.05);
     }
+
     :global(html.light-mode) .login {
         background: #e5e7eb;
         color: #1f2937;
     }
+
     .menu {
         display: none;
         background: none;
@@ -326,15 +380,25 @@
         font-size: 1.2rem;
         position: absolute;
         left: clamp(20px, 5vw, 72px);
+        padding: 6px;
+        border-radius: 6px;
+        cursor: pointer;
     }
+
+    :global(html.light-mode) .menu {
+        color: #111827;
+    }
+
     @media (max-width: 1000px) {
         .site-header {
             height: 66px;
         }
+
         .menu {
             display: block;
             left: calc(clamp(20px, 5vw, 72px) + 52px);
         }
+
         nav {
             display: none;
             position: absolute;
@@ -342,21 +406,27 @@
             left: 0;
             right: 0;
             padding: 22px;
-            background: #292929;
+            background: #1c1c1c;
             flex-direction: column;
             gap: 20px;
             align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
+
+        :global(html.light-mode) nav {
+            background: #f4f5f3;
+            border-bottom-color: rgba(0, 0, 0, 0.08);
+        }
+
         nav.open {
             display: flex;
         }
+
         .login {
             padding: 9px 11px;
             font-size: 0.62rem;
         }
-        .login b {
-            display: none;
-        }
+
         .brand img {
             width: 38px;
         }

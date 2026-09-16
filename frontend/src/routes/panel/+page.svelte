@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onDestroy, onMount } from 'svelte';
+    import SimulationSkeleton from '$lib/components/network/SimulationSkeleton.svelte';
     import DetailsPanel from '$lib/components/network/DetailsPanel.svelte';
     import IncidentFeed from '$lib/components/network/IncidentFeed.svelte';
     import MapSearch from '$lib/components/network/MapSearch.svelte';
@@ -64,6 +65,8 @@
         segments: applyEventsToSegments(data.graph.segments, $snapshot.events)
     };
 
+    $: isReady = Boolean($snapshot && data.graph?.stations?.length > 0);
+
     function handleWindowKeydown(event: KeyboardEvent) {
         if (event.key === 'Escape') {
             if (isFullscreen) {
@@ -93,7 +96,11 @@
 
 <svelte:window on:keydown={handleWindowKeydown} />
 
-<main class="stage" class:fullscreen-mode={isFullscreen}>
+{#if !isReady}
+    <SimulationSkeleton />
+{/if}
+
+<main class="stage" class:fullscreen-mode={isFullscreen} class:app-ready={isReady}>
     <div class="map-layer">
         <NetworkGraph
             bind:this={mapComponent}
@@ -179,12 +186,26 @@
         background: #141414;
         color: #f5f7f8;
         font-weight: 300;
+        transition: background-color 200ms ease, color 200ms ease;
+    }
+
+    :global(html.light-mode) body,
+    :global([data-theme='light']) body,
+    :global(.light) body {
+        background: #f4f5f3;
+        color: #1f2933;
     }
 
     .stage {
         position: relative;
         height: 100dvh;
         overflow: hidden;
+        opacity: 0;
+        transition: opacity 250ms ease;
+    }
+
+    .stage.app-ready {
+        opacity: 1;
     }
 
     .map-layer {
@@ -201,7 +222,7 @@
 
     .search-layer {
         position: absolute;
-        top: 118px;
+        top: 86px;
         left: 50%;
         transform: translateX(-50%);
         z-index: 18;
@@ -209,20 +230,16 @@
 
     .topbar {
         position: absolute;
-        top: 20px;
-        left: 24px;
-        right: 24px;
+        top: 0;
+        left: 0;
+        right: 0;
         z-index: 20;
         pointer-events: none;
     }
 
-    .topbar :global(.bar) {
-        pointer-events: auto;
-    }
-
     .dock {
         position: absolute;
-        top: 96px;
+        top: 80px;
         bottom: 24px;
         z-index: 10;
         width: min(320px, 86vw);
@@ -234,7 +251,6 @@
         transition: opacity 200ms ease, transform 200ms ease;
     }
 
-    /* Poszerzony prawy panel (rozkłady jazdy / detali) */
     .dock-right {
         right: 24px;
         width: min(400px, 90vw);
@@ -254,10 +270,9 @@
         min-height: 0;
     }
 
-    /* Minimalistyczny scrollbar w formie kropki/pigułki dla elementów wewnątrz doków */
     .dock > :global(*)::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
     }
 
     .dock > :global(*)::-webkit-scrollbar-track {
@@ -265,14 +280,24 @@
     }
 
     .dock > :global(*)::-webkit-scrollbar-thumb {
-        background: rgba(245, 247, 248, 0.4);
+        background: rgba(245, 247, 248, 0.25);
         border-radius: 999px;
-        border: 2px solid transparent;
-        background-clip: padding-box;
+    }
+
+    :global(html.light-mode) .dock > :global(*)::-webkit-scrollbar-thumb,
+    :global([data-theme='light']) .dock > :global(*)::-webkit-scrollbar-thumb,
+    :global(.light) .dock > :global(*)::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.2);
     }
 
     .dock > :global(*)::-webkit-scrollbar-thumb:hover {
-        background: rgba(245, 247, 248, 0.75);
+        background: rgba(245, 247, 248, 0.45);
+    }
+
+    :global(html.light-mode) .dock > :global(*)::-webkit-scrollbar-thumb:hover,
+    :global([data-theme='light']) .dock > :global(*)::-webkit-scrollbar-thumb:hover,
+    :global(.light) .dock > :global(*)::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.35);
     }
 
     .dock-left {
@@ -282,11 +307,11 @@
 
     @media (max-width: 1400px) {
         .dock {
-            top: 110px;
+            top: 86px;
         }
 
         .search-layer {
-            top: 128px;
+            top: 96px;
         }
     }
 
@@ -332,6 +357,11 @@
 
         .dock-right {
             width: auto;
+            order: 3;
+        }
+
+        .dock-left {
+            order: 4;
         }
 
         .dock.hidden {
@@ -341,14 +371,6 @@
         .dock > :global(*) {
             max-height: none;
             overflow-y: visible;
-        }
-
-        .dock-right {
-            order: 3;
-        }
-
-        .dock-left {
-            order: 4;
         }
     }
 </style>
