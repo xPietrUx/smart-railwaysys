@@ -13,7 +13,7 @@
 <div class="auth-layout">
     <PublicNav />
     <main class="auth-main">
-        <AuthCard mode="login" error={form?.error} email={form?.email} />
+        <AuthCard mode="login" error={form?.error} email={form?.email ?? ''} />
     </main>
 </div>
 

@@ -41,6 +41,56 @@ def _pick_active_directed_edge(session: Session) -> dict | None:
 	return random.choice(records) if records else None
 
 
+def _get_active_directed_edge(session: Session, segment_id: str) -> dict | None:
+	"""Jak _pick_active_directed_edge, ale dla odcinka wskazanego wprost (np. przez
+	użytkownika w panelu), zamiast losowania spośród wszystkich dostępnych."""
+	record = session.run(
+		"""
+		MATCH (u:Station)-[r:TRACK {status: 'active', segment_id: $segmentId}]->(v:Station)
+		WHERE r.active_event_id IS NULL
+		RETURN r.segment_id AS segmentId, u.id AS fromId, v.id AS toId,
+		       r.rail_tracks AS railTracks, r.vmax AS vmax
+		LIMIT 1
+		""",
+		segmentId=segment_id,
+	).single()
+	return dict(record) if record else None
+
+
+def get_derailment_target(session: Session, train_id: str) -> dict | None:
+	"""Jak pick_derailment_target, ale dla pociągu wskazanego wprost."""
+	record = session.run(
+		"""
+		MATCH (t:Train {id: $trainId, status: 'running'})
+		WHERE t.delayed_by_event_id IS NULL AND t.current_segment_id IS NOT NULL
+		MATCH (:Station {id: t.current_station_id})
+		      -[r:TRACK {segment_id: t.current_segment_id}]->
+		      (:Station {id: t.next_station_id})
+		WHERE r.active_event_id IS NULL
+		RETURN t.id AS trainId, t.current_segment_id AS segmentId,
+		       t.current_station_id AS fromId, t.next_station_id AS toId,
+		       r.rail_tracks AS railTracks, r.vmax AS vmax
+		""",
+		trainId=train_id,
+	).single()
+	return dict(record) if record else None
+
+
+def get_signal_failure_target(session: Session, station_id: str) -> dict | None:
+	"""Jak pick_signal_failure_target, ale dla stacji wskazanej wprost."""
+	already_active = session.run(
+		"MATCH (e:RailEvent {status: 'active', type: 'signal_failure', station_id: $stationId}) RETURN e LIMIT 1",
+		stationId=station_id,
+	).single()
+	if already_active:
+		return None
+	record = session.run(
+		"MATCH (s:Station {id: $stationId}) RETURN s.id AS stationId, s.name AS name",
+		stationId=station_id,
+	).single()
+	return dict(record) if record else None
+
+
 def pick_derailment_target(session: Session) -> dict | None:
 	"""Losuje pociąg w drodze (status='running'), którego bieżący odcinek nie jest już zajęty."""
 	records = [
@@ -180,7 +230,11 @@ def _persist_event(session: Session, event: RailEventNode) -> None:
 		)
 
 
-def create_event(session: Session, event_type: str, now: float) -> RailEventNode | None:
+def create_event(
+	session: Session, event_type: str, now: float, target_id: str | None = None
+) -> RailEventNode | None:
+	"""target_id wskazuje konkretny cel (segment/pociąg/stację, zależnie od typu) zamiast
+	losowania — używane przy ręcznym zgłoszeniu incydentu przez użytkownika w panelu."""
 	duration = random.uniform(
 		config.SIM_EVENT_DURATION_REAL_S_MIN, config.SIM_EVENT_DURATION_REAL_S_MAX
 	)
@@ -188,7 +242,9 @@ def create_event(session: Session, event_type: str, now: float) -> RailEventNode
 	event_id = _new_event_id()
 
 	if event_type == "line_failure":
-		target = _pick_active_directed_edge(session)
+		target = (
+			_get_active_directed_edge(session, target_id) if target_id else _pick_active_directed_edge(session)
+		)
 		if not target:
 			return None
 		from_name = _station_name(session, target["fromId"])
@@ -203,7 +259,7 @@ def create_event(session: Session, event_type: str, now: float) -> RailEventNode
 		return event
 
 	if event_type == "derailment":
-		target = pick_derailment_target(session)
+		target = get_derailment_target(session, target_id) if target_id else pick_derailment_target(session)
 		if not target:
 			return None
 		from_name = _station_name(session, target["fromId"])
@@ -224,7 +280,9 @@ def create_event(session: Session, event_type: str, now: float) -> RailEventNode
 		return event
 
 	if event_type == "speed_restriction":
-		target = _pick_active_directed_edge(session)
+		target = (
+			_get_active_directed_edge(session, target_id) if target_id else _pick_active_directed_edge(session)
+		)
 		if not target:
 			return None
 		rows = _set_edges_restricted(
@@ -243,7 +301,9 @@ def create_event(session: Session, event_type: str, now: float) -> RailEventNode
 		return event
 
 	if event_type == "signal_failure":
-		target = pick_signal_failure_target(session)
+		target = (
+			get_signal_failure_target(session, target_id) if target_id else pick_signal_failure_target(session)
+		)
 		if not target:
 			return None
 		edges = _incident_active_edges(session, target["stationId"])

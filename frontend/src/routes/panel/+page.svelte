@@ -47,6 +47,28 @@
     let editorScenario: Scenario | null = null;
     let scenariosRefreshKey = 0;
 
+    // IncidentFeed i NetworkGraph są rodzeństwem, więc stan wskazywania celu na
+    // mapie (typ + funkcja rozwiązująca wybór) musi mieszkać tutaj, żeby móc
+    // płynąć w obie strony.
+    let pickMode: 'segment' | 'station' | 'train' | null = null;
+    let pickResolver: ((id: string) => void) | null = null;
+
+    function startPick(mode: 'segment' | 'station' | 'train', resolve: (id: string) => void) {
+        pickMode = mode;
+        pickResolver = resolve;
+    }
+
+    function cancelPick() {
+        pickMode = null;
+        pickResolver = null;
+    }
+
+    function handleMapPick(id: string) {
+        const resolve = pickResolver;
+        cancelPick();
+        resolve?.(id);
+    }
+
     function openScenarioDetails(scenario: Scenario) {
         editorScenario = scenario;
         editorOpen = true;
@@ -71,6 +93,10 @@
         if (event.key === 'Escape') {
             if (isFullscreen) {
                 isFullscreen = false;
+                return;
+            }
+            if (pickMode) {
+                cancelPick();
                 return;
             }
             if (!editorOpen) {
@@ -134,7 +160,16 @@
                         <span class="material-symbols-outlined" aria-hidden="true">close</span>
                     </button>
                     <div class="dock-content">
-                        <IncidentFeed events={$snapshot.events} onSelect={handleMapSelect} />
+                        <IncidentFeed
+                            events={$snapshot.events}
+                            stations={liveGraph.stations}
+                            segments={liveGraph.segments}
+                            onSelect={handleMapSelect}
+                            readOnly={!canControl}
+                            {pickMode}
+                            onStartPick={startPick}
+                            onCancelPick={cancelPick}
+                        />
                     </div>
                 </div>
             {:else}
@@ -206,6 +241,9 @@
             bind:highlight
             bind:selected
             {isFullscreen}
+            {pickMode}
+            onPick={handleMapPick}
+            onCancelPick={cancelPick}
             on:toggleFullscreen={() => (isFullscreen = !isFullscreen)}
         />
 

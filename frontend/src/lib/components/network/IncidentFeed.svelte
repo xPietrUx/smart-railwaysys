@@ -1,14 +1,31 @@
 <script lang="ts">
     import { onDestroy, onMount } from 'svelte';
     import { t } from '$lib/i18n';
+    import { createIncident } from '$lib/services/incidents';
     import { eventLabel, formatEventMessage } from '$lib/services/labels';
-    import type { RailEventNode } from '$lib/types/event';
-    import type { StationNode } from '$lib/types/network';
+    import type { RailEventNode, RailEventType } from '$lib/types/event';
+    import type { StationNode, TrackSegment } from '$lib/types/network';
     import type { Selected } from '$lib/types/selection';
 
     export let events: RailEventNode[];
     export let stations: StationNode[] = [];
+    export let segments: TrackSegment[] = [];
     export let onSelect: (selected: Selected) => void = () => {};
+    export let readOnly = false;
+    /** Bieżący tryb wskazywania celu na mapie — właścicielem stanu jest strona
+     *  panelu (mapa i ten formularz to rodzeństwo), stąd sterowanie przez propsy. */
+    export let pickMode: 'segment' | 'station' | 'train' | null = null;
+    export let onStartPick: (mode: 'segment' | 'station' | 'train', resolve: (id: string) => void) => void =
+        () => {};
+    export let onCancelPick: () => void = () => {};
+
+    const INCIDENT_TYPES: RailEventType[] = ['line_failure', 'speed_restriction', 'signal_failure'];
+
+    let showCreateForm = false;
+    let formType: RailEventType = 'line_failure';
+    let formTargetId = '';
+    let submitting = false;
+    let formError = '';
 
     let nowSec = Date.now() / 1000;
     let interval: ReturnType<typeof setInterval>;
@@ -25,7 +42,10 @@
             nowSec = Date.now() / 1000;
         }, 1000);
     });
-    onDestroy(() => clearInterval(interval));
+    onDestroy(() => {
+        clearInterval(interval);
+        if (pickMode) onCancelPick();
+    });
 
     function countdownLabel(resolvesAt: number): string {
         const remaining = Math.max(0, Math.round(resolvesAt - nowSec));
@@ -49,6 +69,58 @@
             onSelect({ kind: 'station', id: event.stationId });
         } else if (event.segmentId) {
             onSelect({ kind: 'segment', id: event.segmentId });
+        }
+    }
+
+    // Cel zależy od typu: odcinek (line_failure/speed_restriction) albo stacja
+    // (signal_failure) — backend i tak zweryfikuje dostępność celu, ta lista to
+    // tylko wygoda wyboru w formularzu.
+    $: segmentOptions = segments
+        .filter((s) => s.forward.status === 'active' || s.backward.status === 'active')
+        .map((s) => ({ id: s.segmentId, label: `${stationName(s.source)} – ${stationName(s.target)}` }));
+
+    $: stationOptions = stations
+        .filter((s) => !activeEvents.some((e) => e.type === 'signal_failure' && e.stationId === s.id))
+        .map((s) => ({ id: s.id, label: s.name }));
+
+    $: targetOptions = formType === 'signal_failure' ? stationOptions : segmentOptions;
+
+    $: if (!targetOptions.some((option) => option.id === formTargetId)) {
+        formTargetId = targetOptions[0]?.id ?? '';
+    }
+
+    function toggleCreateForm() {
+        if (pickMode) onCancelPick();
+        showCreateForm = !showCreateForm;
+        formError = '';
+    }
+
+    function pickModeForType(type: RailEventType): 'segment' | 'station' {
+        return type === 'signal_failure' ? 'station' : 'segment';
+    }
+
+    function startPickOnMap() {
+        onStartPick(pickModeForType(formType), (id: string) => {
+            formTargetId = id;
+        });
+    }
+
+    function handleTypeChange() {
+        if (pickMode) onCancelPick();
+    }
+
+    async function handleCreateIncident() {
+        if (!formTargetId || submitting) return;
+        submitting = true;
+        formError = '';
+        try {
+            const created = await createIncident(fetch, { type: formType, targetId: formTargetId });
+            showCreateForm = false;
+            selectIncident(created);
+        } catch (err) {
+            formError = err instanceof Error ? err.message : $t('incidents.form.error');
+        } finally {
+            submitting = false;
         }
     }
 
@@ -82,7 +154,85 @@
                 {/if}
             </h2>
         </div>
+        {#if !readOnly}
+            <button
+                type="button"
+                class="add-btn"
+                on:click={toggleCreateForm}
+                aria-expanded={showCreateForm}
+                title={$t('incidents.addTitle')}
+            >
+                <span class="material-symbols-outlined" aria-hidden="true">
+                    {showCreateForm ? 'close' : 'add'}
+                </span>
+            </button>
+        {/if}
     </div>
+
+    {#if showCreateForm}
+        <form class="create-form" on:submit|preventDefault={handleCreateIncident}>
+            <label class="field">
+                <span>{$t('incidents.form.type')}</span>
+                <select bind:value={formType} on:change={handleTypeChange}>
+                    {#each INCIDENT_TYPES as type (type)}
+                        <option value={type}>{eventLabel(type, $t)}</option>
+                    {/each}
+                </select>
+            </label>
+
+            <label class="field">
+                <span>{$t('incidents.form.target')}</span>
+                {#if pickMode}
+                    <div class="picking-hint">
+                        <span class="material-symbols-outlined pick-icon" aria-hidden="true">touch_app</span>
+                        <span>{$t('incidents.form.pickHint')}</span>
+                        <button type="button" class="ghost-btn" on:click={onCancelPick}>
+                            {$t('incidents.form.cancel')}
+                        </button>
+                    </div>
+                {:else if targetOptions.length === 0}
+                    <p class="no-targets">{$t('incidents.form.noTargets')}</p>
+                {:else}
+                    <div class="target-row">
+                        <select bind:value={formTargetId}>
+                            {#each targetOptions as option (option.id)}
+                                <option value={option.id}>{option.label}</option>
+                            {/each}
+                        </select>
+                        <button
+                            type="button"
+                            class="pick-btn"
+                            on:click={startPickOnMap}
+                            title={$t('incidents.form.pickOnMap')}
+                            aria-label={$t('incidents.form.pickOnMap')}
+                        >
+                            <span class="material-symbols-outlined" aria-hidden="true">my_location</span>
+                        </button>
+                    </div>
+                {/if}
+            </label>
+
+            {#if formError}
+                <div class="error" role="alert">
+                    <span class="material-symbols-outlined error-icon" aria-hidden="true">error</span>
+                    <span>{formError}</span>
+                </div>
+            {/if}
+
+            <div class="form-actions">
+                <button type="button" class="ghost-btn" on:click={toggleCreateForm}>
+                    {$t('incidents.form.cancel')}
+                </button>
+                <button
+                    type="submit"
+                    class="submit-btn"
+                    disabled={submitting || !!pickMode || !formTargetId}
+                >
+                    {submitting ? $t('incidents.form.submitting') : $t('incidents.form.submit')}
+                </button>
+            </div>
+        </form>
+    {/if}
 
     <div class="scroll-area">
         {#if activeEvents.length === 0}
@@ -220,18 +370,235 @@
         --focus-ring: rgba(17, 24, 39, 0.65);
     }
 
-    button:focus {
+    button:focus,
+    .field select:focus {
         outline: none;
     }
 
-    button:focus-visible {
+    button:focus-visible,
+    .field select:focus-visible {
         outline: 2px solid var(--focus-ring);
         outline-offset: 2px;
     }
 
     .panel-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
         margin-bottom: 12px;
+        /* Dok (rodzic panelu) ma własny przycisk zwijania w prawym górnym rogu
+           (position: absolute, 26px, 10px od krawędzi) — ten margines chroni
+           add-btn przed wjechaniem pod niego. */
+        padding-right: 28px;
         flex-shrink: 0;
+    }
+
+    .add-btn {
+        flex-shrink: 0;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 0;
+        background: var(--card-bg);
+        color: var(--panel-text);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        transition: background-color 150ms ease;
+    }
+
+    .add-btn:hover {
+        background: var(--card-bg-hover);
+    }
+
+    .add-btn .material-symbols-outlined {
+        font-size: 18px;
+    }
+
+    .create-form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 14px;
+        padding: 12px;
+        border-radius: 10px;
+        background: var(--card-bg);
+        flex-shrink: 0;
+    }
+
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 0.72rem;
+        color: var(--panel-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    .field select {
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 0;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--panel-text);
+        font-family: inherit;
+        font-size: 0.8rem;
+        text-transform: none;
+        letter-spacing: normal;
+    }
+
+    :global(html.light-mode) .field select,
+    :global([data-theme='light']) .field select,
+    :global(.light) .field select {
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    /* Sam <select> dziedziczy motyw z --panel-text/tło powyżej, ale rozwinięta
+       lista <option> to natywny popup przeglądarki, który tego NIE dziedziczy —
+       bez jawnego stylu wypadał zawsze jasny/systemowy, nawet w trybie ciemnym. */
+    .field select option {
+        background: #1c1c1c;
+        color: #f5f7f8;
+    }
+
+    :global(html.light-mode) .field select option,
+    :global([data-theme='light']) .field select option,
+    :global(.light) .field select option {
+        background: #f4f5f6;
+        color: #111827;
+    }
+
+    .no-targets {
+        margin: 0;
+        font-size: 0.72rem;
+        color: var(--panel-muted);
+        text-transform: none;
+        letter-spacing: normal;
+    }
+
+    .target-row {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .target-row select {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .pick-btn {
+        flex-shrink: 0;
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        border: 0;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--panel-text);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        transition: background-color 150ms ease;
+    }
+
+    :global(html.light-mode) .pick-btn,
+    :global([data-theme='light']) .pick-btn,
+    :global(.light) .pick-btn {
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    .pick-btn:hover {
+        background: var(--card-bg-hover);
+    }
+
+    .pick-btn .material-symbols-outlined {
+        font-size: 17px;
+    }
+
+    .picking-hint {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: var(--severity-minor-bg);
+        color: var(--severity-minor-color);
+        font-size: 0.72rem;
+        text-transform: none;
+        letter-spacing: normal;
+        flex-wrap: wrap;
+    }
+
+    .pick-icon {
+        font-size: 16px;
+        flex-shrink: 0;
+    }
+
+    .picking-hint .ghost-btn {
+        margin-left: auto;
+        padding: 4px 8px;
+    }
+
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 2px;
+    }
+
+    .ghost-btn {
+        background: none;
+        border: 0;
+        color: var(--panel-muted);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        padding: 8px 10px;
+        border-radius: 8px;
+    }
+
+    .ghost-btn:hover {
+        color: var(--panel-text);
+    }
+
+    .submit-btn {
+        background: var(--severity-major-color);
+        color: #141414;
+        border: 0;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-size: 0.72rem;
+        font-weight: 400;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        transition: opacity 150ms ease;
+    }
+
+    .submit-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .create-form .error {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.72rem;
+        color: var(--severity-major-color);
+        text-transform: none;
+        letter-spacing: normal;
+    }
+
+    .create-form .error-icon {
+        font-size: 16px;
     }
 
     .panel-label {

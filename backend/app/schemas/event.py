@@ -21,3 +21,10 @@ class RailEventNode(BaseModel):
 class EventsSnapshotResponse(BaseModel):
 	events: list[RailEventNode]
 	timestamp: float
+
+
+class IncidentCreateRequest(BaseModel):
+	type: str  # 'line_failure' | 'derailment' | 'speed_restriction' | 'signal_failure'
+	# Zależnie od typu: id odcinka (line_failure/speed_restriction), pociągu
+	# (derailment) albo stacji (signal_failure) — wskazany wprost przez użytkownika.
+	targetId: str

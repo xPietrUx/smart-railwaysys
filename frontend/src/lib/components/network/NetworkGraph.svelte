@@ -21,6 +21,11 @@
     export let selected: Selected | null = null;
     export let highlight: HighlightFilter | null = null;
     export let isFullscreen = false;
+    /** Tryb wskazywania celu incydentu na mapie (patrz IncidentFeed) — gdy ustawiony,
+     *  kliknięcia w pasujący typ elementu wołają onPick zamiast normalnego zaznaczania. */
+    export let pickMode: 'segment' | 'station' | 'train' | null = null;
+    export let onPick: (id: string) => void = () => {};
+    export let onCancelPick: () => void = () => {};
 
     const dispatch = createEventDispatcher<{ toggleFullscreen: void }>();
 
@@ -182,6 +187,10 @@
     function handleBackgroundClick(event: MouseEvent) {
         if (wasDragged) return;
         if (event.target === svgEl) {
+            if (pickMode !== null) {
+                onCancelPick();
+                return;
+            }
             selected = null;
             highlight = null;
         }
@@ -191,6 +200,10 @@
         if (event.key === 'Escape') {
             if (isFullscreen) {
                 dispatch('toggleFullscreen');
+                return;
+            }
+            if (pickMode !== null) {
+                onCancelPick();
                 return;
             }
             selected = null;
@@ -333,6 +346,13 @@
             .map((event) => event.stationId as string)
     );
 
+    // Podczas wskazywania celu incydentu stacje/pociągi mogą wizualnie leżeć nad
+    // odcinkami (i pociągi nad stacjami) — wyłączamy im pointer-events, żeby klik
+    // "przeszedł" do właściwej, klikalnej warstwy pod spodem.
+    $: stationsClickable = pickMode !== 'segment';
+    $: trainsClickable = pickMode === null || pickMode === 'train';
+    $: badgesClickable = pickMode === null;
+
     $: {
         if (selected && stations.length > 0) {
             const sel = selected;
@@ -412,21 +432,38 @@
 
     function pickStation(id: string) {
         if (wasDragged) return;
+        if (pickMode !== null) {
+            if (pickMode === 'station' && !stationsWithSignalFailure.has(id)) onPick(id);
+            return;
+        }
         selected = { kind: 'station', id };
     }
 
     function pickSegment(id: string) {
         if (wasDragged) return;
+        if (pickMode !== null) {
+            const segment = segmentById.get(id);
+            if (pickMode === 'segment' && segment && getSegmentStatus(segment, events) === 'ok') {
+                onPick(id);
+            }
+            return;
+        }
         selected = { kind: 'segment', id };
     }
 
     function pickTrain(id: string) {
         if (wasDragged) return;
+        if (pickMode !== null) {
+            const train = trains.find((item) => item.id === id);
+            if (pickMode === 'train' && train?.status === 'running') onPick(id);
+            return;
+        }
         selected = { kind: 'train', id };
     }
 
     function pickIncident(badge: IncidentBadge) {
         if (wasDragged) return;
+        if (pickMode !== null) return;
         const { event } = badge;
         if (event.stationId) {
             selected = { kind: 'station', id: event.stationId };
@@ -457,6 +494,7 @@
             class="graph"
             class:panning={pointerActive && wasDragged}
             class:names-hidden={zoom < 1.35}
+            class:pick-mode={pickMode !== null}
             role="application"
             tabindex="-1"
             aria-label={$t('map.aria')}
@@ -488,11 +526,13 @@
                 {@const status = getSegmentStatus(segment, events)}
                 {@const hasIncident = status !== 'ok'}
                 {@const dimmed =
-                    (selectedKind === 'station' &&
-                        !selectedStationIds.has(segment.source) &&
-                        !selectedStationIds.has(segment.target)) ||
-                    (selectedKind === 'train' && !onTrainRoute) ||
-                    (highlight?.kind === 'incidents' && !hasIncident)}
+                    pickMode !== null
+                        ? pickMode !== 'segment' || status !== 'ok'
+                        : (selectedKind === 'station' &&
+                              !selectedStationIds.has(segment.source) &&
+                              !selectedStationIds.has(segment.target)) ||
+                          (selectedKind === 'train' && !onTrainRoute) ||
+                          (highlight?.kind === 'incidents' && !hasIncident)}
                 {#if source && target}
                     <line
                         class="track"
@@ -509,6 +549,7 @@
                     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
                     <line
                         class="hit-line"
+                        class:dimmed
                         x1={source.x}
                         y1={source.y}
                         x2={target.x}
@@ -527,11 +568,13 @@
                 {@const shape = stationShape(station.type)}
                 {@const hasSignalFailure = stationsWithSignalFailure.has(station.id)}
                 {@const dimmed =
-                    (selectedKind === 'segment' && !selectedSegmentNodeIds.has(station.id)) ||
-                    (selectedKind === 'train' &&
-                        !selectedTrainRouteStations.has(station.id) &&
-                        !isTrainTarget) ||
-                    (highlight?.kind === 'incidents' && !hasSignalFailure)}
+                    pickMode !== null
+                        ? pickMode !== 'station' || hasSignalFailure
+                        : (selectedKind === 'segment' && !selectedSegmentNodeIds.has(station.id)) ||
+                          (selectedKind === 'train' &&
+                              !selectedTrainRouteStations.has(station.id) &&
+                              !isTrainTarget) ||
+                          (highlight?.kind === 'incidents' && !hasSignalFailure)}
                 {#if point}
                     <g
                         class="station focus-target"
@@ -539,6 +582,7 @@
                         class:selected={isStationSelected}
                         class:dimmed
                         class:route-target={isTrainTarget}
+                        style="pointer-events: {stationsClickable ? 'auto' : 'none'}"
                         on:click={() => pickStation(station.id)}
                         role="button"
                         tabindex="0"
@@ -619,7 +663,10 @@
                         ? train.status === highlight.status
                         : train.delayedByEventId !== null || train.status === 'derailed')}
                 {@const dimmed =
-                    (selectedKind === 'train' && !isTrainSelected) || (highlight !== null && !isHighlighted)}
+                    pickMode !== null
+                        ? pickMode !== 'train' || train.status !== 'running'
+                        : (selectedKind === 'train' && !isTrainSelected) ||
+                          (highlight !== null && !isHighlighted)}
                 {#if pos}
                     <g
                         transform={`translate(${pos.x}, ${pos.y})`}
@@ -629,6 +676,7 @@
                         class:selected={isTrainSelected}
                         class:highlighted={isHighlighted}
                         class:dimmed
+                        style="pointer-events: {trainsClickable ? 'auto' : 'none'}"
                         on:click={() => pickTrain(train.id)}
                         role="button"
                         tabindex="0"
@@ -674,6 +722,7 @@
                 <g
                     class="incident-badge severity-{badge.event.severity} focus-target"
                     transform={`translate(${badge.x}, ${badge.y}) scale(${markerScale})`}
+                    style="pointer-events: {badgesClickable ? 'auto' : 'none'}"
                     on:click={() => pickIncident(badge)}
                     role="button"
                     tabindex="0"
@@ -870,11 +919,35 @@
         cursor: grabbing !important;
     }
 
+    .graph.pick-mode {
+        cursor: crosshair;
+    }
+
     .graph :global(.hit-line),
     .graph :global(g.station),
     .graph :global(g.train-marker),
     .graph :global(g.incident-badge) {
         cursor: pointer;
+    }
+
+    /* Podczas wskazywania celu incydentu kursor ma wyglądać jak "oznacz tutaj
+       awarię", a nie zwykły "kliknij, aby zobaczyć szczegóły" — bez tych reguł
+       ogólna zasada cursor:pointer powyżej (ta sama swoistość, ale niżej w
+       arkuszu) wygrywała nad .pick-mode i psuła wskaźnik nad elementami. */
+    .graph.pick-mode :global(.hit-line),
+    .graph.pick-mode :global(g.station),
+    .graph.pick-mode :global(g.train-marker) {
+        cursor: crosshair;
+    }
+
+    .graph.pick-mode :global(.hit-line.dimmed),
+    .graph.pick-mode :global(g.station.dimmed),
+    .graph.pick-mode :global(g.train-marker.dimmed) {
+        cursor: not-allowed;
+    }
+
+    .graph.pick-mode :global(g.incident-badge) {
+        cursor: default;
     }
 
     .material-symbols-outlined {

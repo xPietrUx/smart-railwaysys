@@ -476,7 +476,7 @@
                 >
                     <span class="material-symbols-outlined" aria-hidden="true">close</span>
                 </button>
-                <AuthCard mode={authMode} error={form?.error} email={form?.email} />
+                <AuthCard mode={authMode} error={form?.error} email={form?.email ?? ''} />
             </div>
         </div>
     {/if}

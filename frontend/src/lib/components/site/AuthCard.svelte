@@ -1,5 +1,6 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
+    import { enhance } from '$app/forms';
 
     export let mode: 'login' | 'register';
     export let error: string | undefined = undefined;
@@ -20,7 +21,7 @@
     let formSubmittedAttempt = false;
     let formStatus: 'idle' | 'submitting' | 'success' = 'idle';
 
-    $: isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+    $: isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email ?? '').trim());
     $: isPasswordValid = password.length >= 8;
     $: isConfirmValid = !register || (password === passwordConfirm && passwordConfirm.length >= 8);
 
@@ -50,6 +51,17 @@
         }
 
         formStatus = 'submitting';
+    }
+
+    // Bez tego formularz robił pełny POST z przeładowaniem strony — na stronie
+    // głównej zamykało to modal (jego stan to zwykła zmienna JS), więc błąd
+    // logowania/rejestracji wracał z serwera poprawnie, ale nie było go gdzie
+    // pokazać. `enhance` zamienia to na fetch, więc modal i `form.error` żyją.
+    function handleEnhance() {
+        return async ({ result, update }: { result: { type: string }; update: () => Promise<void> }) => {
+            formStatus = result.type === 'redirect' ? 'success' : 'idle';
+            await update();
+        };
     }
 
     function handleGuestSubmit(e: MouseEvent) {
@@ -94,6 +106,7 @@
         method="POST"
         action={register ? '?/register' : '?/login'}
         on:submit={handleSubmit}
+        use:enhance={handleEnhance}
         novalidate
         aria-busy={formStatus === 'submitting'}
     >
@@ -113,7 +126,8 @@
                     class:is-invalid={showEmailError}
                     class:is-valid={emailTouched && isEmailValid}
                     placeholder="operator@smartrailway.pl"
-                    disabled={formStatus !== 'idle'}
+                    readonly={formStatus !== 'idle'}
+                    class:is-readonly={formStatus !== 'idle'}
                     aria-invalid={showEmailError}
                     aria-describedby={showEmailError ? 'email-error' : undefined}
                     required
@@ -145,7 +159,8 @@
                     class:is-invalid={showPasswordError}
                     class:is-valid={passwordTouched && isPasswordValid}
                     placeholder="Minimum 8 znaków"
-                    disabled={formStatus !== 'idle'}
+                    readonly={formStatus !== 'idle'}
+                    class:is-readonly={formStatus !== 'idle'}
                     aria-invalid={showPasswordError}
                     aria-describedby={showPasswordError ? 'password-error' : undefined}
                     required
@@ -179,7 +194,8 @@
                         class:is-invalid={showConfirmError}
                         class:is-valid={confirmTouched && isConfirmValid && passwordConfirm.length >= 8}
                         placeholder="Powtórz hasło"
-                        disabled={formStatus !== 'idle'}
+                        readonly={formStatus !== 'idle'}
+                        class:is-readonly={formStatus !== 'idle'}
                         aria-invalid={showConfirmError}
                         aria-describedby={showConfirmError ? 'confirm-error' : undefined}
                         required
@@ -438,7 +454,8 @@
         color: #c95158;
     }
 
-    .form-group input:disabled {
+    .form-group input:disabled,
+    .form-group input.is-readonly {
         opacity: 0.5;
         cursor: not-allowed;
     }
