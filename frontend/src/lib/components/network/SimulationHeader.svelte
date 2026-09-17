@@ -150,12 +150,17 @@
         ? new Date(snapshot.timestamp * 1000).toLocaleTimeString($locale === 'pl' ? 'pl-PL' : 'en-GB')
         : '—';
 
-    function connectionLabel(connectionStatus: ConnectionStatus): string {
-        if (connectionStatus === 'connecting') return $t('connection.connecting');
-        if (connectionStatus === 'open') return $t('connection.open');
-        if (connectionStatus === 'reconnecting') return $t('connection.reconnecting');
-        return $t('connection.polling');
-    }
+    // $t musi być odczytany wprost w tym wyrażeniu (nie przez wywołanie funkcji),
+    // inaczej Svelte nie wykryje zależności od `locale` i etykieta nie przełączy
+    // się na inny język bez zmiany samego statusu połączenia.
+    $: connectionStatusLabel =
+        status === 'connecting'
+            ? $t('connection.connecting')
+            : status === 'open'
+              ? $t('connection.open')
+              : status === 'reconnecting'
+                ? $t('connection.reconnecting')
+                : $t('connection.polling');
 
     const statusDotClass: Record<ConnectionStatus, string> = {
         connecting: 'dot-amber',
@@ -306,7 +311,7 @@
                             <span class="status-label">{$t('header.paused')}</span>
                         {:else}
                             <span class="status-dot {statusDotClass[status]}"></span>
-                            <span class="status-label">{connectionLabel(status)}</span>
+                            <span class="status-label">{connectionStatusLabel}</span>
                         {/if}
                         <span class="status-time">{lastUpdateLabel}</span>
                     </div>

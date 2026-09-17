@@ -1,6 +1,7 @@
 <script lang="ts">
     import { enhance } from '$app/forms';
     import type { SubmitFunction } from '@sveltejs/kit';
+    import { locale, setLocale, t } from '$lib/i18n';
     import type { ActionData, PageData } from './$types';
     import type { Role } from './+page.server';
 
@@ -24,6 +25,10 @@
     let isCreatingUser = false;
     let isCreatingRole = false;
 
+    function toggleLanguage() {
+        setLocale($locale === 'pl' ? 'en' : 'pl');
+    }
+
     function formatDate(value: number | null): string {
         if (!value) return '—';
         return new Date(value * 1000).toLocaleDateString('pl-PL', {
@@ -44,7 +49,11 @@
         if (id) submittingUsers = new Set(submittingUsers.add(id));
         return async ({ update }) => {
             try {
-                await update({ invalidateAll: true });
+                // reset: false — domyślny reset() enhance'a czyścił pole e-maila do jego
+                // defaultValue (pustego dla wierszy zamontowanych po stronie klienta),
+                // a Svelte potem pomijał ponowny zapis wartości, bo z jego punktu
+                // widzenia się nie zmieniła — e-mail zostawał pusty mimo udanego zapisu.
+                await update({ invalidateAll: true, reset: false });
             } finally {
                 if (id) {
                     submittingUsers.delete(id);
@@ -71,7 +80,7 @@
 
     const handleUserDelete: SubmitFunction = ({ formData, cancel }) => {
         const id = formData.get('id')?.toString();
-        if (!confirm('Czy na pewno chcesz bezpowrotnie usunąć tego użytkownika?')) {
+        if (!confirm($t('admin.users.confirmDelete'))) {
             cancel();
             return;
         }
@@ -104,7 +113,9 @@
         if (name) submittingRoles = new Set(submittingRoles.add(name));
         return async ({ result, update }) => {
             try {
-                await update({ invalidateAll: false });
+                // reset: false — ten sam powód co przy edycji użytkownika: to edycja
+                // w miejscu (nazwa roli, checkboxy uprawnień), nie formularz dodawania.
+                await update({ invalidateAll: false, reset: false });
                 if (result.type !== 'success' || !result.data) return;
                 const payload = result.data as { role?: Role; deleted?: boolean; name?: string };
                 if (payload.deleted && payload.name) {
@@ -152,25 +163,35 @@
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
     />
-    <title>Panel administratora — Smart Railway System</title>
+    <title>{$t('admin.headTitle')}</title>
 </svelte:head>
 
 <div class="admin">
     <header class="topbar">
         <div>
             <p class="eyebrow">Smart Railway System</p>
-            <h1>Panel administratora</h1>
+            <h1>{$t('admin.title')}</h1>
         </div>
         <nav>
             <span class="who" title={data.me.email}>{data.me.email}</span>
+            <button
+                class="btn ghost"
+                type="button"
+                on:click={toggleLanguage}
+                aria-label={$locale === 'pl' ? 'Zmień język na angielski' : 'Change language to Polish'}
+                title={$locale === 'pl' ? 'English' : 'Polski'}
+            >
+                <span class="material-symbols-outlined" aria-hidden="true">language</span>
+                {$locale.toUpperCase()}
+            </button>
             <a class="btn ghost" data-sveltekit-preload-data="off" href="/panel" tabindex="0">
                 <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
-                Symulacja
+                {$t('admin.nav.simulation')}
             </a>
             <form method="POST" action="/wyloguj">
                 <button class="btn danger-ghost" type="submit" tabindex="0">
                     <span class="material-symbols-outlined" aria-hidden="true">logout</span>
-                    Wyloguj
+                    {$t('header.logout')}
                 </button>
             </form>
         </nav>
@@ -190,7 +211,7 @@
 
     <!-- ============================ UŻYTKOWNICY ============================ -->
     <section class="card">
-        <h2>Użytkownicy <span class="count">{data.users.length}</span></h2>
+        <h2>{$t('admin.users.heading')} <span class="count">{data.users.length}</span></h2>
 
         {#if isLoadingData}
             <div class="skeleton-table">
@@ -204,11 +225,11 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>E-mail</th>
-                            <th>Rola</th>
-                            <th>Status</th>
-                            <th>Utworzono</th>
-                            <th class="actions-col">Akcje</th>
+                            <th>{$t('admin.field.email')}</th>
+                            <th>{$t('admin.field.role')}</th>
+                            <th>{$t('admin.field.status')}</th>
+                            <th>{$t('admin.field.created')}</th>
+                            <th class="actions-col">{$t('admin.field.actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -232,7 +253,7 @@
                                             type="email"
                                             value={u.email}
                                             required
-                                            aria-label="E-mail użytkownika"
+                                            aria-label={$t('admin.users.emailAria')}
                                             disabled={isSaving || isDeleting}
                                         />
                                     </form>
@@ -256,13 +277,13 @@
                                         form={`user-${u.id}`}
                                         disabled={isSaving || isDeleting}
                                     >
-                                        <option value="true" selected={u.active}>Aktywny</option>
-                                        <option value="false" selected={!u.active}>Zablokowany</option>
+                                        <option value="true" selected={u.active}>{$t('admin.users.active')}</option>
+                                        <option value="false" selected={!u.active}>{$t('admin.users.blocked')}</option>
                                     </select>
                                 </td>
                                 <td class="muted">
                                     {formatDate(u.created_at)}
-                                    {#if u.id === data.me.id}<span class="tag">to Ty</span>{/if}
+                                    {#if u.id === data.me.id}<span class="tag">{$t('admin.users.thatsYou')}</span>{/if}
                                 </td>
                                 <td class="actions-col">
                                     <div class="row-actions">
@@ -275,7 +296,7 @@
                                             {#if isSaving}
                                                 <span class="spinner-small" aria-hidden="true"></span>
                                             {/if}
-                                            <span>Zapisz</span>
+                                            <span>{$t('admin.actions.save')}</span>
                                         </button>
 
                                         <form
@@ -290,9 +311,9 @@
                                                 name="password"
                                                 type="password"
                                                 minlength="8"
-                                                placeholder="Nowe hasło"
+                                                placeholder={$t('admin.users.newPasswordPlaceholder')}
                                                 required
-                                                aria-label="Nowe hasło"
+                                                aria-label={$t('admin.users.newPasswordPlaceholder')}
                                                 disabled={isResetting || isDeleting}
                                             />
                                             <button
@@ -303,7 +324,7 @@
                                                 {#if isResetting}
                                                     <span class="spinner-small" aria-hidden="true"></span>
                                                 {/if}
-                                                <span>Reset</span>
+                                                <span>{$t('admin.actions.reset')}</span>
                                             </button>
                                         </form>
 
@@ -322,7 +343,7 @@
                                                     {#if isDeleting}
                                                         <span class="spinner-small" aria-hidden="true"></span>
                                                     {/if}
-                                                    <span>Usuń</span>
+                                                    <span>{$t('admin.actions.delete')}</span>
                                                 </button>
                                             </form>
                                         {/if}
@@ -345,12 +366,12 @@
         <details class="adder">
             <summary>
                 <span class="material-symbols-outlined" aria-hidden="true">add</span>
-                Dodaj użytkownika
+                {$t('admin.users.addSummary')}
             </summary>
             <form method="POST" action="?/createUser" use:enhance={handleCreateUser} class="add-user-form">
                 <div class="add-user-fields">
                     <label class="add-field">
-                        <span>E-mail</span>
+                        <span>{$t('admin.field.email')}</span>
                         <input
                             name="email"
                             type="email"
@@ -360,18 +381,18 @@
                         />
                     </label>
                     <label class="add-field">
-                        <span>Hasło</span>
+                        <span>{$t('admin.field.password')}</span>
                         <input
                             name="password"
                             type="password"
                             minlength="8"
                             required
-                            placeholder="Min. 8 znaków"
+                            placeholder={$t('admin.users.minChars')}
                             disabled={isCreatingUser}
                         />
                     </label>
                     <label class="add-field">
-                        <span>Rola</span>
+                        <span>{$t('admin.field.role')}</span>
                         <select name="role" disabled={isCreatingUser}>
                             {#each data.roles as r (r.name)}
                                 <option value={r.name} selected={r.name === 'user'}>{r.label}</option>
@@ -384,7 +405,7 @@
                         {#if isCreatingUser}
                             <span class="spinner-small" aria-hidden="true"></span>
                         {/if}
-                        Dodaj
+                        {$t('admin.actions.add')}
                     </button>
                     {#if fb.scope === 'createUser'}
                         {#if fb.error}
@@ -400,10 +421,11 @@
 
     <!-- ============================ ROLE ============================ -->
     <section class="card">
-        <h2>Role i uprawnienia <span class="count">{data.roles.length}</span></h2>
+        <h2>{$t('admin.roles.heading')} <span class="count">{data.roles.length}</span></h2>
         {#if !canManageRoles}
             <p class="muted note">
-                Masz podgląd ról, ale bez uprawnienia <code>roles.manage</code> nie możesz ich edytować.
+                {$t('admin.roles.readOnlyNotePrefix')} <code>roles.manage</code>
+                {$t('admin.roles.readOnlyNoteSuffix')}
             </p>
         {/if}
 
@@ -421,17 +443,17 @@
                         <input type="hidden" name="name" value={r.name} />
                         <div class="role-head">
                             <code class="role-name">{r.name}</code>
-                            {#if r.is_system}<span class="tag">systemowa</span>{/if}
+                            {#if r.is_system}<span class="tag">{$t('admin.roles.systemTag')}</span>{/if}
                         </div>
                         {#if r.is_system}
-                            <p class="muted role-note">Rola systemowa — edycja zablokowana.</p>
+                            <p class="muted role-note">{$t('admin.roles.systemNote')}</p>
                         {/if}
                         <label class="role-label"
-                            >Nazwa wyświetlana
+                            >{$t('admin.field.displayName')}
                             <input name="label" value={r.label} disabled={!canManageRoles || r.is_system || isRoleBusy} />
                         </label>
                         <fieldset class="perms">
-                            <legend>Uprawnienia</legend>
+                            <legend>{$t('admin.roles.permissionsLegend')}</legend>
                             {#each data.permissions as p (p.key)}
                                 <label class="perm">
                                     <input
@@ -455,7 +477,7 @@
                                         {#if isRoleBusy}
                                             <span class="spinner-small" aria-hidden="true"></span>
                                         {/if}
-                                        Zapisz
+                                        {$t('admin.actions.save')}
                                     </button>
                                     <button
                                         class="btn small danger"
@@ -463,8 +485,9 @@
                                         formaction="?/deleteRole"
                                         disabled={isRoleBusy}
                                         on:click={(e) => {
-                                            if (!confirm(`Usunąć rolę ${r.label}?`)) e.preventDefault();
-                                        }}>Usuń</button
+                                            if (!confirm($t('admin.roles.confirmDelete', { role: r.label })))
+                                                e.preventDefault();
+                                        }}>{$t('admin.actions.delete')}</button
                                     >
                                 </div>
                                 {#if fb.scope === 'role' && fb.name === r.name}
@@ -485,28 +508,33 @@
             <details class="adder">
                 <summary>
                     <span class="material-symbols-outlined" aria-hidden="true">add</span>
-                    Dodaj rolę
+                    {$t('admin.roles.addSummary')}
                 </summary>
                 <form method="POST" action="?/createRole" use:enhance={handleCreateRole} class="add-role">
                     <div class="add-role-top">
                         <label class="add-role-field"
-                            >ID (małe litery)
+                            >{$t('admin.roles.idLabel')}
                             <input
                                 class="small-input"
                                 name="name"
                                 required
                                 pattern={'[a-z][a-z0-9_]{1,30}'}
-                                placeholder="np. dyspozytor"
+                                placeholder={$t('admin.roles.idPlaceholder')}
                                 disabled={isCreatingRole}
                             />
                         </label>
                         <label class="add-role-field"
-                            >Nazwa wyświetlana
-                            <input class="small-input" name="label" placeholder="np. Dyspozytor" disabled={isCreatingRole} />
+                            >{$t('admin.field.displayName')}
+                            <input
+                                class="small-input"
+                                name="label"
+                                placeholder={$t('admin.roles.labelPlaceholder')}
+                                disabled={isCreatingRole}
+                            />
                         </label>
                     </div>
                     <fieldset class="perms perms-create">
-                        <legend>Uprawnienia</legend>
+                        <legend>{$t('admin.roles.permissionsLegend')}</legend>
                         {#each data.permissions as p (p.key)}
                             <label class="perm perm-create">
                                 <input type="checkbox" name="permissions" value={p.key} disabled={isCreatingRole} />
@@ -522,7 +550,7 @@
                             {#if isCreatingRole}
                                 <span class="spinner-small" aria-hidden="true"></span>
                             {/if}
-                            Utwórz rolę
+                            {$t('admin.roles.create')}
                         </button>
                         {#if fb.scope === 'createRole'}
                             {#if fb.error}
