@@ -21,12 +21,21 @@
 
     const INCIDENT_TYPES: RailEventType[] = ['line_failure', 'speed_restriction', 'signal_failure'];
 
+    const TYPE_ICONS: Record<string, string> = {
+        signal_failure: 'electric_bolt',
+        line_failure: 'warning',
+        speed_restriction: 'slow_motion_video'
+    };
+
     let showCreateForm = false;
     let formType: RailEventType = 'line_failure';
     let formTargetId = '';
     let formDurationS: number | null = null;
     let submitting = false;
     let formError = '';
+
+    let typeDropdownOpen = false;
+    let targetDropdownOpen = false;
 
     let nowSec = Date.now() / 1000;
     let interval: ReturnType<typeof setInterval>;
@@ -38,15 +47,48 @@
         default: 'error'
     };
 
+    function handleWindowClick(e: MouseEvent) {
+        const target = e.target as HTMLElement | null;
+        if (typeDropdownOpen && !target?.closest('.custom-select-type')) {
+            typeDropdownOpen = false;
+        }
+        if (targetDropdownOpen && !target?.closest('.custom-select-target')) {
+            targetDropdownOpen = false;
+        }
+    }
+
     onMount(() => {
         interval = setInterval(() => {
             nowSec = Date.now() / 1000;
         }, 1000);
+        window.addEventListener('click', handleWindowClick);
     });
     onDestroy(() => {
         clearInterval(interval);
+        window.removeEventListener('click', handleWindowClick);
         if (pickMode) onCancelPick();
     });
+
+    function toggleTypeDropdown() {
+        typeDropdownOpen = !typeDropdownOpen;
+        if (typeDropdownOpen) targetDropdownOpen = false;
+    }
+
+    function toggleTargetDropdown() {
+        targetDropdownOpen = !targetDropdownOpen;
+        if (targetDropdownOpen) typeDropdownOpen = false;
+    }
+
+    function selectType(type: RailEventType) {
+        formType = type;
+        typeDropdownOpen = false;
+        handleTypeChange();
+    }
+
+    function selectTarget(id: string) {
+        formTargetId = id;
+        targetDropdownOpen = false;
+    }
 
     function countdownLabel(resolvesAt: number): string {
         const remaining = Math.max(0, Math.round(resolvesAt - nowSec));
@@ -95,6 +137,8 @@
         showCreateForm = !showCreateForm;
         formError = '';
         formDurationS = null;
+        typeDropdownOpen = false;
+        targetDropdownOpen = false;
     }
 
     function pickModeForType(type: RailEventType): 'segment' | 'station' {
@@ -102,6 +146,8 @@
     }
 
     function startPickOnMap() {
+        typeDropdownOpen = false;
+        targetDropdownOpen = false;
         onStartPick(pickModeForType(formType), (id: string) => {
             formTargetId = id;
         });
@@ -109,6 +155,8 @@
 
     function handleTypeChange() {
         if (pickMode) onCancelPick();
+        typeDropdownOpen = false;
+        targetDropdownOpen = false;
     }
 
     async function handleCreateIncident() {
@@ -180,11 +228,38 @@
         <form class="create-form" on:submit|preventDefault={handleCreateIncident}>
             <label class="field">
                 <span>{$t('incidents.form.type')}</span>
-                <select bind:value={formType} on:change={handleTypeChange}>
-                    {#each INCIDENT_TYPES as type (type)}
-                        <option value={type}>{eventLabel(type, $t)}</option>
-                    {/each}
-                </select>
+                <div class="custom-select custom-select-type">
+                    <button
+                        type="button"
+                        class="select-trigger"
+                        class:open={typeDropdownOpen}
+                        on:click|stopPropagation={toggleTypeDropdown}
+                        aria-expanded={typeDropdownOpen}
+                    >
+                        <span class="trigger-label">{eventLabel(formType, $t)}</span>
+                        <span class="material-symbols-outlined chevron" aria-hidden="true">expand_more</span>
+                    </button>
+                    {#if typeDropdownOpen}
+                        <ul class="dropdown" role="listbox">
+                            {#each INCIDENT_TYPES as type (type)}
+                                <li class="item" class:active={type === formType}>
+                                    <button
+                                        type="button"
+                                        on:click={() => selectType(type)}
+                                    >
+                                        <span class="material-symbols-outlined item-icon" aria-hidden="true">
+                                            {TYPE_ICONS[type] ?? 'error'}
+                                        </span>
+                                        <span class="item-label">{eventLabel(type, $t)}</span>
+                                        {#if type === formType}
+                                            <span class="material-symbols-outlined item-check" aria-hidden="true">check</span>
+                                        {/if}
+                                    </button>
+                                </li>
+                            {/each}
+                        </ul>
+                    {/if}
+                </div>
             </label>
 
             <label class="field">
@@ -201,11 +276,37 @@
                     <p class="no-targets">{$t('incidents.form.noTargets')}</p>
                 {:else}
                     <div class="target-row">
-                        <select bind:value={formTargetId}>
-                            {#each targetOptions as option (option.id)}
-                                <option value={option.id}>{option.label}</option>
-                            {/each}
-                        </select>
+                        <div class="custom-select custom-select-target">
+                            <button
+                                type="button"
+                                class="select-trigger"
+                                class:open={targetDropdownOpen}
+                                on:click|stopPropagation={toggleTargetDropdown}
+                                aria-expanded={targetDropdownOpen}
+                            >
+                                <span class="trigger-label">
+                                    {targetOptions.find((o) => o.id === formTargetId)?.label ?? formTargetId}
+                                </span>
+                                <span class="material-symbols-outlined chevron" aria-hidden="true">expand_more</span>
+                            </button>
+                            {#if targetDropdownOpen}
+                                <ul class="dropdown" role="listbox">
+                                    {#each targetOptions as option (option.id)}
+                                        <li class="item" class:active={option.id === formTargetId}>
+                                            <button
+                                                type="button"
+                                                on:click={() => selectTarget(option.id)}
+                                            >
+                                                <span class="item-label">{option.label}</span>
+                                                {#if option.id === formTargetId}
+                                                    <span class="material-symbols-outlined item-check" aria-hidden="true">check</span>
+                                                {/if}
+                                            </button>
+                                        </li>
+                                    {/each}
+                                </ul>
+                            {/if}
+                        </div>
                         <button
                             type="button"
                             class="pick-btn"
@@ -339,6 +440,12 @@
         --panel-muted: #97a5ad;
         --card-bg: rgba(255, 255, 255, 0.03);
         --card-bg-hover: rgba(255, 255, 255, 0.07);
+        --input-bg: rgba(255, 255, 255, 0.05);
+        --input-bg-hover: rgba(255, 255, 255, 0.08);
+        --input-border: 1px solid rgba(255, 255, 255, 0.12);
+        --input-border-hover: 1px solid rgba(255, 255, 255, 0.22);
+        --input-border-focus: var(--severity-minor-color, #f0c29a);
+        --input-ring-focus: rgba(240, 194, 154, 0.25);
         --severity-major-bg: rgba(222, 132, 137, 0.1);
         --severity-major-hover: rgba(222, 132, 137, 0.16);
         --severity-major-color: #de8489;
@@ -377,6 +484,12 @@
         --panel-muted: #52606a;
         --card-bg: rgba(0, 0, 0, 0.03);
         --card-bg-hover: rgba(0, 0, 0, 0.06);
+        --input-bg: rgba(0, 0, 0, 0.04);
+        --input-bg-hover: rgba(0, 0, 0, 0.07);
+        --input-border: 1px solid rgba(0, 0, 0, 0.14);
+        --input-border-hover: 1px solid rgba(0, 0, 0, 0.26);
+        --input-border-focus: var(--severity-minor-color, #c97d39);
+        --input-ring-focus: rgba(201, 125, 57, 0.22);
         --severity-major-bg: rgba(201, 81, 88, 0.12);
         --severity-major-hover: rgba(201, 81, 88, 0.2);
         --severity-major-color: #c95158;
@@ -389,12 +502,12 @@
     }
 
     button:focus,
-    .field select:focus {
+    .field input:focus {
         outline: none;
     }
 
     button:focus-visible,
-    .field select:focus-visible {
+    .field input:focus-visible {
         outline: 2px solid var(--focus-ring);
         outline-offset: 2px;
     }
@@ -439,100 +552,326 @@
     .create-form {
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 12px;
         margin-bottom: 14px;
-        padding: 12px;
-        border-radius: 10px;
-        background: var(--card-bg);
+        padding: 14px;
+        border-radius: 14px;
+        background: var(--search-dropdown-bg, rgba(20, 20, 20, 0.94));
+        border: var(--search-dropdown-border, 1px solid rgba(255, 255, 255, 0.06));
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow: var(--search-dropdown-shadow, 0 20px 48px rgba(0, 0, 0, 0.6));
         flex-shrink: 0;
+    }
+
+    :global(html.light-mode) .create-form,
+    :global([data-theme='light']) .create-form,
+    :global(.light) .create-form {
+        background: rgba(255, 255, 255, 0.98);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
     }
 
     .field {
         display: flex;
         flex-direction: column;
-        gap: 4px;
-        font-size: 0.72rem;
-        color: var(--panel-muted);
+        gap: 5px;
+    }
+
+    .field > span {
+        font-size: 0.62rem;
+        font-weight: 300;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
+        color: var(--search-header, #64748b);
     }
 
-    .field select {
-        padding: 8px 10px;
-        border-radius: 8px;
-        border: 0;
-        background: rgba(255, 255, 255, 0.06);
-        color: var(--panel-text);
+    :global(html.light-mode) .field > span,
+    :global([data-theme='light']) .field > span,
+    :global(.light) .field > span {
+        color: #52606a;
+    }
+
+    .field input {
+        width: 100%;
+        height: 38px;
+        box-sizing: border-box;
+        padding: 0 14px;
+        border-radius: 999px;
+        border: var(--search-border, 1px solid rgba(255, 255, 255, 0.08));
+        background: var(--search-field-bg, rgba(20, 20, 20, 0.92));
+        color: var(--search-text, #f5f7f8);
         font-family: inherit;
-        font-size: 0.8rem;
-        text-transform: none;
-        letter-spacing: normal;
+        font-size: 0.76rem;
+        font-weight: 300;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        outline: none;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        transition: border-color 200ms ease, background-color 200ms ease;
     }
 
-    :global(html.light-mode) .field select,
-    :global([data-theme='light']) .field select,
-    :global(.light) .field select {
-        background: rgba(0, 0, 0, 0.05);
+    :global(html.light-mode) .field input,
+    :global([data-theme='light']) .field input,
+    :global(.light) .field input {
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        background: rgba(244, 245, 243, 0.96);
+        color: #1f2933;
     }
 
-    /* Sam <select> dziedziczy motyw z --panel-text/tło powyżej, ale rozwinięta
-       lista <option> to natywny popup przeglądarki, który tego NIE dziedziczy —
-       bez jawnego stylu wypadał zawsze jasny/systemowy, nawet w trybie ciemnym. */
-    .field select option {
-        background: #1c1c1c;
-        color: #f5f7f8;
+    .field input:focus {
+        border-color: var(--search-border-focus, rgba(255, 255, 255, 0.65));
+        box-shadow: none;
     }
 
-    :global(html.light-mode) .field select option,
-    :global([data-theme='light']) .field select option,
-    :global(.light) .field select option {
-        background: #f4f5f6;
-        color: #111827;
+    :global(html.light-mode) .field input:focus,
+    :global([data-theme='light']) .field input:focus,
+    :global(.light) .field input:focus {
+        border-color: rgba(17, 24, 39, 0.65);
     }
 
-    .no-targets {
+    .field input::placeholder {
+        color: var(--search-placeholder, #97a5ad);
+        font-weight: 300;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    :global(html.light-mode) .field input::placeholder,
+    :global([data-theme='light']) .field input::placeholder,
+    :global(.light) .field input::placeholder {
+        color: #52606a;
+    }
+
+    /* Ukryj domyślne strzałki (spin buttons) dla input[type='number'] */
+    .field input[type='number']::-webkit-inner-spin-button,
+    .field input[type='number']::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        appearance: none;
         margin: 0;
-        font-size: 0.72rem;
-        color: var(--panel-muted);
-        text-transform: none;
-        letter-spacing: normal;
+    }
+
+    .field input[type='number'] {
+        -moz-appearance: textfield;
+        appearance: textfield;
+    }
+
+    /* Custom Dropdown Styling (MapSearch aesthetic) */
+    .custom-select {
+        position: relative;
+        width: 100%;
     }
 
     .target-row {
         display: flex;
-        gap: 6px;
         align-items: center;
+        gap: 8px;
+        width: 100%;
     }
 
-    .target-row select {
+    .target-row .custom-select {
         flex: 1;
         min-width: 0;
     }
 
+    .select-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        height: 38px;
+        box-sizing: border-box;
+        padding: 0 14px;
+        border-radius: 999px;
+        border: var(--search-border, 1px solid rgba(255, 255, 255, 0.08));
+        background: var(--search-field-bg, rgba(20, 20, 20, 0.92));
+        color: var(--search-text, #f5f7f8);
+        font-family: inherit;
+        font-size: 0.76rem;
+        font-weight: 300;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        transition: border-color 200ms ease, background-color 200ms ease;
+    }
+
+    :global(html.light-mode) .select-trigger,
+    :global([data-theme='light']) .select-trigger,
+    :global(.light) .select-trigger {
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        background: rgba(244, 245, 243, 0.96);
+        color: #1f2933;
+    }
+
+    .select-trigger:focus,
+    .select-trigger.open {
+        border-color: var(--search-border-focus, rgba(255, 255, 255, 0.65));
+        outline: none;
+    }
+
+    :global(html.light-mode) .select-trigger:focus,
+    :global(html.light-mode) .select-trigger.open,
+    :global([data-theme='light']) .select-trigger:focus,
+    :global([data-theme='light']) .select-trigger.open,
+    :global(.light) .select-trigger:focus,
+    :global(.light) .select-trigger.open {
+        border-color: rgba(17, 24, 39, 0.65);
+    }
+
+    .trigger-label {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex: 1;
+        text-align: left;
+    }
+
+    .chevron {
+        font-size: 18px;
+        color: var(--search-muted, #97a5ad);
+        transition: transform 180ms ease;
+        flex-shrink: 0;
+        margin-left: 6px;
+    }
+
+    .select-trigger.open .chevron {
+        transform: rotate(180deg);
+    }
+
+    .dropdown {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        right: 0;
+        margin: 0;
+        padding: 6px;
+        list-style: none;
+        border-radius: 12px;
+        background: var(--search-dropdown-bg, rgba(20, 20, 20, 0.96));
+        border: var(--search-dropdown-border, 1px solid rgba(255, 255, 255, 0.06));
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow: var(--search-dropdown-shadow, 0 20px 48px rgba(0, 0, 0, 0.6));
+        max-height: 220px;
+        overflow-y: auto;
+        z-index: 50;
+        animation: dropdown-fade 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        transform-origin: top;
+    }
+
+    :global(html.light-mode) .dropdown,
+    :global([data-theme='light']) .dropdown,
+    :global(.light) .dropdown {
+        background: rgba(255, 255, 255, 0.98);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+    }
+
+    @keyframes dropdown-fade {
+        from {
+            opacity: 0;
+            transform: translateY(-6px) scale(0.98);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    .dropdown .item {
+        margin: 0;
+        padding: 0;
+    }
+
+    .dropdown .item button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 8px 10px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--search-text, #f5f7f8);
+        font-family: inherit;
+        font-size: 0.74rem;
+        font-weight: 300;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        text-align: left;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+    }
+
+    :global(html.light-mode) .dropdown .item button,
+    :global([data-theme='light']) .dropdown .item button,
+    :global(.light) .dropdown .item button {
+        color: #1f2933;
+    }
+
+    .dropdown .item button:hover,
+    .dropdown .item.active button {
+        background: var(--search-item-hover, rgba(255, 255, 255, 0.06));
+    }
+
+    :global(html.light-mode) .dropdown .item button:hover,
+    :global(html.light-mode) .dropdown .item.active button,
+    :global([data-theme='light']) .dropdown .item button:hover,
+    :global([data-theme='light']) .dropdown .item.active button,
+    :global(.light) .dropdown .item button:hover,
+    :global(.light) .dropdown .item.active button {
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    .item-icon {
+        font-size: 17px;
+        color: var(--search-muted, #97a5ad);
+        flex-shrink: 0;
+    }
+
+    .item-label {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .item-check {
+        font-size: 16px;
+        color: var(--severity-minor-color, #f0c29a);
+        flex-shrink: 0;
+    }
+
     .pick-btn {
         flex-shrink: 0;
-        width: 34px;
-        height: 34px;
-        border-radius: 8px;
-        border: 0;
-        background: rgba(255, 255, 255, 0.06);
-        color: var(--panel-text);
+        width: 38px;
+        height: 38px;
+        border-radius: 999px;
+        border: var(--search-border, 1px solid rgba(255, 255, 255, 0.08));
+        background: var(--search-field-bg, rgba(20, 20, 20, 0.92));
+        color: var(--search-muted, #97a5ad);
         display: inline-flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         padding: 0;
-        transition: background-color 150ms ease;
+        transition: border-color 200ms ease, background-color 200ms ease, color 200ms ease;
     }
 
     :global(html.light-mode) .pick-btn,
     :global([data-theme='light']) .pick-btn,
     :global(.light) .pick-btn {
-        background: rgba(0, 0, 0, 0.05);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        background: rgba(244, 245, 243, 0.96);
+        color: #52606a;
     }
 
     .pick-btn:hover {
-        background: var(--card-bg-hover);
+        border-color: var(--search-border-focus, rgba(255, 255, 255, 0.65));
+        color: var(--search-text, #f5f7f8);
     }
 
     .pick-btn .material-symbols-outlined {
@@ -543,8 +882,8 @@
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 8px 10px;
-        border-radius: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
         background: var(--severity-minor-bg);
         color: var(--severity-minor-color);
         font-size: 0.72rem;
@@ -566,42 +905,55 @@
     .form-actions {
         display: flex;
         justify-content: flex-end;
+        align-items: center;
         gap: 8px;
-        margin-top: 2px;
+        margin-top: 4px;
     }
 
     .ghost-btn {
-        background: none;
+        background: transparent;
         border: 0;
-        color: var(--panel-muted);
-        font-size: 0.72rem;
+        color: var(--search-muted, #97a5ad);
+        font-size: 0.68rem;
+        font-weight: 300;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
         cursor: pointer;
-        padding: 8px 10px;
-        border-radius: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        transition: color 150ms ease, background-color 150ms ease;
     }
 
     .ghost-btn:hover {
-        color: var(--panel-text);
+        color: var(--search-text, #f5f7f8);
+        background: var(--search-chip-bg, rgba(255, 255, 255, 0.08));
     }
 
     .submit-btn {
-        background: var(--severity-major-color);
+        background: var(--severity-major-color, #de8489);
         color: #141414;
         border: 0;
-        border-radius: 8px;
-        padding: 8px 14px;
-        font-size: 0.72rem;
+        border-radius: 999px;
+        padding: 8px 16px;
+        font-size: 0.68rem;
         font-weight: 400;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
         cursor: pointer;
-        transition: opacity 150ms ease;
+        transition: opacity 150ms ease, transform 100ms ease;
+    }
+
+    .submit-btn:hover:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+
+    .submit-btn:active:not(:disabled) {
+        transform: translateY(0);
     }
 
     .submit-btn:disabled {
-        opacity: 0.5;
+        opacity: 0.4;
         cursor: not-allowed;
     }
 

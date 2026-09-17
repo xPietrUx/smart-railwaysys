@@ -295,6 +295,40 @@
         return 'ok';
     }
 
+    function getTrackLineStatus(
+        segment: SegmentItem,
+        trackIndex: number,
+        totalTracks: number,
+        activeEvents: RailEventNode[]
+    ): 'blocked' | 'restricted' | 'ok' {
+        const hasBlockedEvent = activeEvents.some(
+            (e) =>
+                e.status === 'active' &&
+                e.segmentId === segment.segmentId &&
+                (e.severity === 'major' || e.type === 'line_failure')
+        );
+        if (hasBlockedEvent) return 'blocked';
+
+        const hasRestrictedEvent = activeEvents.some(
+            (e) => e.status === 'active' && e.segmentId === segment.segmentId
+        );
+        if (hasRestrictedEvent) return 'restricted';
+
+        if (totalTracks >= 2) {
+            const dirState = trackIndex === 0 ? segment.forward : segment.backward;
+            if (dirState?.status === 'blocked') return 'blocked';
+            if (dirState?.status === 'restricted') return 'restricted';
+        }
+
+        if (segment.forward?.status === 'blocked' || segment.backward?.status === 'blocked') {
+            return 'blocked';
+        }
+        if (segment.forward?.status === 'restricted' || segment.backward?.status === 'restricted') {
+            return 'restricted';
+        }
+        return 'ok';
+    }
+
     function segmentColor(status: 'blocked' | 'restricted' | 'ok'): string {
         if (status === 'blocked') return 'var(--color-blocked, #de8489)';
         if (status === 'restricted') return 'var(--color-restricted, #f0c29a)';
@@ -320,21 +354,66 @@
     ): { x: number; y: number } | null {
         const current = positionById.get(train.currentStationId);
         if (!current) return null;
-        if ((train.status === 'derailed' || train.status === 'waiting') && train.nextStationId && train.currentSegmentId) {
-            const next = positionById.get(train.nextStationId);
-            if (next) {
-                return {
-                    x: current.x + (next.x - current.x) * train.progress,
-                    y: current.y + (next.y - current.y) * train.progress
-                };
-            }
+
+        let targetStationId: string | null = null;
+        let isMoving = false;
+
+        if (
+            (train.status === 'derailed' || train.status === 'waiting') &&
+            train.nextStationId &&
+            train.currentSegmentId
+        ) {
+            targetStationId = train.nextStationId;
+            isMoving = true;
+        } else if (train.status === 'running' && train.nextStationId) {
+            targetStationId = train.nextStationId;
+            isMoving = true;
         }
-        if (train.status !== 'running' || !train.nextStationId) return current;
-        const next = positionById.get(train.nextStationId);
+
+        if (!isMoving || !targetStationId) return current;
+
+        const next = positionById.get(targetStationId);
         if (!next) return current;
+
+        const baseX = current.x + (next.x - current.x) * train.progress;
+        const baseY = current.y + (next.y - current.y) * train.progress;
+
+        const key =
+            train.currentStationId < targetStationId
+                ? `${train.currentStationId}__${targetStationId}`
+                : `${targetStationId}__${train.currentStationId}`;
+
+        const totalTracks = stationPairTracks.get(key) ?? 1;
+        if (totalTracks < 2) {
+            return { x: baseX, y: baseY };
+        }
+
+        const sId =
+            train.currentStationId < targetStationId ? train.currentStationId : targetStationId;
+        const tId =
+            train.currentStationId < targetStationId ? targetStationId : train.currentStationId;
+        const p1 = positionById.get(sId);
+        const p2 = positionById.get(tId);
+        if (!p1 || !p2) return { x: baseX, y: baseY };
+
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const len = Math.hypot(dx, dy);
+        if (len === 0) return { x: baseX, y: baseY };
+
+        const nx = -dy / len;
+        const ny = dx / len;
+
+        const isForward = train.currentStationId < targetStationId;
+        const spacing = totalTracks > 2 ? 4.8 : 5.8;
+        const baseOffset = isForward ? -spacing * 0.5 : spacing * 0.5;
+
+        const sinFactor = Math.sin(Math.max(0, Math.min(1, train.progress)) * Math.PI);
+        const offset = baseOffset * sinFactor;
+
         return {
-            x: current.x + (next.x - current.x) * train.progress,
-            y: current.y + (next.y - current.y) * train.progress
+            x: baseX + offset * nx,
+            y: baseY + offset * ny
         };
     }
 
@@ -346,6 +425,92 @@
     );
     $: stationById = new Map(stations.map((station) => [station.id, station]));
     $: segmentById = new Map(segments.map((segment) => [segment.segmentId, segment]));
+
+    $: stationPairTracks = (() => {
+        const map = new Map<string, number>();
+        for (const seg of segments) {
+            if (!seg.source || !seg.target) continue;
+            const key =
+                seg.source < seg.target
+                    ? `${seg.source}__${seg.target}`
+                    : `${seg.target}__${seg.source}`;
+            map.set(key, (map.get(key) ?? 0) + Math.max(1, seg.railTracks || 1));
+        }
+        return map;
+    })();
+
+    type TrackLineItem = {
+        key: string;
+        segmentId: string;
+        segment: SegmentItem;
+        trackIndex: number;
+        totalTracks: number;
+        x1: number;
+        y1: number;
+        x2: number;
+        y2: number;
+    };
+
+    $: segmentTrackLines = (() => {
+        if (!positionById || segments.length === 0) return [];
+
+        const groups = new Map<string, SegmentItem[]>();
+        for (const seg of segments) {
+            if (!seg.source || !seg.target) continue;
+            const key =
+                seg.source < seg.target
+                    ? `${seg.source}__${seg.target}`
+                    : `${seg.target}__${seg.source}`;
+            const list = groups.get(key) ?? [];
+            list.push(seg);
+            groups.set(key, list);
+        }
+
+        const result: TrackLineItem[] = [];
+
+        for (const [key, segList] of groups.entries()) {
+            const [sourceId, targetId] = key.split('__');
+            const p1 = positionById.get(sourceId);
+            const p2 = positionById.get(targetId);
+            if (!p1 || !p2) continue;
+
+            let totalTracks = 0;
+            for (const seg of segList) {
+                totalTracks += Math.max(1, seg.railTracks || 1);
+            }
+
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const len = Math.hypot(dx, dy);
+            const nx = len > 0 ? -dy / len : 0;
+            const ny = len > 0 ? dx / len : 0;
+
+            const spacing = totalTracks > 2 ? 4.8 : 5.8;
+            let currentTrack = 0;
+
+            for (const seg of segList) {
+                const tracksInSeg = Math.max(1, seg.railTracks || 1);
+                for (let k = 0; k < tracksInSeg; k++) {
+                    const offsetIndex = currentTrack - (totalTracks - 1) / 2;
+                    const offset = offsetIndex * spacing;
+                    result.push({
+                        key: `${seg.segmentId}__t${currentTrack}`,
+                        segmentId: seg.segmentId,
+                        segment: seg,
+                        trackIndex: currentTrack,
+                        totalTracks,
+                        x1: p1.x + offset * nx,
+                        y1: p1.y + offset * ny,
+                        x2: p2.x + offset * nx,
+                        y2: p2.y + offset * ny
+                    });
+                    currentTrack++;
+                }
+            }
+        }
+
+        return result;
+    })();
 
     $: stationsWithSignalFailure = new Set(
         events
@@ -526,13 +691,17 @@
                 </filter>
             </defs>
 
-            {#each segments as segment (segment.segmentId)}
-                {@const source = positionById.get(segment.source)}
-                {@const target = positionById.get(segment.target)}
+            {#each segmentTrackLines as lineItem (lineItem.key)}
+                {@const segment = lineItem.segment}
                 {@const isSelected = selectedSegmentId === segment.segmentId}
                 {@const onTrainRoute =
                     selectedKind === 'train' && selectedTrainRouteSegments.has(segment.segmentId)}
-                {@const status = getSegmentStatus(segment, events)}
+                {@const status = getTrackLineStatus(
+                    segment,
+                    lineItem.trackIndex,
+                    lineItem.totalTracks,
+                    events
+                )}
                 {@const hasIncident = status !== 'ok'}
                 {@const dimmed =
                     pickMode !== null
@@ -542,32 +711,34 @@
                               !selectedStationIds.has(segment.target)) ||
                           (selectedKind === 'train' && !onTrainRoute) ||
                           (highlight?.kind === 'incidents' && !hasIncident)}
-                {#if source && target}
-                    <line
-                        class="track"
-                        x1={source.x}
-                        y1={source.y}
-                        x2={target.x}
-                        y2={target.y}
-                        stroke={isSelected ? 'var(--track-selected, #ffffff)' : segmentColor(status)}
-                        stroke-width={isSelected ? 6.5 : onTrainRoute ? 5.5 : 4.8}
-                        stroke-linecap="round"
-                        vector-effect="non-scaling-stroke"
-                        opacity={dimmed ? 0.2 : 0.95}
-                    />
-                    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-                    <line
-                        class="hit-line"
-                        class:dimmed
-                        x1={source.x}
-                        y1={source.y}
-                        x2={target.x}
-                        y2={target.y}
-                        stroke="transparent"
-                        stroke-width="16"
-                        on:click={() => pickSegment(segment.segmentId)}
-                    />
-                {/if}
+                <line
+                    class="track"
+                    x1={lineItem.x1}
+                    y1={lineItem.y1}
+                    x2={lineItem.x2}
+                    y2={lineItem.y2}
+                    stroke={isSelected ? 'var(--track-selected, #ffffff)' : segmentColor(status)}
+                    stroke-width={isSelected
+                        ? (lineItem.totalTracks > 1 ? 5.2 : 6.5)
+                        : onTrainRoute
+                        ? (lineItem.totalTracks > 1 ? 4.4 : 5.5)
+                        : (lineItem.totalTracks > 1 ? 3.4 : 4.8)}
+                    stroke-linecap="round"
+                    vector-effect="non-scaling-stroke"
+                    opacity={dimmed ? 0.2 : 0.95}
+                />
+                <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+                <line
+                    class="hit-line"
+                    class:dimmed
+                    x1={lineItem.x1}
+                    y1={lineItem.y1}
+                    x2={lineItem.x2}
+                    y2={lineItem.y2}
+                    stroke="transparent"
+                    stroke-width={lineItem.totalTracks > 1 ? '12' : '16'}
+                    on:click={() => pickSegment(segment.segmentId)}
+                />
             {/each}
 
             {#each stations as station (station.id)}
