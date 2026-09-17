@@ -4,6 +4,7 @@ import { readApiError } from './scenarios';
 export type IncidentCreatePayload = {
 	type: RailEventType;
 	targetId: string;
+	durationS?: number;
 };
 
 // Woła własny endpoint SSR (/panel/incidents), nie backend bezpośrednio —

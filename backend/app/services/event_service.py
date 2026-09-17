@@ -141,13 +141,12 @@ def _incident_active_edges(session: Session, station_id: str) -> list[dict]:
 	return [dict(r) for r in records]
 
 
-def _expand_for_track_count(target: dict) -> list[dict]:
-	"""Jednotorowy odcinek (rail_tracks<=1) dzieli fizyczny tor w obu kierunkach — awaria
-	blokuje wtedy obie skierowane relacje. Dwutorowy — tylko wylosowany kierunek."""
-	edges = [target]
-	if target.get("railTracks", 2) <= 1:
-		edges.append({**target, "fromId": target["toId"], "toId": target["fromId"]})
-	return edges
+def _both_directions(target: dict) -> list[dict]:
+	"""Awaria wyłącza CAŁY odcinek — obie skierowane relacje TRACK. Wcześniej dla
+	dwutorowego odcinka blokowany był tylko jeden kierunek, przez co pociągi jadące
+	w drugą stronę przejeżdżały przez „zablokowany” odcinek jak gdyby nigdy nic
+	(a ograniczenie prędkości działało tylko w jednym kierunku)."""
+	return [target, {**target, "fromId": target["toId"], "toId": target["fromId"]}]
 
 
 def _set_edges_blocked(session: Session, edges: list[dict], event_id: str) -> None:
@@ -231,13 +230,20 @@ def _persist_event(session: Session, event: RailEventNode) -> None:
 
 
 def create_event(
-	session: Session, event_type: str, now: float, target_id: str | None = None
+	session: Session,
+	event_type: str,
+	now: float,
+	target_id: str | None = None,
+	duration_s: float | None = None,
 ) -> RailEventNode | None:
 	"""target_id wskazuje konkretny cel (segment/pociąg/stację, zależnie od typu) zamiast
 	losowania — używane przy ręcznym zgłoszeniu incydentu przez użytkownika w panelu."""
-	duration = random.uniform(
-		config.SIM_EVENT_DURATION_REAL_S_MIN, config.SIM_EVENT_DURATION_REAL_S_MAX
-	)
+	if duration_s is not None and duration_s > 0:
+		duration = float(duration_s)
+	else:
+		duration = random.uniform(
+			config.SIM_EVENT_DURATION_REAL_S_MIN, config.SIM_EVENT_DURATION_REAL_S_MAX
+		)
 	resolves_at = now + duration
 	event_id = _new_event_id()
 
@@ -255,7 +261,7 @@ def create_event(
 			segmentId=target["segmentId"], fromStationId=target["fromId"], toStationId=target["toId"],
 		)
 		_persist_event(session, event)
-		_set_edges_blocked(session, _expand_for_track_count(target), event_id)
+		_set_edges_blocked(session, _both_directions(target), event_id)
 		return event
 
 	if event_type == "derailment":
@@ -271,7 +277,7 @@ def create_event(
 			trainId=target["trainId"],
 		)
 		_persist_event(session, event)
-		_set_edges_blocked(session, _expand_for_track_count(target), event_id)
+		_set_edges_blocked(session, _both_directions(target), event_id)
 		session.run(
 			"MATCH (t:Train {id: $trainId}) SET t.status = 'derailed', t.delayed_by_event_id = $eventId",
 			trainId=target["trainId"],
@@ -286,7 +292,7 @@ def create_event(
 		if not target:
 			return None
 		rows = _set_edges_restricted(
-			session, _expand_for_track_count(target), event_id, config.SIM_SPEED_RESTRICTION_FACTOR
+			session, _both_directions(target), event_id, config.SIM_SPEED_RESTRICTION_FACTOR
 		)
 		restricted_vmax = rows[0]["restrictedVmax"]
 		from_name = _station_name(session, target["fromId"])

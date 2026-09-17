@@ -109,6 +109,8 @@
     "incidents.addTitle": "Zgłoś nowy incydent",
     "incidents.form.type": "Typ incydentu",
     "incidents.form.target": "Lokalizacja",
+    "incidents.form.duration": "Czas trwania (sekundy)",
+    "incidents.form.durationPlaceholder": "Domyślny (np. 120 s)",
     "incidents.form.pickOnMap": "Wskaż na mapie",
     "incidents.form.pickHint": "Kliknij na mapie, aby wskazać cel.",
     "incidents.form.noTargets": "Brak dostępnych celów tego typu — wszystkie są już objęte incydentem.",

@@ -29,6 +29,7 @@ def _load_directed_edge_lookup(session: Session) -> dict[tuple[str, str], dict]:
 		lookup[(record["fromId"], record["toId"])] = {
 			"distKm": record["distKm"],
 			"effectiveVmax": effective_vmax,
+			"status": record["status"],
 		}
 	return lookup
 
@@ -89,6 +90,16 @@ def dispatch_or_wait(train: dict, session: Session, now: float) -> dict:
 def advance_train(train: dict, dt_sim_s: float, now: float, edge_lookup: dict) -> dict:
 	edge = edge_lookup.get((train["current_station_id"], train["next_station_id"]))
 	if edge is None or edge["distKm"] <= 0:
+		return train
+
+	# Zabezpieczenie: jeśli odcinek, po którym pociąg właśnie jedzie, został
+	# zablokowany (awaria linii / wykolejenie), nie wolno go dalej przesuwać —
+	# zatrzymujemy go na tym odcinku (status='waiting'), bez zerowania segmentu i postępu.
+	if edge.get("status") == "blocked":
+		train["status"] = "waiting"
+		train["route_station_ids"] = []
+		train["route_segment_ids"] = []
+		train["route_index"] = 0
 		return train
 
 	speed_kmh = min(edge["effectiveVmax"], train["vmax"])
@@ -361,6 +372,18 @@ def run_tick_sync(driver: Driver, app_state) -> dict:
 			app_state.next_event_at = now + random.expovariate(
 				1.0 / config.SIM_EVENT_MEAN_INTERVAL_REAL_S
 			)
+
+		# Wykolejenie zapisuje 'derailed' wprost do bazy (create_event), ale `trains`
+		# to migawka sprzed zdarzenia — bez naniesienia tego na listę w pamięci
+		# _write_back_trains nadpisałby 'derailed' nieaktualnym 'running', przez co
+		# wykolejony pociąg jechałby dalej mimo wpisu w logach. Nanosimy PRZED
+		# reroute, żeby przeplanowanie pominęło wykolejony pociąg (status != running).
+		if new_event is not None and new_event.type == "derailment" and new_event.trainId:
+			for train in trains:
+				if train["id"] == new_event.trainId:
+					train["status"] = "derailed"
+					train["delayed_by_event_id"] = new_event.id
+					break
 
 		if (
 			new_event is not None

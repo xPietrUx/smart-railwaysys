@@ -10,13 +10,10 @@ function freshState(): DirectionalState {
 	return { status: 'active', restrictedVmax: null, activeEventId: null };
 }
 
-/** Kierunki odcinka dotknięte zdarzeniem — odwzorowanie _expand_for_track_count
- *  z backendu: jednotorowy odcinek blokuje oba kierunki, dwutorowy tylko ten
- *  wskazany przez fromStationId zdarzenia. */
-function affectedDirections(segment: TrackSegment, event: RailEventNode): Direction[] {
-	if (segment.railTracks <= 1) return ['forward', 'backward'];
-	if (event.fromStationId === segment.source) return ['forward'];
-	if (event.fromStationId === segment.target) return ['backward'];
+/** Awaria wyłącza cały odcinek — oba kierunki (odwzorowanie _both_directions
+ *  z backendu). Wcześniej dwutorowy odcinek gasł tylko w jednym kierunku, co nie
+ *  zgadzało się z ruchem pociągów (jechały drugim, „czynnym” kierunkiem). */
+function affectedDirections(): Direction[] {
 	return ['forward', 'backward'];
 }
 
@@ -72,7 +69,7 @@ export function applyEventsToSegments(
 			if (!segment) continue;
 			apply(
 				segment,
-				affectedDirections(segment, event),
+				affectedDirections(),
 				{
 					status: 'restricted',
 					restrictedVmax: event.restrictedVmax,
@@ -102,7 +99,7 @@ export function applyEventsToSegments(
 		if (!segment) continue;
 		apply(
 			segment,
-			affectedDirections(segment, event),
+			affectedDirections(),
 			{ status: 'blocked', restrictedVmax: null, activeEventId: event.id },
 			true
 		);

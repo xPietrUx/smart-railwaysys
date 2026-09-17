@@ -13,7 +13,7 @@ router = APIRouter(tags=["events"])
 
 # Wykolejenie celowo pomijamy — to nie miejsce, które użytkownik "wskazuje", tylko
 # konkretny jadący pociąg, więc nie pasuje do formularza zgłaszania incydentu.
-_INCIDENT_TYPES = {"line_failure", "speed_restriction", "signal_failure"}
+_INCIDENT_TYPES = {"line_failure", "speed_restriction", "signal_failure", "derailment"}
 
 
 @router.get("/api/events", response_model=EventsSnapshotResponse)
@@ -58,10 +58,14 @@ async def trigger_event(
 	return event
 
 
-def _create_incident_sync(driver: Driver, event_type: str, target_id: str) -> RailEventNode | None:
+def _create_incident_sync(
+	driver: Driver, event_type: str, target_id: str, duration_s: float | None = None
+) -> RailEventNode | None:
 	now = time.time()
 	with driver.session() as session:
-		event = event_service.create_event(session, event_type, now, target_id=target_id)
+		event = event_service.create_event(
+			session, event_type, now, target_id=target_id, duration_s=duration_s
+		)
 		# line_failure faktycznie blokuje odcinek (status='blocked') — bez tego
 		# pociągi już w drodze przez ten odcinek jechałyby dalej pełną prędkością,
 		# bo advance_train nie sprawdza statusu odcinka, po którym się porusza.
@@ -86,7 +90,9 @@ async def create_incident(
 		raise HTTPException(status_code=422, detail="Nieznany typ incydentu.")
 
 	async with request.app.state.sim_lock:
-		event = await asyncio.to_thread(_create_incident_sync, driver, payload.type, payload.targetId)
+		event = await asyncio.to_thread(
+			_create_incident_sync, driver, payload.type, payload.targetId, payload.durationS
+		)
 
 	if event is None:
 		raise HTTPException(

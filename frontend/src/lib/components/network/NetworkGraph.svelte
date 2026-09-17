@@ -320,6 +320,15 @@
     ): { x: number; y: number } | null {
         const current = positionById.get(train.currentStationId);
         if (!current) return null;
+        if ((train.status === 'derailed' || train.status === 'waiting') && train.nextStationId && train.currentSegmentId) {
+            const next = positionById.get(train.nextStationId);
+            if (next) {
+                return {
+                    x: current.x + (next.x - current.x) * train.progress,
+                    y: current.y + (next.y - current.y) * train.progress
+                };
+            }
+        }
         if (train.status !== 'running' || !train.nextStationId) return current;
         const next = positionById.get(train.nextStationId);
         if (!next) return current;

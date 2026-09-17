@@ -24,6 +24,7 @@
     let showCreateForm = false;
     let formType: RailEventType = 'line_failure';
     let formTargetId = '';
+    let formDurationS: number | null = null;
     let submitting = false;
     let formError = '';
 
@@ -93,6 +94,7 @@
         if (pickMode) onCancelPick();
         showCreateForm = !showCreateForm;
         formError = '';
+        formDurationS = null;
     }
 
     function pickModeForType(type: RailEventType): 'segment' | 'station' {
@@ -114,7 +116,12 @@
         submitting = true;
         formError = '';
         try {
-            const created = await createIncident(fetch, { type: formType, targetId: formTargetId });
+            const durationS = formDurationS && formDurationS > 0 ? Number(formDurationS) : undefined;
+            const created = await createIncident(fetch, {
+                type: formType,
+                targetId: formTargetId,
+                durationS
+            });
             showCreateForm = false;
             selectIncident(created);
         } catch (err) {
@@ -210,6 +217,17 @@
                         </button>
                     </div>
                 {/if}
+            </label>
+
+            <label class="field">
+                <span>{$t('incidents.form.duration')}</span>
+                <input
+                    type="number"
+                    min="1"
+                    max="86400"
+                    placeholder={$t('incidents.form.durationPlaceholder')}
+                    bind:value={formDurationS}
+                />
             </label>
 
             {#if formError}

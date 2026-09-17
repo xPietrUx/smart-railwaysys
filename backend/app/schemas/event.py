@@ -28,3 +28,4 @@ class IncidentCreateRequest(BaseModel):
 	# Zależnie od typu: id odcinka (line_failure/speed_restriction), pociągu
 	# (derailment) albo stacji (signal_failure) — wskazany wprost przez użytkownika.
 	targetId: str
+	durationS: float | None = None
