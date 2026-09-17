@@ -2,7 +2,7 @@
     import PublicNav from '$lib/components/site/PublicNav.svelte';
     import AuthCard from '$lib/components/site/AuthCard.svelte';
     import { t } from '$lib/i18n';
-    import { onMount } from 'svelte';
+    import { onMount, tick } from 'svelte';
     import { gsap } from 'gsap';
     import { ScrollTrigger } from 'gsap/ScrollTrigger';
     import type { PageData, ActionData } from './$types';
@@ -55,12 +55,22 @@
     let showAuthModal = false;
     let isClosingAuthModal = false;
     let authMode: 'login' | 'register' = 'login';
+    let triggerElement: HTMLElement | null = null;
+    let modalElement: HTMLElement | null = null;
 
-    function openAuthModal(mode: 'login' | 'register' = 'login', e?: Event) {
-        if (e) e.preventDefault();
+    async function openAuthModal(mode: 'login' | 'register' = 'login', e?: Event) {
+        if (e) {
+            e.preventDefault();
+            triggerElement = e.currentTarget as HTMLElement;
+        } else {
+            triggerElement = document.activeElement as HTMLElement;
+        }
         authMode = mode;
         isClosingAuthModal = false;
         showAuthModal = true;
+        await tick();
+        const closeBtn = modalElement?.querySelector<HTMLButtonElement>('.modal-close');
+        closeBtn?.focus();
     }
 
     function closeAuthModal() {
@@ -69,6 +79,7 @@
         setTimeout(() => {
             showAuthModal = false;
             isClosingAuthModal = false;
+            triggerElement?.focus();
         }, 250);
     }
 
@@ -76,8 +87,28 @@
         if (e.target === e.currentTarget) closeAuthModal();
     }
 
-    function handleKeydown(e: KeyboardEvent) {
-        if (e.key === 'Escape' && showAuthModal) closeAuthModal();
+    function handleModalKeydown(e: KeyboardEvent) {
+        if (e.key === 'Escape') {
+            e.stopPropagation();
+            closeAuthModal();
+            return;
+        }
+        if (e.key === 'Tab' && modalElement) {
+            const focusables = modalElement.querySelectorAll<HTMLElement>(
+                'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            );
+            if (!focusables.length) return;
+            const first = focusables[0];
+            const last = focusables[focusables.length - 1];
+
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
     }
 
     const expandRatio = 0.52;
@@ -123,6 +154,13 @@
         }
     }
 
+    function handlePanelKeydown(e: KeyboardEvent, index: number) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setActiveFeature(index);
+        }
+    }
+
     let openFaqIndex: number | null = null;
     let faqAnswerRefs: HTMLElement[] = [];
 
@@ -134,12 +172,17 @@
             gsap.to(faqAnswerRefs[prevIndex], { height: 0, opacity: 0, duration: 0.4, ease: 'power3.out' });
         }
         if (openFaqIndex !== null && faqAnswerRefs[openFaqIndex]) {
-            gsap.fromTo(faqAnswerRefs[openFaqIndex], { height: 0, opacity: 0 }, { height: 'auto', opacity: 1, duration: 0.5, ease: 'power3.out' });
+            gsap.fromTo(
+                faqAnswerRefs[openFaqIndex],
+                { height: 0, opacity: 0 },
+                { height: 'auto', opacity: 1, duration: 0.5, ease: 'power3.out' }
+            );
         }
     }
 
     let footerElement: HTMLElement;
     let scrollProgress = 0;
+    let isHeroVisible = false;
 
     let heroTrack: HTMLElement;
     let heroScreen: HTMLElement;
@@ -182,12 +225,14 @@
                 }
 
                 if (progress > 0.45) {
+                    isHeroVisible = true;
                     const textProgress = (progress - 0.45) / 0.55;
                     gsap.set(heroContent, {
                         opacity: Math.min(1, textProgress * 1.5),
                         y: (1 - textProgress) * 40
                     });
                 } else {
+                    isHeroVisible = false;
                     gsap.set(heroContent, { opacity: 0, y: 40 });
                 }
             }
@@ -237,8 +282,6 @@
     }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
-
 <svelte:head>
     <link
         rel="stylesheet"
@@ -248,26 +291,25 @@
 </svelte:head>
 
 <div class="landing">
-    <PublicNav authenticated={data.authenticated} on:openLogin={() => openAuthModal('login')} />
+    <PublicNav authenticated={data.authenticated} on:openLogin={(e) => openAuthModal('login', e)} />
 
     <div class="scroll-dot" style={`--scroll-progress: ${scrollProgress}`} aria-hidden="true"></div>
 
-    <main>
+    <main id="main-content" aria-hidden={showAuthModal}>
         <section class="hero-scroll-track" bind:this={heroTrack} aria-label={$t('landing.hero.aria')}>
             <div class="hero-sticky-screen" bind:this={heroScreen}>
-                <div class="hero-dot-scale-box" bind:this={heroScaleBox}>
+                <div class="hero-dot-scale-box" bind:this={heroScaleBox} aria-hidden="true">
                     <div class="hero-dot" bind:this={heroDot}></div>
                 </div>
 
-                <div class="hero-scroll-hint" bind:this={heroHint}>
+                <div class="hero-scroll-hint" bind:this={heroHint} aria-hidden="true">
                     <span>{$t('landing.hero.scrollHint')}</span>
-                    <span class="material-symbols-outlined hint-icon" aria-hidden="true">south</span>
+                    <span class="material-symbols-outlined hint-icon">south</span>
                 </div>
 
-                <div class="sim-content" bind:this={heroContent}>
+                <div class="sim-content" bind:this={heroContent} aria-hidden={!isHeroVisible}>
                     <p class="sim-eyebrow">{$t('landing.hero.eyebrow')}</p>
                     <h1 class="sim-title">{$t('landing.hero.title')}</h1>
-                    
                 </div>
             </div>
         </section>
@@ -278,7 +320,7 @@
             <div
                 class="accordion-gallery"
                 style={`gap: ${gap}px; height: ${height}px;`}
-                role="list"
+                role="region"
                 aria-label={$t('landing.features.aria')}
             >
                 {#each features as feature, i}
@@ -288,13 +330,14 @@
                         class:is-active={i === activeFeature}
                         on:mouseenter={() => setActiveFeature(i)}
                         on:focus={() => setActiveFeature(i)}
-                        role="listitem"
+                        on:keydown={(e) => handlePanelKeydown(e, i)}
+                        role="button"
                         tabindex="0"
-                        aria-current={i === activeFeature ? 'true' : undefined}
+                        aria-pressed={i === activeFeature}
                         aria-label={feature.title}
                     >
                         <div class="panel-content">
-                            <div class="panel-number">0{i + 1}</div>
+                            <div class="panel-number" aria-hidden="true">0{i + 1}</div>
                             <div bind:this={featureTextRefs[i]} class="label-content">
                                 <h3>{feature.title}</h3>
                                 <p>{feature.copy}</p>
@@ -310,11 +353,24 @@
             <div class="faq-list">
                 {#each faqItems as item, index}
                     <div class="faq-item" class:is-open={openFaqIndex === index}>
-                        <button class="faq-trigger" type="button" on:click={() => toggleFaq(index)} aria-expanded={openFaqIndex === index}>
+                        <button
+                            class="faq-trigger"
+                            type="button"
+                            on:click={() => toggleFaq(index)}
+                            aria-expanded={openFaqIndex === index}
+                            aria-controls={`faq-answer-${index}`}
+                            id={`faq-btn-${index}`}
+                        >
                             <span class="faq-question">{item.question}</span>
                             <span class="faq-icon" aria-hidden="true">+</span>
                         </button>
-                        <div bind:this={faqAnswerRefs[index]} class="faq-answer-wrapper">
+                        <div
+                            bind:this={faqAnswerRefs[index]}
+                            id={`faq-answer-${index}`}
+                            role="region"
+                            aria-labelledby={`faq-btn-${index}`}
+                            class="faq-answer-wrapper"
+                        >
                             <div class="faq-answer-inner">
                                 <p>{item.answer}</p>
                             </div>
@@ -328,22 +384,64 @@
             <p id="contact-heading" class="contact-eyebrow">{$t('landing.contact.heading')}</p>
             <form class="contact-form" on:submit={handleSubmitContact} novalidate>
                 <div class="form-group">
-                    <label for="name">{$t('landing.contact.name')}</label>
-                    <input type="text" id="name" bind:value={contactName} on:blur={() => (nameTouched = true)} placeholder={$t('landing.contact.namePlaceholder')} />
-                    {#if showNameError}<span class="field-error-msg" role="alert">{$t('landing.contact.nameError')}</span>{/if}
+                    <label for="contact-name">{$t('landing.contact.name')}</label>
+                    <input
+                        type="text"
+                        id="contact-name"
+                        bind:value={contactName}
+                        on:blur={() => (nameTouched = true)}
+                        placeholder={$t('landing.contact.namePlaceholder')}
+                        aria-invalid={showNameError ? 'true' : undefined}
+                        aria-describedby={showNameError ? 'name-error-msg' : undefined}
+                    />
+                    {#if showNameError}
+                        <span id="name-error-msg" class="field-error-msg" role="alert">
+                            {$t('landing.contact.nameError')}
+                        </span>
+                    {/if}
                 </div>
                 <div class="form-group">
-                    <label for="email">{$t('landing.contact.email')}</label>
-                    <input type="email" id="email" bind:value={contactEmail} on:blur={() => (emailTouched = true)} placeholder={$t('landing.contact.emailPlaceholder')} />
-                    {#if showEmailError}<span class="field-error-msg" role="alert">{$t('landing.contact.emailError')}</span>{/if}
+                    <label for="contact-email">{$t('landing.contact.email')}</label>
+                    <input
+                        type="email"
+                        id="contact-email"
+                        bind:value={contactEmail}
+                        on:blur={() => (emailTouched = true)}
+                        placeholder={$t('landing.contact.emailPlaceholder')}
+                        aria-invalid={showEmailError ? 'true' : undefined}
+                        aria-describedby={showEmailError ? 'email-error-msg' : undefined}
+                    />
+                    {#if showEmailError}
+                        <span id="email-error-msg" class="field-error-msg" role="alert">
+                            {$t('landing.contact.emailError')}
+                        </span>
+                    {/if}
                 </div>
                 <div class="form-group">
-                    <label for="message">{$t('landing.contact.message')}</label>
-                    <textarea id="message" rows="5" bind:value={contactMessage} on:blur={() => (messageTouched = true)} placeholder={$t('landing.contact.messagePlaceholder')}></textarea>
-                    {#if showMessageError}<span class="field-error-msg" role="alert">{$t('landing.contact.messageError')}</span>{/if}
+                    <label for="contact-message">{$t('landing.contact.message')}</label>
+                    <textarea
+                        id="contact-message"
+                        rows="5"
+                        bind:value={contactMessage}
+                        on:blur={() => (messageTouched = true)}
+                        placeholder={$t('landing.contact.messagePlaceholder')}
+                        aria-invalid={showMessageError ? 'true' : undefined}
+                        aria-describedby={showMessageError ? 'message-error-msg' : undefined}
+                    ></textarea>
+                    {#if showMessageError}
+                        <span id="message-error-msg" class="field-error-msg" role="alert">
+                            {$t('landing.contact.messageError')}
+                        </span>
+                    {/if}
                 </div>
                 <button type="submit" class="cta cta-primary submit-btn">
-                    <span>{formStatus === 'submitting' ? $t('landing.contact.sending') : formStatus === 'success' ? $t('landing.contact.success') : $t('landing.contact.send')}</span>
+                    <span>
+                        {formStatus === 'submitting'
+                            ? $t('landing.contact.sending')
+                            : formStatus === 'success'
+                              ? $t('landing.contact.success')
+                              : $t('landing.contact.send')}
+                    </span>
                 </button>
             </form>
         </section>
@@ -358,9 +456,26 @@
 
     {#if showAuthModal}
         <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-        <div class="modal-backdrop" class:is-closing={isClosingAuthModal} role="dialog" aria-modal="true" on:click={handleBackdropClick}>
+        <div
+            class="modal-backdrop"
+            class:is-closing={isClosingAuthModal}
+            role="dialog"
+            aria-modal="true"
+            aria-label={authMode === 'login' ? 'Logowanie' : 'Rejestracja'}
+            bind:this={modalElement}
+            on:click={handleBackdropClick}
+            on:keydown={handleModalKeydown}
+        >
             <div class="modal-card" class:is-closing={isClosingAuthModal}>
-                <button class="modal-close" type="button" on:click={closeAuthModal} aria-label={$t('landing.modal.close')}>✕</button>
+                <button
+                    class="modal-close"
+                    type="button"
+                    on:click={closeAuthModal}
+                    title={$t('landing.modal.close')}
+                    aria-label={$t('landing.modal.close')}
+                >
+                    <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                </button>
                 <AuthCard mode={authMode} error={form?.error} email={form?.email} />
             </div>
         </div>
@@ -383,12 +498,14 @@
         --sim-eyebrow-color: #6b7280;
         --cta-bg: #f4f1eb;
         --cta-color: #141414;
+        --focus-ring: rgba(255, 255, 255, 0.7);
+        --error-color: #de8489;
     }
 
     :global(html.light-mode),
     :global([data-theme='light']),
     :global(.light) {
-        --bg-main: #ffffff; 
+        --bg-main: #ffffff;
         --bg-panel: rgba(0, 0, 0, 0.03);
         --bg-faq: rgba(0, 0, 0, 0.03);
         --bg-input: #f4f5f6;
@@ -402,6 +519,8 @@
         --sim-eyebrow-color: #6b7280;
         --cta-bg: #111827;
         --cta-color: #ffffff;
+        --focus-ring: rgba(17, 24, 39, 0.7);
+        --error-color: #c95158;
     }
 
     :global(html) {
@@ -420,6 +539,22 @@
         font-weight: 300;
         overflow-x: hidden;
         transition: background-color 300ms ease, color 300ms ease;
+    }
+
+    button:focus,
+    input:focus,
+    textarea:focus,
+    .accordion-panel:focus {
+        outline: none;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    textarea:focus-visible,
+    a:focus-visible,
+    .accordion-panel:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
     }
 
     .landing {
@@ -547,17 +682,6 @@
         transition: color 300ms ease;
     }
 
-    .sim-description {
-        margin: 0 auto;
-        font-size: clamp(0.95rem, 1.8vw, 1.15rem);
-        font-weight: 300;
-        line-height: 1.65;
-        color: var(--sim-desc-color);
-        max-width: 68ch;
-        transition: color 300ms ease;
-    }
-
-    /* FUNKCJE */
     .features {
         padding: 80px clamp(24px, 8vw, 120px) 110px;
         background: var(--bg-main);
@@ -595,7 +719,6 @@
         overflow: hidden;
         background: var(--bg-panel);
         border-radius: 14px;
-        outline: none;
         transform-style: preserve-3d;
         transform-origin: center;
         will-change: flex-grow, transform;
@@ -643,7 +766,6 @@
         max-width: 40ch;
     }
 
-    /* FAQ */
     .faq {
         padding: 90px clamp(24px, 8vw, 120px);
         background: var(--bg-main);
@@ -685,6 +807,7 @@
         color: var(--text-main);
         font-size: 0.95rem;
         cursor: pointer;
+        border-radius: 12px;
     }
 
     .faq-icon {
@@ -714,7 +837,6 @@
         font-size: 0.88rem;
     }
 
-    /* KONTAKT */
     .contact {
         padding: 90px clamp(24px, 8vw, 120px);
         background: var(--bg-main);
@@ -756,14 +878,24 @@
         width: 100%;
         padding: 12px 16px;
         border-radius: 8px;
-        border: 0;
+        border: 1px solid transparent;
         background: var(--bg-input);
         color: var(--text-main);
         font-family: inherit;
         font-size: 0.9rem;
         box-sizing: border-box;
-        outline: none;
-        transition: background-color 300ms ease, color 300ms ease;
+        transition: background-color 300ms ease, color 300ms ease, border-color 300ms ease;
+    }
+
+    .form-group input[aria-invalid='true'],
+    .form-group textarea[aria-invalid='true'] {
+        border-color: var(--error-color);
+    }
+
+    .field-error-msg {
+        font-size: 0.74rem;
+        color: var(--error-color);
+        letter-spacing: 0.02em;
     }
 
     .cta {
@@ -777,12 +909,16 @@
         text-transform: uppercase;
         letter-spacing: 0.08em;
         cursor: pointer;
-        transition: background-color 300ms ease, color 300ms ease;
+        transition: background-color 300ms ease, color 300ms ease, opacity 150ms ease;
     }
 
     .cta-primary {
         background: var(--cta-bg);
         color: var(--cta-color);
+    }
+
+    .cta-primary:hover {
+        opacity: 0.9;
     }
 
     footer {
@@ -801,10 +937,12 @@
         gap: 20px;
     }
 
-    .copyright, .footer-link {
+    .copyright,
+    .footer-link {
         color: var(--text-muted);
         font-size: 0.8rem;
         text-decoration: none;
+        border-radius: 4px;
     }
 
     .modal-backdrop {
@@ -812,6 +950,7 @@
         inset: 0;
         z-index: 200;
         background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(4px);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -832,7 +971,34 @@
         background: none;
         border: 0;
         color: var(--text-muted);
-        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
         cursor: pointer;
+        padding: 0;
+        transition: color 150ms ease, background-color 150ms ease;
+    }
+
+    .modal-close:hover {
+        color: var(--text-main);
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .material-symbols-outlined {
+        font-family: 'Material Symbols Outlined' !important;
+        font-weight: normal;
+        font-style: normal;
+        font-size: 20px;
+        line-height: 1;
+        display: inline-block;
+        white-space: nowrap;
+        direction: ltr;
+        -webkit-font-smoothing: antialiased;
+        font-feature-settings: 'liga';
+        font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        user-select: none;
     }
 </style>

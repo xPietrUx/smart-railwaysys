@@ -1,6 +1,5 @@
 <script lang="ts">
     import { onDestroy, onMount } from 'svelte';
-    import SimulationSkeleton from '$lib/components/network/SimulationSkeleton.svelte';
     import DetailsPanel from '$lib/components/network/DetailsPanel.svelte';
     import IncidentFeed from '$lib/components/network/IncidentFeed.svelte';
     import MapSearch from '$lib/components/network/MapSearch.svelte';
@@ -41,6 +40,9 @@
 
     let isFullscreen = false;
 
+    let showLeftDock = true;
+    let showRightDock = true;
+
     let editorOpen = false;
     let editorScenario: Scenario | null = null;
     let scenariosRefreshKey = 0;
@@ -64,8 +66,6 @@
         ...data.graph,
         segments: applyEventsToSegments(data.graph.segments, $snapshot.events)
     };
-
-    $: isReady = Boolean($snapshot && data.graph?.stations?.length > 0);
 
     function handleWindowKeydown(event: KeyboardEvent) {
         if (event.key === 'Escape') {
@@ -96,12 +96,108 @@
 
 <svelte:window on:keydown={handleWindowKeydown} />
 
-{#if !isReady}
-    <SimulationSkeleton />
-{/if}
+<main class="stage" class:fullscreen-mode={isFullscreen}>
+    <!-- 1. Najwyższy priorytet w tabulacji: Nagłówek i wyszukiwarka -->
+    {#if !isFullscreen}
+        <header class="top-region" aria-label="Nawigacja i sterowanie symulacją">
+            <div class="topbar-wrapper">
+                <SimulationHeader
+                    snapshot={$snapshot}
+                    status={$status}
+                    apiBaseUrl={data.apiBaseUrl}
+                    bind:highlight
+                    user={data.user}
+                    readOnly={!canControl}
+                />
+            </div>
+            <div class="search-wrapper">
+                <MapSearch
+                    graph={liveGraph}
+                    trains={$snapshot.trains}
+                    events={$snapshot.events}
+                    onSelect={handleMapSelect}
+                />
+            </div>
+        </header>
 
-<main class="stage" class:fullscreen-mode={isFullscreen} class:app-ready={isReady}>
-    <div class="map-layer">
+        <!-- 2. Drugi priorytet: Lewy Dok (Zdarzenia) -->
+        <aside class="dock dock-left" class:collapsed={!showLeftDock} aria-label="Panel zdarzeń">
+            {#if showLeftDock}
+                <div class="dock-wrapper">
+                    <button
+                        type="button"
+                        class="dock-close-btn"
+                        on:click={() => (showLeftDock = false)}
+                        title="Zwiń zdarzenia"
+                        aria-label="Zwiń zdarzenia"
+                    >
+                        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                    </button>
+                    <div class="dock-content">
+                        <IncidentFeed events={$snapshot.events} onSelect={handleMapSelect} />
+                    </div>
+                </div>
+            {:else}
+                <button
+                    type="button"
+                    class="dock-collapsed-btn"
+                    on:click={() => (showLeftDock = true)}
+                    title="Pokaż zdarzenia"
+                    aria-label="Pokaż zdarzenia"
+                >
+                    <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+                </button>
+            {/if}
+        </aside>
+
+        <!-- 3. Trzeci priorytet: Prawy Dok (Dyspozytura i szczegóły) -->
+        <aside class="dock dock-right" class:collapsed={!showRightDock} aria-label="Panel dyspozytorski">
+            {#if showRightDock}
+                <div class="dock-wrapper">
+                    <button
+                        type="button"
+                        class="dock-close-btn"
+                        on:click={() => (showRightDock = false)}
+                        title="Zwiń dyspozyturę"
+                        aria-label="Zwiń dyspozyturę"
+                    >
+                        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                    </button>
+                    <div class="dock-content">
+                        {#if selected}
+                            <DetailsPanel
+                                graph={liveGraph}
+                                trains={$snapshot.trains}
+                                events={$snapshot.events}
+                                bind:selected
+                            />
+                        {/if}
+                        <TimetablePanel
+                            apiBaseUrl={data.apiBaseUrl}
+                            scenario={$snapshot.scenario}
+                            refreshKey={scenariosRefreshKey}
+                            onDetails={openScenarioDetails}
+                            onCreate={openScenarioCreate}
+                            readOnly={!canManageTimetable}
+                        />
+                    </div>
+                </div>
+            {:else}
+                <button
+                    type="button"
+                    class="dock-collapsed-btn"
+                    on:click={() => (showRightDock = true)}
+                    title="Pokaż dyspozyturę"
+                    aria-label="Pokaż dyspozyturę"
+                >
+                    <span class="material-symbols-outlined" aria-hidden="true">tune</span>
+                </button>
+            {/if}
+        </aside>
+    {/if}
+
+    <!-- 4. Czwarty priorytet: Mapa, kontrolki widoku oraz sterowanie prędkością -->
+    <section class="map-layer" aria-label="Mapa sieci kolejowej">
         <NetworkGraph
             bind:this={mapComponent}
             graph={liveGraph}
@@ -112,58 +208,15 @@
             {isFullscreen}
             on:toggleFullscreen={() => (isFullscreen = !isFullscreen)}
         />
+
         {#if !isFullscreen}
             <div class="speed-corner">
                 <SimSpeedControl snapshot={$snapshot} apiBaseUrl={data.apiBaseUrl} readOnly={!canControl} />
             </div>
         {/if}
-    </div>
+    </section>
 
-    {#if !isFullscreen}
-        <div class="topbar">
-            <SimulationHeader
-                snapshot={$snapshot}
-                status={$status}
-                apiBaseUrl={data.apiBaseUrl}
-                bind:highlight
-                user={data.user}
-                readOnly={!canControl}
-            />
-        </div>
-
-        <div class="search-layer">
-            <MapSearch
-                graph={liveGraph}
-                trains={$snapshot.trains}
-                events={$snapshot.events}
-                onSelect={handleMapSelect}
-            />
-        </div>
-    {/if}
-
-    <aside class="dock dock-left" class:hidden={isFullscreen}>
-        <IncidentFeed events={$snapshot.events} onSelect={handleMapSelect} />
-    </aside>
-
-    <aside class="dock dock-right" class:hidden={isFullscreen}>
-        {#if selected}
-            <DetailsPanel
-                graph={liveGraph}
-                trains={$snapshot.trains}
-                events={$snapshot.events}
-                bind:selected
-            />
-        {/if}
-        <TimetablePanel
-            apiBaseUrl={data.apiBaseUrl}
-            scenario={$snapshot.scenario}
-            refreshKey={scenariosRefreshKey}
-            onDetails={openScenarioDetails}
-            onCreate={openScenarioCreate}
-            readOnly={!canManageTimetable}
-        />
-    </aside>
-
+    <!-- Modal edycji scenariusza rozkładu jazdy -->
     {#if editorOpen}
         <TimetableEditorModal
             apiBaseUrl={data.apiBaseUrl}
@@ -178,39 +231,30 @@
     :global(html),
     :global(body) {
         height: 100%;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
     }
 
     :global(body) {
-        margin: 0;
         font-family: 'Inter Variable', Inter, sans-serif;
         background: #141414;
         color: #f5f7f8;
         font-weight: 300;
-        transition: background-color 200ms ease, color 200ms ease;
-    }
-
-    :global(html.light-mode) body,
-    :global([data-theme='light']) body,
-    :global(.light) body {
-        background: #f4f5f3;
-        color: #1f2933;
+        overflow: hidden;
     }
 
     .stage {
         position: relative;
+        width: 100vw;
         height: 100dvh;
         overflow: hidden;
-        opacity: 0;
-        transition: opacity 250ms ease;
-    }
-
-    .stage.app-ready {
-        opacity: 1;
     }
 
     .map-layer {
         position: absolute;
         inset: 0;
+        z-index: 1;
     }
 
     .speed-corner {
@@ -220,49 +264,67 @@
         z-index: 15;
     }
 
-    .search-layer {
+    /* Górny obszar sterowania */
+    .top-region {
         position: absolute;
-        top: 86px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 18;
-    }
-
-    .topbar {
-        position: absolute;
-        top: 0;
+        top: 14px;
         left: 0;
         right: 0;
+        z-index: 25;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        pointer-events: none;
+        padding: 0 16px;
+    }
+
+    .topbar-wrapper {
+        width: 100%;
+        max-width: 1440px;
+        pointer-events: auto;
+    }
+
+    .search-wrapper {
+        pointer-events: auto;
+    }
+
+    /* Doki boczne */
+    .dock {
+        position: absolute;
+        top: 130px;
+        bottom: 24px;
         z-index: 20;
+        width: clamp(280px, 23vw, 340px);
         pointer-events: none;
     }
 
-    .dock {
-        position: absolute;
-        top: 80px;
-        bottom: 24px;
-        z-index: 10;
-        width: min(320px, 86vw);
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
-        pointer-events: none;
-        transition: opacity 200ms ease, transform 200ms ease;
+    .dock-left {
+        left: 20px;
+        bottom: 120px;
     }
 
     .dock-right {
-        right: 24px;
-        width: min(400px, 90vw);
+        right: 20px;
     }
 
-    .dock.hidden {
-        opacity: 0;
+    .dock-wrapper {
+        position: relative;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .dock-content {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        flex: 1;
+        min-height: 0;
         pointer-events: none;
-        transform: scale(0.98);
     }
 
-    .dock > :global(*) {
+    .dock-content > :global(*) {
         pointer-events: auto;
         max-height: 100%;
         overflow-y: auto;
@@ -270,107 +332,165 @@
         min-height: 0;
     }
 
-    .dock > :global(*)::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
+    /* Przycisk zamknięcia doku */
+    .dock-close-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 0;
+        background: rgba(255, 255, 255, 0.08);
+        color: #97a5ad;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        box-shadow: none !important;
+        pointer-events: auto;
+        transition: background-color 150ms ease, color 150ms ease;
     }
 
-    .dock > :global(*)::-webkit-scrollbar-track {
-        background: transparent;
+    .dock-close-btn:focus-visible,
+    .dock-collapsed-btn:focus-visible {
+        outline: 2px solid rgba(255, 255, 255, 0.7);
+        outline-offset: 2px;
     }
 
-    .dock > :global(*)::-webkit-scrollbar-thumb {
-        background: rgba(245, 247, 248, 0.25);
-        border-radius: 999px;
+    :global(html.light-mode) .dock-close-btn {
+        background: rgba(0, 0, 0, 0.06);
+        color: #52606a;
     }
 
-    :global(html.light-mode) .dock > :global(*)::-webkit-scrollbar-thumb,
-    :global([data-theme='light']) .dock > :global(*)::-webkit-scrollbar-thumb,
-    :global(.light) .dock > :global(*)::-webkit-scrollbar-thumb {
-        background: rgba(0, 0, 0, 0.2);
+    :global(html.light-mode) .dock-close-btn:focus-visible,
+    :global(html.light-mode) .dock-collapsed-btn:focus-visible {
+        outline-color: rgba(17, 24, 39, 0.7);
     }
 
-    .dock > :global(*)::-webkit-scrollbar-thumb:hover {
-        background: rgba(245, 247, 248, 0.45);
+    .dock-close-btn:hover {
+        background: rgba(255, 255, 255, 0.16);
+        color: #ffffff;
     }
 
-    :global(html.light-mode) .dock > :global(*)::-webkit-scrollbar-thumb:hover,
-    :global([data-theme='light']) .dock > :global(*)::-webkit-scrollbar-thumb:hover,
-    :global(.light) .dock > :global(*)::-webkit-scrollbar-thumb:hover {
-        background: rgba(0, 0, 0, 0.35);
+    :global(html.light-mode) .dock-close-btn:hover {
+        background: rgba(0, 0, 0, 0.12);
+        color: #111827;
     }
 
-    .dock-left {
-        left: 24px;
-        bottom: 24px;
+    .dock-close-btn .material-symbols-outlined {
+        font-size: 15px;
+        line-height: 1;
     }
 
-    @media (max-width: 1400px) {
+    /* Zwinięty dok */
+    .dock.collapsed {
+        width: 38px;
+        height: 38px;
+        bottom: auto;
+    }
+
+    .dock-collapsed-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        border: 0;
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        color: #f5f7f8;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        box-shadow: none !important;
+        pointer-events: auto;
+        transition: background-color 150ms ease, color 150ms ease;
+    }
+
+    :global(html.light-mode) .dock-collapsed-btn {
+        background: rgba(0, 0, 0, 0.05);
+        color: #111827;
+        box-shadow: none !important;
+    }
+
+    .dock-collapsed-btn:hover {
+        background: rgba(255, 255, 255, 0.14);
+        color: #ffffff;
+    }
+
+    :global(html.light-mode) .dock-collapsed-btn:hover {
+        background: rgba(0, 0, 0, 0.1);
+        color: #111827;
+    }
+
+    .dock-collapsed-btn .material-symbols-outlined {
+        font-size: 18px;
+        font-weight: 200;
+        line-height: 1;
+        user-select: none;
+    }
+
+    @media (max-width: 1300px) {
         .dock {
-            top: 86px;
-        }
-
-        .search-layer {
-            top: 96px;
+            top: 140px;
+            width: clamp(260px, 24vw, 300px);
         }
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 1080px) {
+        .dock {
+            top: 145px;
+            width: 280px;
+        }
+
+        .dock-left {
+            bottom: 110px;
+        }
+    }
+
+    @media (max-width: 820px) {
         .stage {
+            overflow-y: auto;
             height: auto;
             min-height: 100dvh;
-            overflow: visible;
             display: flex;
             flex-direction: column;
-            gap: 12px;
             padding: 12px;
+            gap: 12px;
             box-sizing: border-box;
+        }
+
+        .top-region {
+            position: static;
+            padding: 0;
+            pointer-events: auto;
         }
 
         .map-layer {
             position: relative;
-            inset: auto;
-            height: 60vh;
-            border-radius: 14px;
+            height: 55vh;
+            border-radius: 12px;
             overflow: hidden;
             order: 2;
         }
 
-        .topbar {
-            position: static;
-            pointer-events: auto;
-            order: 1;
-        }
-
-        .search-layer {
-            position: static;
-            transform: none;
-            align-self: center;
-            order: 1;
-        }
-
         .dock {
             position: static;
-            width: auto;
+            width: 100%;
             pointer-events: auto;
-        }
-
-        .dock-right {
-            width: auto;
-            order: 3;
         }
 
         .dock-left {
+            order: 3;
+            bottom: auto;
+        }
+
+        .dock-right {
             order: 4;
-        }
-
-        .dock.hidden {
-            display: none;
-        }
-
-        .dock > :global(*) {
-            max-height: none;
-            overflow-y: visible;
         }
     }
 </style>

@@ -77,7 +77,6 @@
             type="button"
             class="switch-mode-btn"
             on:click={toggleMode}
-            tabindex="0"
         >
             {register ? 'ZALOGUJ SIĘ' : 'ZAREJESTRUJ SIĘ'}
         </button>
@@ -93,7 +92,7 @@
     <form
         bind:this={formElement}
         method="POST"
-        action={register ? '/rejestracja?/register' : '/login?/login'}
+        action={register ? '?/register' : '?/login'}
         on:submit={handleSubmit}
         novalidate
         aria-busy={formStatus === 'submitting'}
@@ -118,7 +117,6 @@
                     aria-invalid={showEmailError}
                     aria-describedby={showEmailError ? 'email-error' : undefined}
                     required
-                    tabindex="0"
                 />
                 {#if emailTouched && isEmailValid}
                     <span class="material-symbols-outlined input-feedback ok" aria-hidden="true">check</span>
@@ -151,7 +149,6 @@
                     aria-invalid={showPasswordError}
                     aria-describedby={showPasswordError ? 'password-error' : undefined}
                     required
-                    tabindex="0"
                 />
                 {#if passwordTouched && isPasswordValid}
                     <span class="material-symbols-outlined input-feedback ok" aria-hidden="true">check</span>
@@ -186,7 +183,6 @@
                         aria-invalid={showConfirmError}
                         aria-describedby={showConfirmError ? 'confirm-error' : undefined}
                         required
-                        tabindex="0"
                     />
                     {#if confirmTouched && isConfirmValid && passwordConfirm.length >= 8}
                         <span class="material-symbols-outlined input-feedback ok" aria-hidden="true">check</span>
@@ -207,7 +203,6 @@
                 class:is-success={formStatus === 'success'}
                 type="submit"
                 disabled={formStatus !== 'idle'}
-                tabindex="0"
             >
                 {#if formStatus === 'submitting'}
                     <span class="loading-spinner" aria-hidden="true"></span>
@@ -225,7 +220,6 @@
                 type="button"
                 on:click={handleGuestSubmit}
                 disabled={formStatus !== 'idle'}
-                tabindex="0"
             >
                 KONTYNUUJ<br />JAKO GOŚĆ
             </button>
@@ -258,11 +252,10 @@
         background: #141414;
         border: 0;
         border-radius: 16px;
-        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
         text-align: center;
         font-family: 'Inter Variable', Inter, sans-serif;
         color: #f5f7f8;
-        transition: background-color 200ms ease, box-shadow 200ms ease, color 200ms ease;
+        transition: background-color 200ms ease, color 200ms ease;
     }
 
     :global(html.light-mode) .card,
@@ -270,7 +263,6 @@
     :global(.light) .card {
         background: #ffffff;
         color: #111827;
-        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.08);
     }
 
     .card h1 {
@@ -336,7 +328,6 @@
         outline-color: rgba(17, 24, 39, 0.6);
     }
 
-    /* Błąd globalny */
     .global-err {
         display: flex;
         align-items: center;
@@ -409,7 +400,7 @@
         letter-spacing: 0.02em;
         box-sizing: border-box;
         outline: none;
-        transition: background-color 150ms ease, box-shadow 150ms ease;
+        transition: background-color 150ms ease;
     }
 
     :global(html.light-mode) .form-group input,
@@ -429,27 +420,22 @@
     }
 
     .form-group input:focus-visible {
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+        outline: 2px solid rgba(255, 255, 255, 0.6);
+        outline-offset: 1px;
     }
 
     :global(html.light-mode) .form-group input:focus-visible {
-        box-shadow: inset 0 0 0 1px rgba(17, 24, 39, 0.4);
+        outline-color: rgba(17, 24, 39, 0.6);
     }
 
     .form-group input.is-invalid {
         background: rgba(222, 132, 137, 0.12) !important;
-        box-shadow: inset 0 0 0 1px rgba(222, 132, 137, 0.5) !important;
         color: #de8489;
     }
 
     :global(html.light-mode) .form-group input.is-invalid {
         background: rgba(201, 81, 88, 0.08) !important;
-        box-shadow: inset 0 0 0 1px rgba(201, 81, 88, 0.5) !important;
         color: #c95158;
-    }
-
-    .form-group input.is-valid {
-        box-shadow: inset 0 0 0 1px rgba(108, 176, 159, 0.35);
     }
 
     .form-group input:disabled {
@@ -504,7 +490,7 @@
         font-weight: 400;
         font-size: 0.72rem;
         cursor: pointer;
-        transition: opacity 150ms ease, transform 120ms ease, background-color 200ms ease;
+        transition: opacity 150ms ease;
     }
 
     :global(html.light-mode) .submit-btn,
@@ -516,12 +502,6 @@
 
     .submit-btn:hover:not(:disabled) {
         opacity: 0.85;
-        transform: translateY(-1px);
-    }
-
-    .submit-btn:active:not(:disabled) {
-        transform: translateY(0);
-        opacity: 0.7;
     }
 
     .submit-btn:focus-visible {
@@ -562,11 +542,6 @@
         animation: spin 550ms linear infinite;
     }
 
-    :global(html.light-mode) .loading-spinner {
-        border-color: rgba(255, 255, 255, 0.3);
-        border-top-color: currentColor;
-    }
-
     @keyframes spin {
         to {
             transform: rotate(360deg);
@@ -586,17 +561,17 @@
         text-transform: uppercase;
         cursor: pointer;
         text-align: left;
-        transition: color 150ms ease, background-color 150ms ease;
+        transition: color 150ms ease;
     }
 
     .guest-btn:hover:not(:disabled) {
         color: #f5f7f8;
-        background: rgba(255, 255, 255, 0.04);
     }
 
-    :global(html.light-mode) .guest-btn:hover:not(:disabled) {
+    :global(html.light-mode) .guest-btn:hover:not(:disabled),
+    :global([data-theme='light']) .guest-btn:hover:not(:disabled),
+    :global(.light) .guest-btn:hover:not(:disabled) {
         color: #111827;
-        background: rgba(0, 0, 0, 0.04);
     }
 
     .guest-btn:focus-visible {

@@ -13,6 +13,8 @@
     import type { HighlightFilter, Selected } from '$lib/types/selection';
     import type { TrainNode } from '$lib/types/train';
 
+    type SegmentItem = NetworkGraph['segments'][number];
+
     export let graph: NetworkGraph;
     export let trains: TrainNode[] = [];
     export let events: RailEventNode[] = [];
@@ -22,18 +24,21 @@
 
     const dispatch = createEventDispatcher<{ toggleFullscreen: void }>();
 
+    let containerWidth = 1000;
+    let containerHeight = 740;
+
     const padding = 56;
-    const graphWidth = 1000;
-    const graphHeight = 740;
-    const plotWidth = graphWidth - padding * 2;
-    const plotHeight = graphHeight - padding * 2;
+    $: graphWidth = Math.max(containerWidth, 600);
+    $: graphHeight = Math.max(containerHeight, 400);
+    $: plotWidth = graphWidth - padding * 2;
+    $: plotHeight = graphHeight - padding * 2;
 
     const MAX_ZOOM = 8;
     const MIN_ZOOM = 0.5;
-    const ASPECT = graphHeight / graphWidth;
+    $: ASPECT = graphHeight / graphWidth;
     const PAN_MARGIN_RATIO = 0.35;
 
-    let view = { x: 0, y: 0, w: graphWidth, h: graphHeight };
+    let view = { x: 0, y: 0, w: 1000, h: 740 };
     let svgEl: SVGSVGElement;
     let pointerActive = false;
     let wasDragged = false;
@@ -254,16 +259,33 @@
         }
     }
 
-    function segmentColor(state: DirectionalState): string {
-        if (state.status === 'blocked') return 'var(--color-blocked, #de8489)';
-        if (state.status === 'restricted') return 'var(--color-restricted, #f0c29a)';
-        return 'var(--track-base, #262a30)';
+    function getSegmentStatus(segment: SegmentItem, activeEvents: RailEventNode[]): 'blocked' | 'restricted' | 'ok' {
+        const hasBlockedEvent = activeEvents.some(
+            (e) =>
+                e.status === 'active' &&
+                e.segmentId === segment.segmentId &&
+                (e.severity === 'major' || e.type === 'line_failure')
+        );
+        if (hasBlockedEvent) return 'blocked';
+
+        const hasRestrictedEvent = activeEvents.some(
+            (e) => e.status === 'active' && e.segmentId === segment.segmentId
+        );
+        if (hasRestrictedEvent) return 'restricted';
+
+        if (segment.forward?.status === 'blocked' || segment.backward?.status === 'blocked') {
+            return 'blocked';
+        }
+        if (segment.forward?.status === 'restricted' || segment.backward?.status === 'restricted') {
+            return 'restricted';
+        }
+        return 'ok';
     }
 
-    function segmentDashArray(state: DirectionalState): string | undefined {
-        if (state.status === 'blocked') return '7,5';
-        if (state.status === 'restricted') return '1,4';
-        return undefined;
+    function segmentColor(status: 'blocked' | 'restricted' | 'ok'): string {
+        if (status === 'blocked') return 'var(--color-blocked, #de8489)';
+        if (status === 'restricted') return 'var(--color-restricted, #f0c29a)';
+        return 'var(--track-base, #38404a)';
     }
 
     function trainRadius(train: TrainNode) {
@@ -383,8 +405,8 @@
 
     const MATERIAL_EVENT_ICONS: Record<string, string> = {
         signal_failure: 'electric_bolt',
-        derailment: 'warning',
-        track_blockage: 'do_not_disturb_on',
+        line_failure: 'warning',
+        speed_restriction: 'slow_motion_video',
         default: 'error'
     };
 
@@ -406,9 +428,7 @@
     function pickIncident(badge: IncidentBadge) {
         if (wasDragged) return;
         const { event } = badge;
-        if (event.type === 'derailment' && event.trainId) {
-            selected = { kind: 'train', id: event.trainId };
-        } else if (event.stationId) {
+        if (event.stationId) {
             selected = { kind: 'station', id: event.stationId };
         } else if (event.segmentId) {
             selected = { kind: 'segment', id: event.segmentId };
@@ -423,7 +443,12 @@
     />
 </svelte:head>
 
-<div class="map-root" class:fullscreen={isFullscreen}>
+<div
+    class="map-root"
+    class:fullscreen={isFullscreen}
+    bind:clientWidth={containerWidth}
+    bind:clientHeight={containerHeight}
+>
     {#if stations.length > 0 && bounds}
         <!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
         <svg
@@ -433,7 +458,7 @@
             class:panning={pointerActive && wasDragged}
             class:names-hidden={zoom < 1.35}
             role="application"
-            tabindex="0"
+            tabindex="-1"
             aria-label={$t('map.aria')}
             on:wheel|nonpassive={handleWheel}
             on:dblclick={handleDblClick}
@@ -460,19 +485,14 @@
                 {@const isSelected = selectedSegmentId === segment.segmentId}
                 {@const onTrainRoute =
                     selectedKind === 'train' && selectedTrainRouteSegments.has(segment.segmentId)}
-                {@const hasIncident =
-                    segment.forward.activeEventId !== null || segment.backward.activeEventId !== null}
+                {@const status = getSegmentStatus(segment, events)}
+                {@const hasIncident = status !== 'ok'}
                 {@const dimmed =
                     (selectedKind === 'station' &&
                         !selectedStationIds.has(segment.source) &&
                         !selectedStationIds.has(segment.target)) ||
                     (selectedKind === 'train' && !onTrainRoute) ||
                     (highlight?.kind === 'incidents' && !hasIncident)}
-                {@const label = $t('map.segmentAria', {
-                    id: segment.segmentId,
-                    from: stationById.get(segment.source)?.name ?? segment.source,
-                    to: stationById.get(segment.target)?.name ?? segment.target
-                })}
                 {#if source && target}
                     <line
                         class="track"
@@ -480,13 +500,13 @@
                         y1={source.y}
                         x2={target.x}
                         y2={target.y}
-                        stroke={isSelected ? 'var(--track-selected, #ffffff)' : segmentColor(segment.forward)}
-                        stroke-width={isSelected ? 5 : onTrainRoute ? 4.5 : 3.5}
-                        stroke-dasharray={segmentDashArray(segment.forward)}
+                        stroke={isSelected ? 'var(--track-selected, #ffffff)' : segmentColor(status)}
+                        stroke-width={isSelected ? 6.5 : onTrainRoute ? 5.5 : 4.8}
                         stroke-linecap="round"
                         vector-effect="non-scaling-stroke"
-                        opacity={dimmed ? 0.15 : 0.85}
+                        opacity={dimmed ? 0.2 : 0.95}
                     />
+                    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
                     <line
                         class="hit-line"
                         x1={source.x}
@@ -494,12 +514,8 @@
                         x2={target.x}
                         y2={target.y}
                         stroke="transparent"
-                        stroke-width="14"
+                        stroke-width="16"
                         on:click={() => pickSegment(segment.segmentId)}
-                        role="button"
-                        tabindex="0"
-                        aria-label={label}
-                        on:keydown={(event) => handleKeydown(event, () => pickSegment(segment.segmentId))}
                     />
                 {/if}
             {/each}
@@ -518,7 +534,7 @@
                     (highlight?.kind === 'incidents' && !hasSignalFailure)}
                 {#if point}
                     <g
-                        class="station"
+                        class="station focus-target"
                         transform={`translate(${point.x}, ${point.y})`}
                         class:selected={isStationSelected}
                         class:dimmed
@@ -534,7 +550,7 @@
                                 <circle
                                     r={stationRadius(station) + 7}
                                     stroke="var(--color-restricted, #f0c29a)"
-                                    stroke-width="2"
+                                    stroke-width="2.5"
                                     fill="none"
                                     class="signal-ring"
                                 />
@@ -542,7 +558,7 @@
                             {#if isTrainTarget}
                                 <circle
                                     r={stationRadius(station) + 9}
-                                    stroke="var(--target-ring, #87979f)"
+                                    stroke="var(--target-ring, #97a5ad)"
                                     stroke-width="2"
                                     stroke-dasharray="4,4"
                                     fill="none"
@@ -607,7 +623,7 @@
                 {#if pos}
                     <g
                         transform={`translate(${pos.x}, ${pos.y})`}
-                        class="train-marker"
+                        class="train-marker focus-target"
                         class:running={train.status === 'running'}
                         class:derailed={train.status === 'derailed'}
                         class:selected={isTrainSelected}
@@ -656,7 +672,7 @@
 
             {#each incidentBadges as badge (badge.event.id)}
                 <g
-                    class="incident-badge severity-{badge.event.severity}"
+                    class="incident-badge severity-{badge.event.severity} focus-target"
                     transform={`translate(${badge.x}, ${badge.y}) scale(${markerScale})`}
                     on:click={() => pickIncident(badge)}
                     role="button"
@@ -682,6 +698,7 @@
             {/each}
         </svg>
 
+        <!-- Kontrolki widoku mapy (zoom / reset / pełny ekran) -->
         <div class="zoom-controls">
             <button
                 type="button"
@@ -751,13 +768,13 @@
 <style>
     .map-root {
         --map-bg: #141414;
-        --track-base: #262a30;
+        --track-base: #38404a;
         --track-selected: #ffffff;
         --station-code: #f5f7f8;
-        --station-name: #87979f;
+        --station-name: #97a5ad;
         --hub-fill: #f5f7f8;
         --selection-ring-stroke: #f5f7f8;
-        --target-ring: #87979f;
+        --target-ring: #97a5ad;
         --train-base: #f5f7f8;
         --train-label: #f5f7f8;
         --train-warning-text: #141414;
@@ -767,15 +784,15 @@
         --ctrl-bg: rgba(255, 255, 255, 0.08);
         --ctrl-bg-hover: rgba(255, 255, 255, 0.14);
         --ctrl-color: #f5f7f8;
-        --ctrl-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+        --ctrl-shadow: none;
         --legend-bg: rgba(20, 20, 20, 0.92);
         --legend-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-        --legend-text: #87979f;
-        --legend-hint: #55626b;
+        --legend-text: #97a5ad;
+        --legend-hint: #64748b;
         --legend-divider: rgba(255, 255, 255, 0.08);
         --focus-ring: rgba(255, 255, 255, 0.65);
-        --badge-major-bg: rgba(222, 132, 137, 0.25);
-        --badge-minor-bg: rgba(240, 194, 154, 0.25);
+        --badge-major-bg: rgba(222, 132, 137, 0.22);
+        --badge-minor-bg: rgba(240, 194, 154, 0.22);
 
         position: relative;
         width: 100%;
@@ -789,31 +806,31 @@
     :global([data-theme='light']) .map-root,
     :global(.light) .map-root {
         --map-bg: #f4f5f3;
-        --track-base: #d1d5db;
+        --track-base: #b4bec9;
         --track-selected: #111827;
         --station-code: #111827;
         --station-name: #52606a;
         --hub-fill: #111827;
         --selection-ring-stroke: #111827;
-        --target-ring: #8c9ba5;
+        --target-ring: #6b7280;
         --train-base: #1f2933;
         --train-label: #111827;
         --train-warning-text: #ffffff;
         --color-blocked: #c95158;
         --color-restricted: #c97d39;
-        --color-dwelling: #52606a;
+        --color-dwelling: #6b7280;
         --ctrl-bg: rgba(0, 0, 0, 0.05);
         --ctrl-bg-hover: rgba(0, 0, 0, 0.1);
-        --ctrl-color: #1f2933;
-        --ctrl-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+        --ctrl-color: #111827;
+        --ctrl-shadow: none;
         --legend-bg: rgba(255, 255, 255, 0.94);
         --legend-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
         --legend-text: #52606a;
-        --legend-hint: #8c9ba5;
+        --legend-hint: #94a3b8;
         --legend-divider: rgba(0, 0, 0, 0.08);
         --focus-ring: rgba(17, 24, 39, 0.65);
-        --badge-major-bg: rgba(201, 81, 88, 0.2);
-        --badge-minor-bg: rgba(201, 125, 57, 0.2);
+        --badge-major-bg: rgba(201, 81, 88, 0.18);
+        --badge-minor-bg: rgba(201, 125, 57, 0.18);
     }
 
     .map-root.fullscreen {
@@ -824,9 +841,14 @@
         z-index: 1000 !important;
     }
 
-    .graph *:focus,
-    .graph *:focus-visible {
-        outline: none !important;
+    .graph *:focus {
+        outline: none;
+    }
+
+    /* Wyraźny wskaźnik skupienia dla użytkowników klawiatury na mapie */
+    .focus-target:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 4px;
     }
 
     .graph {
@@ -949,7 +971,7 @@
     .station-name {
         fill: var(--station-name);
         font-size: 0.76rem;
-        font-weight: 500;
+        font-weight: 400;
         text-anchor: middle;
         stroke: none;
         letter-spacing: -0.01em;
@@ -1020,7 +1042,7 @@
 
     .train-label {
         font-size: 0.65rem;
-        font-weight: 500;
+        font-weight: 400;
         fill: var(--train-label);
         stroke: none;
         letter-spacing: -0.01em;
@@ -1104,8 +1126,8 @@
         justify-content: center;
         cursor: pointer;
         padding: 0;
-        box-shadow: var(--ctrl-shadow);
-        transition: transform 140ms ease, background-color 150ms ease, color 150ms ease;
+        box-shadow: none !important;
+        transition: background-color 150ms ease, color 150ms ease;
     }
 
     .ctrl-btn:focus {
@@ -1119,11 +1141,11 @@
 
     .ctrl-btn:hover {
         background: var(--ctrl-bg-hover);
-        transform: scale(1.05);
+        transform: none !important;
     }
 
     .ctrl-btn:active {
-        transform: scale(0.95);
+        transform: none !important;
     }
 
     .ctrl-icon {
@@ -1214,7 +1236,7 @@
 
     .legend-line {
         width: 14px;
-        height: 3px;
+        height: 4px;
         display: inline-block;
         border-radius: 2px;
     }

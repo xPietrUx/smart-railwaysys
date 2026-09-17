@@ -126,7 +126,9 @@
 
     .error-card {
         position: relative;
-        width: min(440px, 100%);
+        width: 440px;
+        max-width: 100%;
+        min-height: 250px;
         box-sizing: border-box;
         padding: 38px 32px 34px;
         border-radius: 16px;

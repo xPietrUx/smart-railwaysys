@@ -1,112 +1,83 @@
 <script lang="ts">
     import { locale, setLocale, t, type Locale } from '$lib/i18n';
 
-    function choose(nextLocale: Locale) {
-        setLocale(nextLocale);
+    function toggleLocale() {
+        const next: Locale = $locale === 'pl' ? 'en' : 'pl';
+        setLocale(next);
     }
 </script>
 
-<div class="language-switcher" role="group" aria-label={$t('language.label')}>
-    <button
-        type="button"
-        class:active={$locale === 'pl'}
-        aria-pressed={$locale === 'pl'}
-        title={$t('language.polish')}
-        tabindex="0"
-        on:click={() => choose('pl')}
-    >
-        PL
-    </button>
-    <button
-        type="button"
-        class:active={$locale === 'en'}
-        aria-pressed={$locale === 'en'}
-        title={$t('language.english')}
-        tabindex="0"
-        on:click={() => choose('en')}
-    >
-        EN
-    </button>
-</div>
+<svelte:head>
+    <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+    />
+</svelte:head>
+
+<button
+    type="button"
+    class="icon-button"
+    on:click={toggleLocale}
+    title={$t('language.label')}
+    aria-label={$t('language.label')}
+    tabindex="0"
+>
+    <span class="material-symbols-outlined" aria-hidden="true">translate</span>
+    <span class="lang-text">{$locale.toUpperCase()}</span>
+</button>
 
 <style>
-    .language-switcher {
+    .icon-button {
         display: inline-flex;
         align-items: center;
-        padding: 3px;
+        gap: 4px;
+        height: 32px;
+        padding: 0 8px;
+        border: 0;
         border-radius: 8px;
-        background: rgba(255, 255, 255, 0.04);
-        border: 0;
-        box-sizing: border-box;
-        font-family: 'Inter Variable', Inter, sans-serif;
-        transition: background-color 200ms ease;
-    }
-
-    :global(html.light-mode) .language-switcher,
-    :global([data-theme='light']) .language-switcher,
-    :global(.light) .language-switcher {
-        background: rgba(0, 0, 0, 0.04);
-    }
-
-    button {
-        border: 0;
-        border-radius: 6px;
-        padding: 4px 8px;
         background: transparent;
         color: #97a5ad;
-        font-family: inherit;
+        cursor: pointer;
+        font-family: 'Inter Variable', Inter, sans-serif;
         font-size: 0.68rem;
         font-weight: 400;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        cursor: pointer;
-        line-height: 1;
-        transition: color 150ms ease, background-color 150ms ease, opacity 150ms ease;
+        transition: color 150ms ease, background-color 150ms ease;
     }
 
-    :global(html.light-mode) button,
-    :global([data-theme='light']) button,
-    :global(.light) button {
-        color: #64748b;
-    }
-
-    button:hover:not(.active) {
+    .icon-button:hover {
         color: #f5f7f8;
         background: rgba(255, 255, 255, 0.04);
     }
 
-    :global(html.light-mode) button:hover:not(.active),
-    :global([data-theme='light']) button:hover:not(.active),
-    :global(.light) button:hover:not(.active) {
+    :global(html.light-mode) .icon-button,
+    :global([data-theme='light']) .icon-button,
+    :global(.light) .icon-button {
+        color: #64748b;
+    }
+
+    :global(html.light-mode) .icon-button:hover,
+    :global([data-theme='light']) .icon-button:hover,
+    :global(.light) .icon-button:hover {
         color: #111827;
         background: rgba(0, 0, 0, 0.04);
     }
 
-    button.active {
-        background: #f4f1eb;
-        color: #141414;
-        font-weight: 500;
+    .material-symbols-outlined {
+        font-size: 17px;
     }
 
-    :global(html.light-mode) button.active,
-    :global([data-theme='light']) button.active,
-    :global(.light) button.active {
-        background: #111827;
-        color: #ffffff;
-    }
-
-    button:focus {
+    .icon-button:focus {
         outline: none;
     }
 
-    button:focus-visible {
+    .icon-button:focus-visible {
         outline: 2px solid rgba(255, 255, 255, 0.6);
         outline-offset: 1px;
     }
 
-    :global(html.light-mode) button:focus-visible,
-    :global([data-theme='light']) button:focus-visible,
-    :global(.light) button:focus-visible {
+    :global(html.light-mode) .icon-button:focus-visible {
         outline-color: rgba(17, 24, 39, 0.6);
     }
 </style>
