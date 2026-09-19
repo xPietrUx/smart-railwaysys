@@ -28,6 +28,7 @@
     let listError = '';
     let actionError = '';
     let busyId: string | null = null;
+    let loading = true;
 
     onMount(() => {
         void loadScenarios();
@@ -38,11 +39,14 @@
     }
 
     async function loadScenarios() {
+        loading = true;
         listError = '';
         try {
             scenarios = await fetchScenarios(fetch, apiBaseUrl);
         } catch {
             listError = $t('timetable.loadError');
+        } finally {
+            loading = false;
         }
     }
 
@@ -106,14 +110,40 @@
         {/if}
 
         {#if actionError}
-            <p class="error">{actionError}</p>
+            <div class="error" role="alert">
+                <span class="material-symbols-outlined error-icon" aria-hidden="true">error</span>
+                <span>{actionError}</span>
+            </div>
         {/if}
 
         {#if listError}
-            <p class="error">{listError}</p>
-            <button type="button" class="ghost-btn" on:click={loadScenarios}>
-                {$t('timetable.retry')}
-            </button>
+            <div class="error-container">
+                <div class="error" role="alert">
+                    <span class="material-symbols-outlined error-icon" aria-hidden="true">error</span>
+                    <span>{listError}</span>
+                </div>
+                <button type="button" class="ghost-btn retry-btn" on:click={loadScenarios}>
+                    <span class="material-symbols-outlined btn-icon" aria-hidden="true">refresh</span>
+                    <span>{$t('timetable.retry')}</span>
+                </button>
+            </div>
+        {:else if loading}
+            <div class="loading-state" role="status">
+                <span class="material-symbols-outlined spinning" aria-hidden="true">progress_activity</span>
+            </div>
+        {:else if scenarios.length === 0}
+            <div class="empty-state" role="status">
+                <span class="material-symbols-outlined empty-icon" aria-hidden="true">event_busy</span>
+                <p class="empty-text">
+    {$locale === 'pl' ? 'Brak dostępnych rozkładów jazdy' : 'No timetables available'}
+</p>
+                {#if !readOnly}
+                    <button type="button" class="new-btn empty-action-btn" on:click={onCreate}>
+                        <span class="material-symbols-outlined btn-icon" aria-hidden="true">add</span>
+                        <span>{$t('timetable.new')}</span>
+                    </button>
+                {/if}
+            </div>
         {:else}
             <ul class="scenario-list">
                 {#each scenarios as item (item.id)}
@@ -133,6 +163,7 @@
                                         on:click={() => handleRun(item.id)}
                                         disabled={busyId !== null}
                                         title={$t('timetable.runTitle')}
+                                        aria-label={$t('timetable.runTitle')}
                                     >
                                         {#if busyId === item.id}
                                             <span class="material-symbols-outlined spinning" aria-hidden="true">progress_activity</span>
@@ -145,6 +176,7 @@
                                         class="details-btn"
                                         on:click={() => onDetails(item)}
                                         title={$t('timetable.detailsTitle')}
+                                        aria-label={$t('timetable.detailsTitle')}
                                     >
                                         {$t('timetable.details')}
                                     </button>
@@ -198,18 +230,76 @@
     }
 
     .panel {
-        background: rgba(20, 20, 20, 0.94);
+        --panel-bg: rgba(20, 20, 20, 0.94);
+        --panel-border: 1px solid rgba(255, 255, 255, 0.06);
+        --panel-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+        --panel-title: #ffffff;
+        --panel-text: #f5f7f8;
+        --panel-muted: #97a5ad;
+        --panel-submuted: #55626b;
+        --active-box-bg: rgba(255, 255, 255, 0.05);
+        --active-box-icon: #6cb09f;
+        --card-bg: rgba(255, 255, 255, 0.03);
+        --card-bg-active: rgba(255, 255, 255, 0.07);
+        --run-btn-bg: rgba(108, 176, 159, 0.15);
+        --run-btn-hover: rgba(108, 176, 159, 0.28);
+        --run-btn-color: #6cb09f;
+        --btn-ghost-bg: rgba(255, 255, 255, 0.04);
+        --btn-ghost-hover: rgba(255, 255, 255, 0.08);
+        --btn-ghost-color: #97a5ad;
+        --btn-ghost-color-hover: #ffffff;
+        --error-bg: rgba(222, 132, 137, 0.15);
+        --error-color: #de8489;
+        --focus-ring: rgba(255, 255, 255, 0.65);
+
+        background: var(--panel-bg);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
-        border: 0;
-        box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+        border: var(--panel-border);
+        box-shadow: var(--panel-shadow);
         border-radius: 14px;
         padding: 20px;
         display: flex;
         flex-direction: column;
         min-height: 0;
         font-family: 'Inter Variable', Inter, sans-serif;
-        color: #f5f7f8;
+        color: var(--panel-text);
+        transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+    }
+
+    :global(html.light-mode) .panel,
+    :global([data-theme='light']) .panel,
+    :global(.light) .panel {
+        --panel-bg: rgba(244, 245, 243, 0.96);
+        --panel-border: 1px solid rgba(0, 0, 0, 0.08);
+        --panel-shadow: 0 20px 48px rgba(0, 0, 0, 0.08);
+        --panel-title: #111827;
+        --panel-text: #1f2933;
+        --panel-muted: #52606a;
+        --panel-submuted: #8c9ba5;
+        --active-box-bg: rgba(0, 0, 0, 0.04);
+        --active-box-icon: #2e8570;
+        --card-bg: rgba(0, 0, 0, 0.03);
+        --card-bg-active: rgba(0, 0, 0, 0.06);
+        --run-btn-bg: rgba(46, 133, 112, 0.12);
+        --run-btn-hover: rgba(46, 133, 112, 0.22);
+        --run-btn-color: #2e8570;
+        --btn-ghost-bg: rgba(0, 0, 0, 0.04);
+        --btn-ghost-hover: rgba(0, 0, 0, 0.08);
+        --btn-ghost-color: #52606a;
+        --btn-ghost-color-hover: #111827;
+        --error-bg: rgba(201, 81, 88, 0.15);
+        --error-color: #c95158;
+        --focus-ring: rgba(17, 24, 39, 0.65);
+    }
+
+    button:focus {
+        outline: none;
+    }
+
+    button:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
     }
 
     .panel-header {
@@ -223,7 +313,7 @@
         letter-spacing: 0.08em;
         font-size: 0.66rem;
         font-weight: 300;
-        color: #97a5ad;
+        color: var(--panel-muted);
     }
 
     h2 {
@@ -232,7 +322,7 @@
         font-weight: 400;
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        color: #ffffff;
+        color: var(--panel-title);
     }
 
     .scroll-area {
@@ -244,7 +334,8 @@
         margin-bottom: 14px;
         padding: 12px;
         border-radius: 10px;
-        background: rgba(255, 255, 255, 0.05);
+        background: var(--active-box-bg);
+        transition: background-color 150ms ease;
     }
 
     .active-title-row {
@@ -255,7 +346,7 @@
 
     .active-icon {
         font-size: 16px;
-        color: #6cb09f;
+        color: var(--active-box-icon);
     }
 
     .active-box strong {
@@ -263,7 +354,7 @@
         font-weight: 400;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: #f5f7f8;
+        color: var(--panel-text);
     }
 
     .active-box p {
@@ -271,21 +362,80 @@
         font-size: 0.72rem;
         font-weight: 300;
         letter-spacing: 0.04em;
-        color: #97a5ad;
+        color: var(--panel-muted);
         text-transform: uppercase;
     }
 
+    .error-container {
+        margin-bottom: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
     .error {
-        margin: 0 0 10px;
+        margin: 0;
         padding: 8px 12px;
         border-radius: 8px;
-        background: rgba(222, 132, 137, 0.15);
-        color: #de8489;
+        background: var(--error-bg);
+        color: var(--error-color);
         font-size: 0.74rem;
-        font-weight: 300;
+        font-weight: 400;
         letter-spacing: 0.02em;
         text-transform: uppercase;
         line-height: 1.4;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .error-icon {
+        font-size: 17px;
+        flex-shrink: 0;
+    }
+
+    .retry-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+
+    .loading-state {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 36px 12px;
+        color: var(--panel-muted);
+    }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 14px;
+        gap: 8px;
+        text-align: center;
+    }
+
+    .empty-icon {
+        font-size: 30px;
+        color: var(--panel-muted);
+        opacity: 0.7;
+    }
+
+    .empty-text {
+        margin: 0;
+        color: var(--panel-muted);
+        font-size: 0.74rem;
+        font-weight: 300;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .empty-action-btn {
+        margin-top: 6px;
     }
 
     .scenario-list {
@@ -302,12 +452,12 @@
         gap: 6px;
         padding: 12px;
         border-radius: 10px;
-        background: rgba(255, 255, 255, 0.03);
+        background: var(--card-bg);
         transition: background-color 150ms ease;
     }
 
     .scenario.active {
-        background: rgba(255, 255, 255, 0.07);
+        background: var(--card-bg-active);
     }
 
     .scenario-top {
@@ -327,7 +477,7 @@
 
     .icon {
         font-size: 18px;
-        color: #97a5ad;
+        color: var(--panel-muted);
         flex-shrink: 0;
         margin-top: 1px;
     }
@@ -337,8 +487,7 @@
         font-weight: 400;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: #f5f7f8;
-        /* Usunięto nowrap, aby tekst ładnie się zawijał w razie potrzeby */
+        color: var(--panel-text);
         word-break: break-word;
         line-height: 1.3;
     }
@@ -351,7 +500,7 @@
         margin: 0;
         font-size: 0.74rem;
         font-weight: 300;
-        color: #97a5ad;
+        color: var(--panel-muted);
         line-height: 1.4;
         letter-spacing: 0.02em;
     }
@@ -359,7 +508,7 @@
     .scenario-body small {
         display: block;
         margin-top: 4px;
-        color: #55626b;
+        color: var(--panel-submuted);
         font-size: 0.68rem;
         font-weight: 300;
         letter-spacing: 0.04em;
@@ -380,8 +529,8 @@
         padding: 0;
         border-radius: 6px;
         border: 0;
-        background: rgba(108, 176, 159, 0.15);
-        color: #6cb09f;
+        background: var(--run-btn-bg);
+        color: var(--run-btn-color);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -394,7 +543,7 @@
     }
 
     .run-btn:hover:not(:disabled) {
-        background: rgba(108, 176, 159, 0.28);
+        background: var(--run-btn-hover);
     }
 
     .run-btn:disabled {
@@ -406,8 +555,8 @@
         padding: 5px 9px;
         border-radius: 6px;
         border: 0;
-        background: rgba(255, 255, 255, 0.04);
-        color: #97a5ad;
+        background: var(--btn-ghost-bg);
+        color: var(--btn-ghost-color);
         font-family: inherit;
         font-size: 0.68rem;
         font-weight: 400;
@@ -419,8 +568,8 @@
     }
 
     .details-btn:hover {
-        background: rgba(255, 255, 255, 0.08);
-        color: #ffffff;
+        background: var(--btn-ghost-hover);
+        color: var(--btn-ghost-color-hover);
     }
 
     .new-btn {
@@ -428,8 +577,8 @@
         padding: 10px 14px;
         border-radius: 10px;
         border: 0;
-        background: rgba(255, 255, 255, 0.04);
-        color: #97a5ad;
+        background: var(--btn-ghost-bg);
+        color: var(--btn-ghost-color);
         font-family: inherit;
         font-weight: 400;
         font-size: 0.72rem;
@@ -444,11 +593,12 @@
     }
 
     .new-btn:hover {
-        background: rgba(255, 255, 255, 0.08);
-        color: #ffffff;
+        background: var(--btn-ghost-hover);
+        color: var(--btn-ghost-color-hover);
     }
 
-    .new-btn .btn-icon {
+    .new-btn .btn-icon,
+    .ghost-btn .btn-icon {
         font-size: 16px;
     }
 
@@ -457,8 +607,8 @@
         padding: 8px 12px;
         border-radius: 8px;
         border: 0;
-        background: rgba(255, 255, 255, 0.04);
-        color: #97a5ad;
+        background: var(--btn-ghost-bg);
+        color: var(--btn-ghost-color);
         font-family: inherit;
         font-size: 0.72rem;
         font-weight: 300;
@@ -469,7 +619,20 @@
     }
 
     .ghost-btn:hover {
-        background: rgba(255, 255, 255, 0.08);
-        color: #ffffff;
+        background: var(--btn-ghost-hover);
+        color: var(--btn-ghost-color-hover);
+    }
+
+    .spinning {
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
     }
 </style>

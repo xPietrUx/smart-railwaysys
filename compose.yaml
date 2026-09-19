@@ -10,16 +10,13 @@ services:
     environment:
       MEMGRAPH_USER: ${MEMGRAPH_USER}
       MEMGRAPH_PASSWORD: ${MEMGRAPH_PASSWORD}
-    # Trwały wolumen — dane (stacje, konta, role) przeżywają przebudowę kontenerów.
-    # Bez tego każdy `docker compose up --build` tworzył bazę od zera z nowymi
-    # ID użytkowników, przez co tokeny sesji w przeglądarce stawały się nieważne.
     volumes:
       - db-data:/var/lib/memgraph
     networks:
       - backend-net
 
   memgraph-lab:
-    image: memgraph/lab:latest 
+    image: memgraph/lab:latest
     ports:
       - "3000:3000"
     restart: unless-stopped
@@ -34,7 +31,7 @@ services:
       - QUICK_CONNECT_MG_PASSWORD=${MEMGRAPH_PASSWORD}
       - LOG_LEVEL=error
     networks:
-      - backend-net   # ← brakowało tego!
+      - backend-net
 
   backend:
     build: ./backend
@@ -66,14 +63,10 @@ services:
     env_file:
       - .env
     environment:
-      # Adres backendu widziany PRZEZ PRZEGLĄDARKĘ (WebSocket + polling).
-      # Musi być osiągalny z komputera hosta, dlatego localhost, nie "backend".
       PUBLIC_API_BASE_URL: http://localhost:8000
-      # Adres backendu widziany przez frontend PODCZAS SSR (wewnątrz sieci Dockera).
       API_INTERNAL_URL: http://backend:8000
     networks:
       - frontend-net
-      - backend-net
     develop:
       watch:
         - action: sync

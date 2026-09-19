@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from neo4j import Driver, Session
 
 from app.api.dependencies import get_current_user, get_driver
-from app.schemas.auth import AuthCredentials, GuestContext, TokenResponse, UserResponse
+from app.schemas.auth import AuthCredentials, GuestContext, LoginCredentials, TokenResponse, UserResponse
 from app.services import auth_service
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -28,7 +28,7 @@ def register(payload: AuthCredentials, driver: Driver = Depends(get_driver)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: AuthCredentials, driver: Driver = Depends(get_driver)):
+def login(payload: LoginCredentials, driver: Driver = Depends(get_driver)):
 	with driver.session() as session:
 		user = auth_service.authenticate(session, payload.email, payload.password)
 		if not user:

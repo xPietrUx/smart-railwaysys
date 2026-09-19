@@ -29,6 +29,7 @@ def _load_directed_edge_lookup(session: Session) -> dict[tuple[str, str], dict]:
 		lookup[(record["fromId"], record["toId"])] = {
 			"distKm": record["distKm"],
 			"effectiveVmax": effective_vmax,
+			"status": record["status"],
 		}
 	return lookup
 
@@ -91,6 +92,16 @@ def advance_train(train: dict, dt_sim_s: float, now: float, edge_lookup: dict) -
 	if edge is None or edge["distKm"] <= 0:
 		return train
 
+	# Zabezpieczenie: jeśli odcinek, po którym pociąg właśnie jedzie, został
+	# zablokowany (awaria linii / wykolejenie), nie wolno go dalej przesuwać —
+	# zatrzymujemy go na tym odcinku (status='waiting'), bez zerowania segmentu i postępu.
+	if edge.get("status") == "blocked":
+		train["status"] = "waiting"
+		train["route_station_ids"] = []
+		train["route_segment_ids"] = []
+		train["route_index"] = 0
+		return train
+
 	speed_kmh = min(edge["effectiveVmax"], train["vmax"])
 	dist_per_sim_s_km = speed_kmh / 3600.0
 	delta_progress = (dist_per_sim_s_km * dt_sim_s) / edge["distKm"]
@@ -111,7 +122,15 @@ def advance_train(train: dict, dt_sim_s: float, now: float, edge_lookup: dict) -
 		train["progress"] = 0.0
 		return train
 
-	return _start_dwell(train, now)
+	# Plan wyczerpany — jeśli to naprawdę cel kursu, normalna przerwa. Jeśli nie
+	# (patrz _replan_from_next_station: brak objazdu ucina plan tutaj), pociąg
+	# ma czekać i próbować ponownie co tick, zamiast "kończyć kurs" w złym miejscu.
+	target_station = (
+		train["destination_station_id"] if train["direction"] == "outbound" else train["origin_station_id"]
+	)
+	if train["current_station_id"] == target_station:
+		return _start_dwell(train, now)
+	return _halt_waiting(train)
 
 
 def _halt_waiting(train: dict) -> dict:
@@ -145,6 +164,15 @@ def _replan_from_next_station(train: dict, session: Session) -> dict:
 		train["route_station_ids"] = [train["current_station_id"]] + [s.id for s in route.path]
 		train["route_segment_ids"] = [train["current_segment_id"]] + route.segmentIds
 		train["route_index"] = 0
+	else:
+		# Brak objazdu — ucinamy plan na bieżącym (wciąż aktywnym) odcinku, żeby
+		# pociąg NIE kontynuował wg starego planu prosto w zablokowany odcinek
+		# dalej w trasie. Po dojechaniu do next_station_id advance_train() ubije
+		# go w 'waiting' (bo to nie jest jego faktyczny cel kursu) i będzie co
+		# tick próbował wyznaczyć trasę na nowo (dispatch_or_wait).
+		train["route_station_ids"] = [train["current_station_id"], train["next_station_id"]]
+		train["route_segment_ids"] = [train["current_segment_id"]]
+		train["route_index"] = 0
 	return train
 
 
@@ -167,6 +195,25 @@ def reroute_affected_trains(
 		else:
 			updated.append(_replan_from_next_station(train, session))
 	return updated
+
+
+# Tylko te typy faktycznie blokują odcinek (status='blocked') — speed_restriction
+# i signal_failure tylko go spowalniają (status='restricted'), więc pociągi mają
+# je uwzględnić przez zwykłe przeliczenie prędkości na kolejnym ticku (edge_lookup
+# ładowany jest za każdym razem na nowo), a NIE przez zatrzymanie/przeplanowanie
+# trasy — to ostatnie miałoby sens tylko dla realnej blokady.
+BLOCKING_EVENT_TYPES = {"line_failure", "derailment"}
+
+
+def reroute_affected_trains_and_persist(session: Session, segment_id: str, now: float) -> None:
+	"""Jak reroute_affected_trains, ale do użycia spoza pętli ticku (np. po ręcznie
+	zgłoszonym incydencie z /api/incidents) — sama ładuje, przelicza i zapisuje
+	pociągi, żeby te w drodze przez nowo zablokowany odcinek zareagowały od razu,
+	zamiast dopiero gdy sami by w niego "wjechali" (advance_train nie sprawdza
+	statusu odcinka, na którym pociąg już się porusza)."""
+	trains = _load_trains(session)
+	trains = reroute_affected_trains(trains, session, segment_id)
+	_write_back_trains(session, trains, now)
 
 
 def _advance_or_dispatch_one(
@@ -326,7 +373,23 @@ def run_tick_sync(driver: Driver, app_state) -> dict:
 				1.0 / config.SIM_EVENT_MEAN_INTERVAL_REAL_S
 			)
 
-		if new_event is not None and new_event.segmentId:
+		# Wykolejenie zapisuje 'derailed' wprost do bazy (create_event), ale `trains`
+		# to migawka sprzed zdarzenia — bez naniesienia tego na listę w pamięci
+		# _write_back_trains nadpisałby 'derailed' nieaktualnym 'running', przez co
+		# wykolejony pociąg jechałby dalej mimo wpisu w logach. Nanosimy PRZED
+		# reroute, żeby przeplanowanie pominęło wykolejony pociąg (status != running).
+		if new_event is not None and new_event.type == "derailment" and new_event.trainId:
+			for train in trains:
+				if train["id"] == new_event.trainId:
+					train["status"] = "derailed"
+					train["delayed_by_event_id"] = new_event.id
+					break
+
+		if (
+			new_event is not None
+			and new_event.segmentId
+			and new_event.type in BLOCKING_EVENT_TYPES
+		):
 			trains = reroute_affected_trains(trains, session, new_event.segmentId)
 
 		_write_back_trains(session, trains, now)

@@ -1,7 +1,6 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
     import {
-        EVENT_ICON,
         eventLabel,
         formatEventMessage,
         trainEndpoints,
@@ -14,27 +13,37 @@
     import type { HighlightFilter, Selected } from '$lib/types/selection';
     import type { TrainNode } from '$lib/types/train';
 
+    type SegmentItem = NetworkGraph['segments'][number];
+
     export let graph: NetworkGraph;
     export let trains: TrainNode[] = [];
     export let events: RailEventNode[] = [];
     export let selected: Selected | null = null;
     export let highlight: HighlightFilter | null = null;
     export let isFullscreen = false;
+    /** Tryb wskazywania celu incydentu na mapie (patrz IncidentFeed) — gdy ustawiony,
+     *  kliknięcia w pasujący typ elementu wołają onPick zamiast normalnego zaznaczania. */
+    export let pickMode: 'segment' | 'station' | 'train' | null = null;
+    export let onPick: (id: string) => void = () => {};
+    export let onCancelPick: () => void = () => {};
 
     const dispatch = createEventDispatcher<{ toggleFullscreen: void }>();
 
+    let containerWidth = 1000;
+    let containerHeight = 740;
+
     const padding = 56;
-    const graphWidth = 1000;
-    const graphHeight = 740;
-    const plotWidth = graphWidth - padding * 2;
-    const plotHeight = graphHeight - padding * 2;
+    $: graphWidth = Math.max(containerWidth, 600);
+    $: graphHeight = Math.max(containerHeight, 400);
+    $: plotWidth = graphWidth - padding * 2;
+    $: plotHeight = graphHeight - padding * 2;
 
     const MAX_ZOOM = 8;
     const MIN_ZOOM = 0.5;
-    const ASPECT = graphHeight / graphWidth;
+    $: ASPECT = graphHeight / graphWidth;
     const PAN_MARGIN_RATIO = 0.35;
 
-    let view = { x: 0, y: 0, w: graphWidth, h: graphHeight };
+    let view = { x: 0, y: 0, w: 1000, h: 740 };
     let svgEl: SVGSVGElement;
     let pointerActive = false;
     let wasDragged = false;
@@ -178,6 +187,10 @@
     function handleBackgroundClick(event: MouseEvent) {
         if (wasDragged) return;
         if (event.target === svgEl) {
+            if (pickMode !== null) {
+                onCancelPick();
+                return;
+            }
             selected = null;
             highlight = null;
         }
@@ -187,6 +200,10 @@
         if (event.key === 'Escape') {
             if (isFullscreen) {
                 dispatch('toggleFullscreen');
+                return;
+            }
+            if (pickMode !== null) {
+                onCancelPick();
                 return;
             }
             selected = null;
@@ -255,16 +272,67 @@
         }
     }
 
-    function segmentColor(state: DirectionalState): string {
-        if (state.status === 'blocked') return '#de8489';
-        if (state.status === 'restricted') return '#f0c29a';
-        return '#262a30';
+    function getSegmentStatus(segment: SegmentItem, activeEvents: RailEventNode[]): 'blocked' | 'restricted' | 'ok' {
+        const hasBlockedEvent = activeEvents.some(
+            (e) =>
+                e.status === 'active' &&
+                e.segmentId === segment.segmentId &&
+                (e.severity === 'major' || e.type === 'line_failure')
+        );
+        if (hasBlockedEvent) return 'blocked';
+
+        const hasRestrictedEvent = activeEvents.some(
+            (e) => e.status === 'active' && e.segmentId === segment.segmentId
+        );
+        if (hasRestrictedEvent) return 'restricted';
+
+        if (segment.forward?.status === 'blocked' || segment.backward?.status === 'blocked') {
+            return 'blocked';
+        }
+        if (segment.forward?.status === 'restricted' || segment.backward?.status === 'restricted') {
+            return 'restricted';
+        }
+        return 'ok';
     }
 
-    function segmentDashArray(state: DirectionalState): string | undefined {
-        if (state.status === 'blocked') return '7,5';
-        if (state.status === 'restricted') return '1,4';
-        return undefined;
+    function getTrackLineStatus(
+        segment: SegmentItem,
+        trackIndex: number,
+        totalTracks: number,
+        activeEvents: RailEventNode[]
+    ): 'blocked' | 'restricted' | 'ok' {
+        const hasBlockedEvent = activeEvents.some(
+            (e) =>
+                e.status === 'active' &&
+                e.segmentId === segment.segmentId &&
+                (e.severity === 'major' || e.type === 'line_failure')
+        );
+        if (hasBlockedEvent) return 'blocked';
+
+        const hasRestrictedEvent = activeEvents.some(
+            (e) => e.status === 'active' && e.segmentId === segment.segmentId
+        );
+        if (hasRestrictedEvent) return 'restricted';
+
+        if (totalTracks >= 2) {
+            const dirState = trackIndex === 0 ? segment.forward : segment.backward;
+            if (dirState?.status === 'blocked') return 'blocked';
+            if (dirState?.status === 'restricted') return 'restricted';
+        }
+
+        if (segment.forward?.status === 'blocked' || segment.backward?.status === 'blocked') {
+            return 'blocked';
+        }
+        if (segment.forward?.status === 'restricted' || segment.backward?.status === 'restricted') {
+            return 'restricted';
+        }
+        return 'ok';
+    }
+
+    function segmentColor(status: 'blocked' | 'restricted' | 'ok'): string {
+        if (status === 'blocked') return 'var(--color-blocked, #de8489)';
+        if (status === 'restricted') return 'var(--color-restricted, #f0c29a)';
+        return 'var(--track-base, #38404a)';
     }
 
     function trainRadius(train: TrainNode) {
@@ -274,10 +342,10 @@
     }
 
     function trainColor(train: TrainNode) {
-        if (train.status === 'derailed') return '#de8489';
-        if (train.status === 'waiting') return '#f0c29a';
-        if (train.status === 'dwelling') return '#87979f';
-        return '#f5f7f8';
+        if (train.status === 'derailed') return 'var(--color-blocked, #de8489)';
+        if (train.status === 'waiting') return 'var(--color-restricted, #f0c29a)';
+        if (train.status === 'dwelling') return 'var(--color-dwelling, #87979f)';
+        return 'var(--train-base, #f5f7f8)';
     }
 
     function getTrainPosition(
@@ -286,12 +354,66 @@
     ): { x: number; y: number } | null {
         const current = positionById.get(train.currentStationId);
         if (!current) return null;
-        if (train.status !== 'running' || !train.nextStationId) return current;
-        const next = positionById.get(train.nextStationId);
+
+        let targetStationId: string | null = null;
+        let isMoving = false;
+
+        if (
+            (train.status === 'derailed' || train.status === 'waiting') &&
+            train.nextStationId &&
+            train.currentSegmentId
+        ) {
+            targetStationId = train.nextStationId;
+            isMoving = true;
+        } else if (train.status === 'running' && train.nextStationId) {
+            targetStationId = train.nextStationId;
+            isMoving = true;
+        }
+
+        if (!isMoving || !targetStationId) return current;
+
+        const next = positionById.get(targetStationId);
         if (!next) return current;
+
+        const baseX = current.x + (next.x - current.x) * train.progress;
+        const baseY = current.y + (next.y - current.y) * train.progress;
+
+        const key =
+            train.currentStationId < targetStationId
+                ? `${train.currentStationId}__${targetStationId}`
+                : `${targetStationId}__${train.currentStationId}`;
+
+        const totalTracks = stationPairTracks.get(key) ?? 1;
+        if (totalTracks < 2) {
+            return { x: baseX, y: baseY };
+        }
+
+        const sId =
+            train.currentStationId < targetStationId ? train.currentStationId : targetStationId;
+        const tId =
+            train.currentStationId < targetStationId ? targetStationId : train.currentStationId;
+        const p1 = positionById.get(sId);
+        const p2 = positionById.get(tId);
+        if (!p1 || !p2) return { x: baseX, y: baseY };
+
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const len = Math.hypot(dx, dy);
+        if (len === 0) return { x: baseX, y: baseY };
+
+        const nx = -dy / len;
+        const ny = dx / len;
+
+        const isForward = train.currentStationId < targetStationId;
+        const spacing = totalTracks > 2 ? 4.8 : 5.8;
+        const baseOffset = isForward ? -spacing * 0.5 : spacing * 0.5;
+
+        const sinFactor = Math.sin(Math.max(0, Math.min(1, train.progress)) * Math.PI);
+        const offset = baseOffset * sinFactor;
+
         return {
-            x: current.x + (next.x - current.x) * train.progress,
-            y: current.y + (next.y - current.y) * train.progress
+            x: baseX + offset * nx,
+            y: baseY + offset * ny
         };
     }
 
@@ -304,6 +426,92 @@
     $: stationById = new Map(stations.map((station) => [station.id, station]));
     $: segmentById = new Map(segments.map((segment) => [segment.segmentId, segment]));
 
+    $: stationPairTracks = (() => {
+        const map = new Map<string, number>();
+        for (const seg of segments) {
+            if (!seg.source || !seg.target) continue;
+            const key =
+                seg.source < seg.target
+                    ? `${seg.source}__${seg.target}`
+                    : `${seg.target}__${seg.source}`;
+            map.set(key, (map.get(key) ?? 0) + Math.max(1, seg.railTracks || 1));
+        }
+        return map;
+    })();
+
+    type TrackLineItem = {
+        key: string;
+        segmentId: string;
+        segment: SegmentItem;
+        trackIndex: number;
+        totalTracks: number;
+        x1: number;
+        y1: number;
+        x2: number;
+        y2: number;
+    };
+
+    $: segmentTrackLines = (() => {
+        if (!positionById || segments.length === 0) return [];
+
+        const groups = new Map<string, SegmentItem[]>();
+        for (const seg of segments) {
+            if (!seg.source || !seg.target) continue;
+            const key =
+                seg.source < seg.target
+                    ? `${seg.source}__${seg.target}`
+                    : `${seg.target}__${seg.source}`;
+            const list = groups.get(key) ?? [];
+            list.push(seg);
+            groups.set(key, list);
+        }
+
+        const result: TrackLineItem[] = [];
+
+        for (const [key, segList] of groups.entries()) {
+            const [sourceId, targetId] = key.split('__');
+            const p1 = positionById.get(sourceId);
+            const p2 = positionById.get(targetId);
+            if (!p1 || !p2) continue;
+
+            let totalTracks = 0;
+            for (const seg of segList) {
+                totalTracks += Math.max(1, seg.railTracks || 1);
+            }
+
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const len = Math.hypot(dx, dy);
+            const nx = len > 0 ? -dy / len : 0;
+            const ny = len > 0 ? dx / len : 0;
+
+            const spacing = totalTracks > 2 ? 4.8 : 5.8;
+            let currentTrack = 0;
+
+            for (const seg of segList) {
+                const tracksInSeg = Math.max(1, seg.railTracks || 1);
+                for (let k = 0; k < tracksInSeg; k++) {
+                    const offsetIndex = currentTrack - (totalTracks - 1) / 2;
+                    const offset = offsetIndex * spacing;
+                    result.push({
+                        key: `${seg.segmentId}__t${currentTrack}`,
+                        segmentId: seg.segmentId,
+                        segment: seg,
+                        trackIndex: currentTrack,
+                        totalTracks,
+                        x1: p1.x + offset * nx,
+                        y1: p1.y + offset * ny,
+                        x2: p2.x + offset * nx,
+                        y2: p2.y + offset * ny
+                    });
+                    currentTrack++;
+                }
+            }
+        }
+
+        return result;
+    })();
+
     $: stationsWithSignalFailure = new Set(
         events
             .filter(
@@ -311,6 +519,13 @@
             )
             .map((event) => event.stationId as string)
     );
+
+    // Podczas wskazywania celu incydentu stacje/pociągi mogą wizualnie leżeć nad
+    // odcinkami (i pociągi nad stacjami) — wyłączamy im pointer-events, żeby klik
+    // "przeszedł" do właściwej, klikalnej warstwy pod spodem.
+    $: stationsClickable = pickMode !== 'segment';
+    $: trainsClickable = pickMode === null || pickMode === 'train';
+    $: badgesClickable = pickMode === null;
 
     $: {
         if (selected && stations.length > 0) {
@@ -384,32 +599,47 @@
 
     const MATERIAL_EVENT_ICONS: Record<string, string> = {
         signal_failure: 'electric_bolt',
-        derailment: 'warning',
-        track_blockage: 'do_not_disturb_on',
+        line_failure: 'warning',
+        speed_restriction: 'slow_motion_video',
         default: 'error'
     };
 
     function pickStation(id: string) {
         if (wasDragged) return;
+        if (pickMode !== null) {
+            if (pickMode === 'station' && !stationsWithSignalFailure.has(id)) onPick(id);
+            return;
+        }
         selected = { kind: 'station', id };
     }
 
     function pickSegment(id: string) {
         if (wasDragged) return;
+        if (pickMode !== null) {
+            const segment = segmentById.get(id);
+            if (pickMode === 'segment' && segment && getSegmentStatus(segment, events) === 'ok') {
+                onPick(id);
+            }
+            return;
+        }
         selected = { kind: 'segment', id };
     }
 
     function pickTrain(id: string) {
         if (wasDragged) return;
+        if (pickMode !== null) {
+            const train = trains.find((item) => item.id === id);
+            if (pickMode === 'train' && train?.status === 'running') onPick(id);
+            return;
+        }
         selected = { kind: 'train', id };
     }
 
     function pickIncident(badge: IncidentBadge) {
         if (wasDragged) return;
+        if (pickMode !== null) return;
         const { event } = badge;
-        if (event.type === 'derailment' && event.trainId) {
-            selected = { kind: 'train', id: event.trainId };
-        } else if (event.stationId) {
+        if (event.stationId) {
             selected = { kind: 'station', id: event.stationId };
         } else if (event.segmentId) {
             selected = { kind: 'segment', id: event.segmentId };
@@ -424,7 +654,12 @@
     />
 </svelte:head>
 
-<div class="map-root" class:fullscreen={isFullscreen}>
+<div
+    class="map-root"
+    class:fullscreen={isFullscreen}
+    bind:clientWidth={containerWidth}
+    bind:clientHeight={containerHeight}
+>
     {#if stations.length > 0 && bounds}
         <!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
         <svg
@@ -433,8 +668,9 @@
             class="graph"
             class:panning={pointerActive && wasDragged}
             class:names-hidden={zoom < 1.35}
+            class:pick-mode={pickMode !== null}
             role="application"
-            tabindex="0"
+            tabindex="-1"
             aria-label={$t('map.aria')}
             on:wheel|nonpassive={handleWheel}
             on:dblclick={handleDblClick}
@@ -455,54 +691,54 @@
                 </filter>
             </defs>
 
-            {#each segments as segment (segment.segmentId)}
-                {@const source = positionById.get(segment.source)}
-                {@const target = positionById.get(segment.target)}
+            {#each segmentTrackLines as lineItem (lineItem.key)}
+                {@const segment = lineItem.segment}
                 {@const isSelected = selectedSegmentId === segment.segmentId}
                 {@const onTrainRoute =
                     selectedKind === 'train' && selectedTrainRouteSegments.has(segment.segmentId)}
-                {@const hasIncident =
-                    segment.forward.activeEventId !== null || segment.backward.activeEventId !== null}
+                {@const status = getTrackLineStatus(
+                    segment,
+                    lineItem.trackIndex,
+                    lineItem.totalTracks,
+                    events
+                )}
+                {@const hasIncident = status !== 'ok'}
                 {@const dimmed =
-                    (selectedKind === 'station' &&
-                        !selectedStationIds.has(segment.source) &&
-                        !selectedStationIds.has(segment.target)) ||
-                    (selectedKind === 'train' && !onTrainRoute) ||
-                    (highlight?.kind === 'incidents' && !hasIncident)}
-                {@const label = $t('map.segmentAria', {
-                    id: segment.segmentId,
-                    from: stationById.get(segment.source)?.name ?? segment.source,
-                    to: stationById.get(segment.target)?.name ?? segment.target
-                })}
-                {#if source && target}
-                    <line
-                        class="track"
-                        x1={source.x}
-                        y1={source.y}
-                        x2={target.x}
-                        y2={target.y}
-                        stroke={segmentColor(segment.forward)}
-                        stroke-width={isSelected ? 5 : onTrainRoute ? 4.5 : 3.5}
-                        stroke-dasharray={segmentDashArray(segment.forward)}
-                        stroke-linecap="round"
-                        vector-effect="non-scaling-stroke"
-                        opacity={dimmed ? 0.15 : 0.85}
-                    />
-                    <line
-                        class="hit-line"
-                        x1={source.x}
-                        y1={source.y}
-                        x2={target.x}
-                        y2={target.y}
-                        stroke="transparent"
-                        stroke-width="14"
-                        on:click={() => pickSegment(segment.segmentId)}
-                        role="button"
-                        tabindex="0"
-                        aria-label={label}
-                        on:keydown={(event) => handleKeydown(event, () => pickSegment(segment.segmentId))}
-                    />
-                {/if}
+                    pickMode !== null
+                        ? pickMode !== 'segment' || status !== 'ok'
+                        : (selectedKind === 'station' &&
+                              !selectedStationIds.has(segment.source) &&
+                              !selectedStationIds.has(segment.target)) ||
+                          (selectedKind === 'train' && !onTrainRoute) ||
+                          (highlight?.kind === 'incidents' && !hasIncident)}
+                <line
+                    class="track"
+                    x1={lineItem.x1}
+                    y1={lineItem.y1}
+                    x2={lineItem.x2}
+                    y2={lineItem.y2}
+                    stroke={isSelected ? 'var(--track-selected, #ffffff)' : segmentColor(status)}
+                    stroke-width={isSelected
+                        ? (lineItem.totalTracks > 1 ? 5.2 : 6.5)
+                        : onTrainRoute
+                        ? (lineItem.totalTracks > 1 ? 4.4 : 5.5)
+                        : (lineItem.totalTracks > 1 ? 3.4 : 4.8)}
+                    stroke-linecap="round"
+                    vector-effect="non-scaling-stroke"
+                    opacity={dimmed ? 0.2 : 0.95}
+                />
+                <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+                <line
+                    class="hit-line"
+                    class:dimmed
+                    x1={lineItem.x1}
+                    y1={lineItem.y1}
+                    x2={lineItem.x2}
+                    y2={lineItem.y2}
+                    stroke="transparent"
+                    stroke-width={lineItem.totalTracks > 1 ? '12' : '16'}
+                    on:click={() => pickSegment(segment.segmentId)}
+                />
             {/each}
 
             {#each stations as station (station.id)}
@@ -512,18 +748,21 @@
                 {@const shape = stationShape(station.type)}
                 {@const hasSignalFailure = stationsWithSignalFailure.has(station.id)}
                 {@const dimmed =
-                    (selectedKind === 'segment' && !selectedSegmentNodeIds.has(station.id)) ||
-                    (selectedKind === 'train' &&
-                        !selectedTrainRouteStations.has(station.id) &&
-                        !isTrainTarget) ||
-                    (highlight?.kind === 'incidents' && !hasSignalFailure)}
+                    pickMode !== null
+                        ? pickMode !== 'station' || hasSignalFailure
+                        : (selectedKind === 'segment' && !selectedSegmentNodeIds.has(station.id)) ||
+                          (selectedKind === 'train' &&
+                              !selectedTrainRouteStations.has(station.id) &&
+                              !isTrainTarget) ||
+                          (highlight?.kind === 'incidents' && !hasSignalFailure)}
                 {#if point}
                     <g
-                        class="station"
+                        class="station focus-target"
                         transform={`translate(${point.x}, ${point.y})`}
                         class:selected={isStationSelected}
                         class:dimmed
                         class:route-target={isTrainTarget}
+                        style="pointer-events: {stationsClickable ? 'auto' : 'none'}"
                         on:click={() => pickStation(station.id)}
                         role="button"
                         tabindex="0"
@@ -534,8 +773,8 @@
                             {#if hasSignalFailure}
                                 <circle
                                     r={stationRadius(station) + 7}
-                                    stroke="#f0c29a"
-                                    stroke-width="2"
+                                    stroke="var(--color-restricted, #f0c29a)"
+                                    stroke-width="2.5"
                                     fill="none"
                                     class="signal-ring"
                                 />
@@ -543,7 +782,7 @@
                             {#if isTrainTarget}
                                 <circle
                                     r={stationRadius(station) + 9}
-                                    stroke="#87979f"
+                                    stroke="var(--target-ring, #97a5ad)"
                                     stroke-width="2"
                                     stroke-dasharray="4,4"
                                     fill="none"
@@ -559,29 +798,29 @@
                                     height={stationRadius(station) * 1.6}
                                     rx="3"
                                     transform="rotate(45)"
-                                    fill="#f5f7f8"
+                                    fill="var(--hub-fill, #f5f7f8)"
                                     filter={isStationSelected ? 'url(#glow)' : undefined}
                                 />
                             {:else if shape === 'terminus'}
                                 <circle
                                     class="marker"
                                     r={stationRadius(station)}
-                                    fill="#f0c29a"
+                                    fill="var(--color-restricted, #f0c29a)"
                                     filter={isStationSelected ? 'url(#glow)' : undefined}
                                 />
-                                <circle r={stationRadius(station) * 0.4} fill="#141414" />
+                                <circle r={stationRadius(station) * 0.4} fill="var(--map-bg, #141414)" />
                             {:else}
                                 <circle
                                     class="marker"
                                     r={stationRadius(station)}
-                                    fill="#87979f"
+                                    fill="var(--color-dwelling, #87979f)"
                                     filter={isStationSelected ? 'url(#glow)' : undefined}
                                 />
                             {/if}
                             {#if isStationSelected}
                                 <circle
                                     r={stationRadius(station) + 5}
-                                    stroke="#f5f7f8"
+                                    stroke="var(--selection-ring-stroke, #f5f7f8)"
                                     stroke-width="1.5"
                                     fill="none"
                                     class="selection-ring"
@@ -604,16 +843,20 @@
                         ? train.status === highlight.status
                         : train.delayedByEventId !== null || train.status === 'derailed')}
                 {@const dimmed =
-                    (selectedKind === 'train' && !isTrainSelected) || (highlight !== null && !isHighlighted)}
+                    pickMode !== null
+                        ? pickMode !== 'train' || train.status !== 'running'
+                        : (selectedKind === 'train' && !isTrainSelected) ||
+                          (highlight !== null && !isHighlighted)}
                 {#if pos}
                     <g
                         transform={`translate(${pos.x}, ${pos.y})`}
-                        class="train-marker"
+                        class="train-marker focus-target"
                         class:running={train.status === 'running'}
                         class:derailed={train.status === 'derailed'}
                         class:selected={isTrainSelected}
                         class:highlighted={isHighlighted}
                         class:dimmed
+                        style="pointer-events: {trainsClickable ? 'auto' : 'none'}"
                         on:click={() => pickTrain(train.id)}
                         role="button"
                         tabindex="0"
@@ -657,8 +900,9 @@
 
             {#each incidentBadges as badge (badge.event.id)}
                 <g
-                    class="incident-badge severity-{badge.event.severity}"
+                    class="incident-badge severity-{badge.event.severity} focus-target"
                     transform={`translate(${badge.x}, ${badge.y}) scale(${markerScale})`}
+                    style="pointer-events: {badgesClickable ? 'auto' : 'none'}"
                     on:click={() => pickIncident(badge)}
                     role="button"
                     tabindex="0"
@@ -683,8 +927,8 @@
             {/each}
         </svg>
 
+        <!-- Kontrolki widoku mapy (zoom / reset / pełny ekran) -->
         <div class="zoom-controls">
-            <!-- Przycisk Fullscreen umieszczony nad przyciskami zooma -->
             <button
                 type="button"
                 class="ctrl-btn"
@@ -743,17 +987,79 @@
             <div class="legend-hint">{$t('map.legend.hint')}</div>
         </div>
     {:else}
-        <div class="empty-state">{$t('map.empty')}</div>
+        <div class="empty-state" role="status">
+            <span class="material-symbols-outlined empty-state-icon" aria-hidden="true">map</span>
+            <p class="empty-state-text">{$t('map.empty')}</p>
+        </div>
     {/if}
 </div>
 
 <style>
     .map-root {
+        --map-bg: #141414;
+        --track-base: #38404a;
+        --track-selected: #ffffff;
+        --station-code: #f5f7f8;
+        --station-name: #97a5ad;
+        --hub-fill: #f5f7f8;
+        --selection-ring-stroke: #f5f7f8;
+        --target-ring: #97a5ad;
+        --train-base: #f5f7f8;
+        --train-label: #f5f7f8;
+        --train-warning-text: #141414;
+        --color-blocked: #de8489;
+        --color-restricted: #f0c29a;
+        --color-dwelling: #87979f;
+        --ctrl-bg: rgba(255, 255, 255, 0.08);
+        --ctrl-bg-hover: rgba(255, 255, 255, 0.14);
+        --ctrl-color: #f5f7f8;
+        --ctrl-shadow: none;
+        --legend-bg: rgba(20, 20, 20, 0.92);
+        --legend-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        --legend-text: #97a5ad;
+        --legend-hint: #64748b;
+        --legend-divider: rgba(255, 255, 255, 0.08);
+        --focus-ring: rgba(255, 255, 255, 0.65);
+        --badge-major-bg: rgba(222, 132, 137, 0.22);
+        --badge-minor-bg: rgba(240, 194, 154, 0.22);
+
         position: relative;
         width: 100%;
         height: 100%;
-        background: #141414;
+        background: var(--map-bg);
         font-family: 'Inter Variable', Inter, sans-serif;
+        transition: background-color 200ms ease;
+    }
+
+    :global(html.light-mode) .map-root,
+    :global([data-theme='light']) .map-root,
+    :global(.light) .map-root {
+        --map-bg: #f4f5f3;
+        --track-base: #b4bec9;
+        --track-selected: #111827;
+        --station-code: #111827;
+        --station-name: #52606a;
+        --hub-fill: #111827;
+        --selection-ring-stroke: #111827;
+        --target-ring: #6b7280;
+        --train-base: #1f2933;
+        --train-label: #111827;
+        --train-warning-text: #ffffff;
+        --color-blocked: #c95158;
+        --color-restricted: #c97d39;
+        --color-dwelling: #6b7280;
+        --ctrl-bg: rgba(0, 0, 0, 0.05);
+        --ctrl-bg-hover: rgba(0, 0, 0, 0.1);
+        --ctrl-color: #111827;
+        --ctrl-shadow: none;
+        --legend-bg: rgba(255, 255, 255, 0.94);
+        --legend-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
+        --legend-text: #52606a;
+        --legend-hint: #94a3b8;
+        --legend-divider: rgba(0, 0, 0, 0.08);
+        --focus-ring: rgba(17, 24, 39, 0.65);
+        --badge-major-bg: rgba(201, 81, 88, 0.18);
+        --badge-minor-bg: rgba(201, 125, 57, 0.18);
     }
 
     .map-root.fullscreen {
@@ -764,9 +1070,14 @@
         z-index: 1000 !important;
     }
 
-    .graph *:focus,
-    .graph *:focus-visible {
-        outline: none !important;
+    .graph *:focus {
+        outline: none;
+    }
+
+    /* Wyraźny wskaźnik skupienia dla użytkowników klawiatury na mapie */
+    .focus-target:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 4px;
     }
 
     .graph {
@@ -778,8 +1089,9 @@
         cursor: grab;
         touch-action: none;
         outline: none;
-        background: #141414;
+        background: var(--map-bg);
         font-family: 'Inter Variable', Inter, sans-serif;
+        transition: background-color 200ms ease;
     }
 
     .graph.panning,
@@ -787,11 +1099,35 @@
         cursor: grabbing !important;
     }
 
+    .graph.pick-mode {
+        cursor: crosshair;
+    }
+
     .graph :global(.hit-line),
     .graph :global(g.station),
     .graph :global(g.train-marker),
     .graph :global(g.incident-badge) {
         cursor: pointer;
+    }
+
+    /* Podczas wskazywania celu incydentu kursor ma wyglądać jak "oznacz tutaj
+       awarię", a nie zwykły "kliknij, aby zobaczyć szczegóły" — bez tych reguł
+       ogólna zasada cursor:pointer powyżej (ta sama swoistość, ale niżej w
+       arkuszu) wygrywała nad .pick-mode i psuła wskaźnik nad elementami. */
+    .graph.pick-mode :global(.hit-line),
+    .graph.pick-mode :global(g.station),
+    .graph.pick-mode :global(g.train-marker) {
+        cursor: crosshair;
+    }
+
+    .graph.pick-mode :global(.hit-line.dimmed),
+    .graph.pick-mode :global(g.station.dimmed),
+    .graph.pick-mode :global(g.train-marker.dimmed) {
+        cursor: not-allowed;
+    }
+
+    .graph.pick-mode :global(g.incident-badge) {
+        cursor: default;
     }
 
     .material-symbols-outlined {
@@ -825,13 +1161,13 @@
     }
 
     .graph :global(g.station.selected .marker) {
-        stroke: #f5f7f8;
+        stroke: var(--selection-ring-stroke);
         stroke-width: 2px;
     }
 
     .selection-ring {
         animation: selection-pulse 1.8s ease-in-out infinite;
-        stroke: #f5f7f8 !important;
+        stroke: var(--selection-ring-stroke) !important;
     }
 
     @keyframes selection-pulse {
@@ -877,7 +1213,7 @@
     }
 
     .station-code {
-        fill: #f5f7f8;
+        fill: var(--station-code);
         font-size: 0.85rem;
         font-weight: 500;
         text-anchor: middle;
@@ -886,9 +1222,9 @@
     }
 
     .station-name {
-        fill: #87979f;
+        fill: var(--station-name);
         font-size: 0.76rem;
-        font-weight: 500;
+        font-weight: 400;
         text-anchor: middle;
         stroke: none;
         letter-spacing: -0.01em;
@@ -900,14 +1236,14 @@
 
     .train-marker .selected-ring {
         fill: none;
-        stroke: #f5f7f8;
+        stroke: var(--selection-ring-stroke);
         stroke-width: 2.5;
         stroke-dasharray: 4, 4;
     }
 
     .train-marker .highlight-ring {
         fill: none;
-        stroke: #f0c29a;
+        stroke: var(--color-restricted);
         stroke-width: 2.5;
         animation: highlight-pulse 1.4s ease-in-out infinite;
     }
@@ -959,8 +1295,8 @@
 
     .train-label {
         font-size: 0.65rem;
-        font-weight: 500;
-        fill: #f5f7f8;
+        font-weight: 400;
+        fill: var(--train-label);
         stroke: none;
         letter-spacing: -0.01em;
     }
@@ -968,21 +1304,20 @@
     .train-warning {
         font-size: 0.65rem;
         font-weight: 800;
-        fill: #141414;
+        fill: var(--train-warning-text);
         stroke: none;
     }
 
-    /* Styl bazowy tła badge'a incydentu (usunięto border, dodano kolorowe tło bazowe) */
     .incident-badge .badge-bg {
         stroke: none;
     }
 
     .incident-badge.severity-major .badge-bg {
-        fill: rgba(222, 132, 137, 0.25);
+        fill: var(--badge-major-bg);
     }
 
     .incident-badge.severity-minor .badge-bg {
-        fill: rgba(240, 194, 154, 0.25);
+        fill: var(--badge-minor-bg);
     }
 
     .incident-badge {
@@ -1009,15 +1344,15 @@
 
     .badge-symbol {
         font-size: 13px;
-        color: #97a5ad;
+        color: var(--legend-text);
     }
 
     .severity-major .badge-symbol {
-        color: #de8489;
+        color: var(--color-blocked);
     }
 
     .severity-minor .badge-symbol {
-        color: #f0c29a;
+        color: var(--color-restricted);
     }
 
     .zoom-controls {
@@ -1031,28 +1366,39 @@
     }
 
     .ctrl-btn {
-        width: 40px;
-        height: 40px;
+        width: 38px;
+        height: 38px;
         border-radius: 50%;
         border: 0;
-        background: #f5f7f8;
-        color: #141414;
+        background: var(--ctrl-bg);
+        color: var(--ctrl-color);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         padding: 0;
-        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
-        transition: transform 120ms ease, opacity 150ms ease, background-color 150ms ease;
+        box-shadow: none !important;
+        transition: background-color 150ms ease, color 150ms ease;
+    }
+
+    .ctrl-btn:focus {
+        outline: none;
+    }
+
+    .ctrl-btn:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
     }
 
     .ctrl-btn:hover {
-        opacity: 0.9;
-        transform: scale(1.05);
+        background: var(--ctrl-bg-hover);
+        transform: none !important;
     }
 
     .ctrl-btn:active {
-        transform: scale(0.95);
+        transform: none !important;
     }
 
     .ctrl-icon {
@@ -1081,15 +1427,16 @@
         gap: 14px;
         padding: 6px 16px;
         border-radius: 10px;
-        background: rgba(20, 20, 20, 0.92);
+        background: var(--legend-bg);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
-        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-        color: #87979f;
+        box-shadow: var(--legend-shadow);
+        color: var(--legend-text);
         font-size: 0.68rem;
         font-weight: 300;
         letter-spacing: 0.04em;
         text-transform: uppercase;
+        transition: background-color 200ms ease, color 200ms ease;
     }
 
     .legend-group {
@@ -1105,7 +1452,7 @@
     }
 
     .legend-hint {
-        color: #55626b;
+        color: var(--legend-hint);
         font-size: 0.62rem;
         letter-spacing: 0.04em;
         text-transform: uppercase;
@@ -1115,7 +1462,7 @@
     .legend-divider {
         width: 1px;
         height: 12px;
-        background: rgba(255, 255, 255, 0.08);
+        background: var(--legend-divider);
     }
 
     .legend-shape {
@@ -1125,46 +1472,64 @@
     }
 
     .legend-shape.hub {
-        background: #f5f7f8;
+        background: var(--hub-fill);
         transform: rotate(45deg);
         border-radius: 1px;
     }
 
     .legend-shape.through {
-        background: #87979f;
+        background: var(--color-dwelling);
         border-radius: 999px;
     }
 
     .legend-shape.terminus {
-        background: #f0c29a;
+        background: var(--color-restricted);
         border-radius: 999px;
     }
 
     .legend-line {
         width: 14px;
-        height: 3px;
+        height: 4px;
         display: inline-block;
         border-radius: 2px;
     }
 
     .legend-line.active {
-        background: #262a30;
+        background: var(--track-base);
     }
 
     .legend-line.restricted {
-        background: #f0c29a;
+        background: var(--color-restricted);
     }
 
     .legend-line.blocked {
-        background: #de8489;
+        background: var(--color-blocked);
     }
 
     .empty-state {
         position: absolute;
         inset: 0;
-        display: grid;
-        place-items: center;
-        color: #87979f;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        color: var(--legend-text);
+        background: var(--map-bg);
+        transition: background-color 200ms ease, color 200ms ease;
+    }
+
+    .empty-state-icon {
+        font-size: 32px;
+        opacity: 0.6;
+    }
+
+    .empty-state-text {
+        margin: 0;
+        font-size: 0.76rem;
+        font-weight: 300;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
     }
 
     @media (max-width: 900px) {

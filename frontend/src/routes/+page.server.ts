@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { setGuestSession } from '$lib/server/auth';
+import { handleLogin, handleRegister, setGuestSession } from '$lib/server/auth';
 import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = ({ cookies }) => {
@@ -9,6 +9,8 @@ export const load: PageServerLoad = ({ cookies }) => {
 };
 
 export const actions: Actions = {
+	login: handleLogin,
+	register: handleRegister,
 	guest: ({ cookies }) => {
 		setGuestSession(cookies);
 		redirect(303, '/panel');

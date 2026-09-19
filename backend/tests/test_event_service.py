@@ -1,5 +1,5 @@
 from app.services.event_service import (
-	_expand_for_track_count,
+	_both_directions,
 	_pick_active_directed_edge,
 	create_event,
 )
@@ -65,18 +65,20 @@ class FakeSession:
 		return []
 
 
-def test_expand_for_track_count_single_track_blocks_both_directions():
+def test_both_directions_single_track_blocks_both_directions():
 	target = {"segmentId": "SEG1", "fromId": "A", "toId": "B", "railTracks": 1, "vmax": 100}
-	edges = _expand_for_track_count(target)
+	edges = _both_directions(target)
 	assert len(edges) == 2
 	assert {(e["fromId"], e["toId"]) for e in edges} == {("A", "B"), ("B", "A")}
 
 
-def test_expand_for_track_count_double_track_blocks_one_direction_only():
+def test_both_directions_double_track_also_blocks_both_directions():
+	# Awaria wyłącza cały odcinek — także dwutorowy gaśnie w obu kierunkach, inaczej
+	# pociągi jadące drugim, „czynnym” kierunkiem przejeżdżałyby przez awarię.
 	target = {"segmentId": "SEG1", "fromId": "A", "toId": "B", "railTracks": 2, "vmax": 100}
-	edges = _expand_for_track_count(target)
-	assert len(edges) == 1
-	assert edges[0]["fromId"] == "A" and edges[0]["toId"] == "B"
+	edges = _both_directions(target)
+	assert len(edges) == 2
+	assert {(e["fromId"], e["toId"]) for e in edges} == {("A", "B"), ("B", "A")}
 
 
 def test_line_failure_on_single_track_segment_blocks_both_directions():
@@ -96,7 +98,7 @@ def test_line_failure_on_single_track_segment_blocks_both_directions():
 	assert len(block_calls[0][1]["edges"]) == 2
 
 
-def test_line_failure_on_double_track_segment_blocks_one_direction():
+def test_line_failure_on_double_track_segment_blocks_both_directions():
 	session = FakeSession(
 		station_names={"A": "Stacja A", "B": "Stacja B"},
 		edge_rows=[
@@ -108,7 +110,7 @@ def test_line_failure_on_double_track_segment_blocks_one_direction():
 	assert event is not None
 	block_calls = [c for c in session.calls if "SET r.status = 'blocked'" in c[0]]
 	assert len(block_calls) == 1
-	assert len(block_calls[0][1]["edges"]) == 1
+	assert len(block_calls[0][1]["edges"]) == 2
 
 
 def test_create_event_returns_none_gracefully_when_no_target_available():

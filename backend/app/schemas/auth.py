@@ -6,6 +6,14 @@ class AuthCredentials(BaseModel):
 	password: str = Field(min_length=8, max_length=128)
 
 
+class LoginCredentials(BaseModel):
+	"""Dane logowania — bez wymogów siły hasła, żeby literówka albo zbyt
+	krótkie hasło kończyły się przyjaznym 401, a nie surowym 422 z walidacji."""
+
+	email: str = Field(min_length=1, max_length=254)
+	password: str = Field(min_length=1, max_length=128)
+
+
 class UserResponse(BaseModel):
 	id: str
 	email: str

@@ -1,55 +1,83 @@
 <script lang="ts">
-	import { locale, setLocale, t, type Locale } from '$lib/i18n';
+    import { locale, setLocale, t, type Locale } from '$lib/i18n';
 
-	function choose(nextLocale: Locale) {
-		setLocale(nextLocale);
-	}
+    function toggleLocale() {
+        const next: Locale = $locale === 'pl' ? 'en' : 'pl';
+        setLocale(next);
+    }
 </script>
 
-<div class="language-switcher" role="group" aria-label={$t('language.label')}>
-	<button
-		type="button"
-		class:active={$locale === 'pl'}
-		aria-pressed={$locale === 'pl'}
-		title={$t('language.polish')}
-		on:click={() => choose('pl')}>PL</button
-	>
-	<button
-		type="button"
-		class:active={$locale === 'en'}
-		aria-pressed={$locale === 'en'}
-		title={$t('language.english')}
-		on:click={() => choose('en')}>EN</button
-	>
-</div>
+<svelte:head>
+    <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+    />
+</svelte:head>
+
+<button
+    type="button"
+    class="icon-button"
+    on:click={toggleLocale}
+    title={$t('language.label')}
+    aria-label={$t('language.label')}
+    tabindex="0"
+>
+    <span class="material-symbols-outlined" aria-hidden="true">translate</span>
+    <span class="lang-text">{$locale.toUpperCase()}</span>
+</button>
 
 <style>
-	.language-switcher {
-		display: inline-flex;
-		padding: 2px;
-		border: 1px solid rgba(148, 163, 184, 0.25);
-		border-radius: 9px;
-		background: rgba(30, 41, 59, 0.72);
-	}
+    .icon-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 32px;
+        padding: 0 8px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: #97a5ad;
+        cursor: pointer;
+        font-family: 'Inter Variable', Inter, sans-serif;
+        font-size: 0.68rem;
+        font-weight: 400;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        transition: color 150ms ease, background-color 150ms ease;
+    }
 
-	button {
-		border: 0;
-		border-radius: 6px;
-		padding: 4px 7px;
-		background: transparent;
-		color: #94a3b8;
-		font: inherit;
-		font-size: 0.68rem;
-		font-weight: 700;
-		cursor: pointer;
-	}
+    .icon-button:hover {
+        color: #f5f7f8;
+        background: rgba(255, 255, 255, 0.04);
+    }
 
-	button:hover {
-		color: #e2e8f0;
-	}
+    :global(html.light-mode) .icon-button,
+    :global([data-theme='light']) .icon-button,
+    :global(.light) .icon-button {
+        color: #64748b;
+    }
 
-	button.active {
-		background: rgba(37, 99, 235, 0.65);
-		color: #fff;
-	}
+    :global(html.light-mode) .icon-button:hover,
+    :global([data-theme='light']) .icon-button:hover,
+    :global(.light) .icon-button:hover {
+        color: #111827;
+        background: rgba(0, 0, 0, 0.04);
+    }
+
+    .material-symbols-outlined {
+        font-size: 17px;
+    }
+
+    .icon-button:focus {
+        outline: none;
+    }
+
+    .icon-button:focus-visible {
+        outline: 2px solid rgba(255, 255, 255, 0.6);
+        outline-offset: 1px;
+    }
+
+    :global(html.light-mode) .icon-button:focus-visible {
+        outline-color: rgba(17, 24, 39, 0.6);
+    }
 </style>

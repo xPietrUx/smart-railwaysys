@@ -337,15 +337,65 @@
             <li class="hint" aria-hidden="true">{$t('search.hint')}</li>
         </ul>
     {:else if open && query.trim() !== ''}
-        <div class="dropdown empty">{$t('search.noResults', { query: query.trim() })}</div>
+        <div class="dropdown empty" role="status">
+            <span class="material-symbols-outlined empty-icon" aria-hidden="true">search_off</span>
+            <span class="empty-text">{$t('search.noResults', { query: query.trim() })}</span>
+        </div>
     {/if}
 </div>
 
 <style>
     .search {
+        --search-field-bg: rgba(20, 20, 20, 0.92);
+        --search-border: 1px solid rgba(255, 255, 255, 0.08);
+        --search-border-focus: rgba(255, 255, 255, 0.65);
+        --search-text: #f5f7f8;
+        --search-placeholder: #97a5ad;
+        --search-muted: #97a5ad;
+        --search-sub: #97a5ad;
+        --search-chip-bg: rgba(255, 255, 255, 0.08);
+        --search-chip-hover: rgba(255, 255, 255, 0.14);
+        --search-dropdown-bg: rgba(20, 20, 20, 0.96);
+        --search-dropdown-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+        --search-dropdown-border: 1px solid rgba(255, 255, 255, 0.06);
+        --search-item-hover: rgba(255, 255, 255, 0.06);
+        --search-count-bg: rgba(255, 255, 255, 0.05);
+        --search-header: #64748b;
+        --focus-ring: rgba(255, 255, 255, 0.65);
+
         position: relative;
         width: min(340px, 92vw);
         font-family: 'Inter Variable', Inter, sans-serif;
+    }
+
+    :global(html.light-mode) .search,
+    :global([data-theme='light']) .search,
+    :global(.light) .search {
+        --search-field-bg: rgba(244, 245, 243, 0.96);
+        --search-border: 1px solid rgba(0, 0, 0, 0.08);
+        --search-border-focus: rgba(17, 24, 39, 0.65);
+        --search-text: #1f2933;
+        --search-placeholder: #52606a;
+        --search-muted: #52606a;
+        --search-sub: #8c9ba5;
+        --search-chip-bg: rgba(0, 0, 0, 0.06);
+        --search-chip-hover: rgba(0, 0, 0, 0.1);
+        --search-dropdown-bg: rgba(255, 255, 255, 0.98);
+        --search-dropdown-shadow: 0 20px 48px rgba(0, 0, 0, 0.12);
+        --search-dropdown-border: 1px solid rgba(0, 0, 0, 0.08);
+        --search-item-hover: rgba(0, 0, 0, 0.05);
+        --search-count-bg: rgba(0, 0, 0, 0.05);
+        --search-header: #52606a;
+        --focus-ring: rgba(17, 24, 39, 0.65);
+    }
+
+    button:focus {
+        outline: none;
+    }
+
+    button:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
     }
 
     .material-symbols-outlined {
@@ -380,19 +430,21 @@
         height: 38px;
         padding: 0 12px;
         border-radius: 999px;
-        background: transparent;
-        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: var(--search-field-bg);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: var(--search-border);
         box-sizing: border-box;
-        transition: border-color 200ms ease;
+        transition: border-color 200ms ease, background-color 200ms ease;
     }
 
     .field:focus-within {
-        border-color: rgba(255, 255, 255, 0.6);
+        border-color: var(--search-border-focus);
     }
 
     .search-icon {
         font-size: 18px;
-        color: #97a5ad;
+        color: var(--search-muted);
         flex-shrink: 0;
     }
 
@@ -404,8 +456,8 @@
         padding: 0 8px;
         border-radius: 6px;
         border: 0;
-        background: rgba(255, 255, 255, 0.08);
-        color: #f5f7f8;
+        background: var(--search-chip-bg);
+        color: var(--search-text);
         font-family: inherit;
         font-size: 0.66rem;
         font-weight: 400;
@@ -418,17 +470,17 @@
     }
 
     .chip:hover {
-        background: rgba(255, 255, 255, 0.14);
+        background: var(--search-chip-hover);
     }
 
     .chip-icon {
         font-size: 14px;
-        color: #97a5ad;
+        color: var(--search-muted);
     }
 
     .chip-x {
         font-size: 13px;
-        color: #97a5ad;
+        color: var(--search-muted);
         margin-left: 2px;
     }
 
@@ -438,7 +490,7 @@
         height: 100%;
         border: 0;
         background: transparent;
-        color: #f5f7f8;
+        color: var(--search-text);
         font-family: inherit;
         font-size: 0.76rem;
         font-weight: 300;
@@ -448,7 +500,7 @@
     }
 
     input::placeholder {
-        color: #97a5ad;
+        color: var(--search-placeholder);
         font-weight: 300;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -457,7 +509,7 @@
     .clear {
         border: 0;
         background: transparent;
-        color: #97a5ad;
+        color: var(--search-muted);
         cursor: pointer;
         width: 24px;
         height: 24px;
@@ -474,8 +526,8 @@
     }
 
     .clear:hover {
-        color: #ffffff;
-        background: rgba(255, 255, 255, 0.06);
+        color: var(--search-text);
+        background: var(--search-chip-bg);
     }
 
     .dropdown {
@@ -487,11 +539,11 @@
         padding: 6px;
         list-style: none;
         border-radius: 12px;
-        background: rgba(20, 20, 20, 0.96);
-        border: 0;
+        background: var(--search-dropdown-bg);
+        border: var(--search-dropdown-border);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
-        box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+        box-shadow: var(--search-dropdown-shadow);
         max-height: 280px;
         overflow-y: auto;
         z-index: 40;
@@ -511,13 +563,27 @@
     }
 
     .dropdown.empty {
-        padding: 14px;
-        color: #97a5ad;
+        padding: 16px 14px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        text-align: center;
+    }
+
+    .empty-icon {
+        font-size: 22px;
+        color: var(--search-muted);
+        opacity: 0.8;
+    }
+
+    .empty-text {
+        color: var(--search-muted);
         font-size: 0.72rem;
         font-weight: 300;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        text-align: center;
     }
 
     .group-header {
@@ -526,7 +592,7 @@
         font-weight: 400;
         letter-spacing: 0.1em;
         text-transform: uppercase;
-        color: #64748b;
+        color: var(--search-header);
     }
 
     .item button {
@@ -547,17 +613,17 @@
 
     .item button:hover,
     .item.active button {
-        background: rgba(255, 255, 255, 0.06);
+        background: var(--search-item-hover);
     }
 
     .item-icon {
         font-size: 17px;
-        color: #97a5ad;
+        color: var(--search-muted);
         flex: 0 0 auto;
     }
 
     .item-label {
-        color: #f5f7f8;
+        color: var(--search-text);
         font-size: 0.74rem;
         font-weight: 400;
         letter-spacing: 0.06em;
@@ -569,7 +635,7 @@
 
     .item-sub {
         margin-left: auto;
-        color: #97a5ad;
+        color: var(--search-sub);
         font-size: 0.66rem;
         font-weight: 300;
         letter-spacing: 0.06em;
@@ -584,21 +650,21 @@
         margin-left: auto;
         padding: 2px 6px;
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.05);
-        color: #97a5ad;
+        background: var(--search-count-bg);
+        color: var(--search-muted);
         font-size: 0.64rem;
         font-weight: 300;
     }
 
     .item-go {
         font-size: 16px;
-        color: #64748b;
+        color: var(--search-header);
     }
 
     .hint {
         padding: 8px 10px 4px;
         margin-top: 4px;
-        color: #64748b;
+        color: var(--search-header);
         font-size: 0.62rem;
         font-weight: 300;
         letter-spacing: 0.06em;
