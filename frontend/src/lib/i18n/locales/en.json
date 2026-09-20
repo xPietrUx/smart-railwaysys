@@ -1,5 +1,5 @@
 {
-    "meta.title": "Smart Railway System — autonomous railway network",
+    "meta.title": "WAGONE",
     "meta.description": "A live autonomous train simulation on the railway network of the Silesian Voivodeship, powered by Memgraph.",
     "error.status": "Error {{status}}",
     "error.title": "The application could not be opened",
@@ -191,7 +191,7 @@
     "scenario.ROZKLAD_TOWAROWY.description": "Heavy freight trains on coal and transit corridors — slow (80 km/h), long and difficult to overtake.",
     "scenario.ROZKLAD_BESKIDY.name": "Beskids and the south",
     "scenario.ROZKLAD_BESKIDY.description": "Tourist traffic heading south to Żywiec, Wisła, Zwardoń and Cieszyn, with one additional InterCity service to Bielsko.",
-    "landing.head.title": "Wagone — full control over railway traffic",
+    "landing.head.title": "WAGONE",
     "landing.hero.aria": "Welcome section",
     "landing.hero.scrollHint": "Scroll to start",
     "landing.hero.eyebrow": "Wagone · Dispatcher system",

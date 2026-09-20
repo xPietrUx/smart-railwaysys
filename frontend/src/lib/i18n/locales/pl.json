@@ -1,5 +1,5 @@
 {
-    "meta.title": "Smart Railway System — autonomiczna sieć kolejowa",
+    "meta.title": "WAGONE",
     "meta.description": "Autonomiczna symulacja pociągów na sieci kolejowej województwa śląskiego, na żywo z Memgraph.",
     "error.status": "Błąd {{status}}",
     "error.title": "Nie udało się otworzyć aplikacji",
@@ -191,7 +191,7 @@
     "scenario.ROZKLAD_TOWAROWY.description": "Ciężkie składy towarowe na korytarzach węglowych i tranzytowych — wolne (80 km/h), długie i trudne do wyprzedzenia.",
     "scenario.ROZKLAD_BESKIDY.name": "Beskidy i południe",
     "scenario.ROZKLAD_BESKIDY.description": "Ruch turystyczny na południe: Żywiec, Wisła, Zwardoń i Cieszyn, z jednym wzmocnionym IC do Bielska.",
-    "landing.head.title": "Wagone — pełna kontrola nad ruchem kolejowym",
+    "landing.head.title": "WAGONE",
     "landing.hero.aria": "Sekcja powitalna",
     "landing.hero.scrollHint": "Przewiń, aby rozpocząć",
     "landing.hero.eyebrow": "Wagone · System dyspozytorski",
