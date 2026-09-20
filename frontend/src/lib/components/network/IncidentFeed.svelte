@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onDestroy, onMount } from 'svelte';
-    import { t } from '$lib/i18n';
+    import { locale, t } from '$lib/i18n';
     import { createIncident } from '$lib/services/incidents';
     import { eventLabel, formatEventMessage } from '$lib/services/labels';
     import type { RailEventNode, RailEventType } from '$lib/types/event';
@@ -88,6 +88,7 @@
     function selectTarget(id: string) {
         formTargetId = id;
         targetDropdownOpen = false;
+        if (formError) formError = '';
     }
 
     function countdownLabel(resolvesAt: number): string {
@@ -115,9 +116,6 @@
         }
     }
 
-    // Cel zależy od typu: odcinek (line_failure/speed_restriction) albo stacja
-    // (signal_failure) — backend i tak zweryfikuje dostępność celu, ta lista to
-    // tylko wygoda wyboru w formularzu.
     $: segmentOptions = segments
         .filter((s) => s.forward.status === 'active' || s.backward.status === 'active')
         .map((s) => ({ id: s.segmentId, label: `${stationName(s.source)} – ${stationName(s.target)}` }));
@@ -150,6 +148,7 @@
         targetDropdownOpen = false;
         onStartPick(pickModeForType(formType), (id: string) => {
             formTargetId = id;
+            if (formError) formError = '';
         });
     }
 
@@ -157,18 +156,49 @@
         if (pickMode) onCancelPick();
         typeDropdownOpen = false;
         targetDropdownOpen = false;
+        if (formError) formError = '';
+    }
+
+    function validateDuration(): number | undefined | null {
+        if (formDurationS === null || formDurationS === undefined || `${formDurationS}`.trim() === '') {
+            return undefined; // opcjonalny czas trwania
+        }
+        const num = Number(formDurationS);
+        if (isNaN(num) || !Number.isInteger(num)) {
+            formError = $locale === 'pl'
+                ? 'Czas trwania musi być liczbą całkowitą sekund.'
+                : 'Duration must be an integer number of seconds.';
+            return null;
+        }
+        if (num < 1 || num > 86400) {
+            formError = $locale === 'pl'
+                ? 'Czas trwania musi wynosić od 1 do 86400 sekund (maks. 24h).'
+                : 'Duration must be between 1 and 86400 seconds (max 24h).';
+            return null;
+        }
+        return num;
     }
 
     async function handleCreateIncident() {
-        if (!formTargetId || submitting) return;
+        if (submitting) return;
+
+        if (!formTargetId) {
+            formError = $locale === 'pl'
+                ? 'Wybierz cel zdarzenia z listy lub wskaż go na mapie.'
+                : 'Please select a target from the list or pick it on the map.';
+            return;
+        }
+
+        const validDuration = validateDuration();
+        if (validDuration === null) return;
+
         submitting = true;
         formError = '';
         try {
-            const durationS = formDurationS && formDurationS > 0 ? Number(formDurationS) : undefined;
             const created = await createIncident(fetch, {
                 type: formType,
                 targetId: formTargetId,
-                durationS
+                durationS: validDuration
             });
             showCreateForm = false;
             selectIncident(created);
@@ -203,29 +233,30 @@
         <div>
             <p class="panel-label">{$t('incidents.live')}</p>
             <h2>
-                {$t('incidents.title')}
+                <span>{$t('incidents.title')}</span>
                 {#if activeEvents.length > 0}
                     <span class="count">{activeEvents.length}</span>
                 {/if}
+                {#if !readOnly}
+                    <button
+                        type="button"
+                        class="add-btn"
+                        on:click={toggleCreateForm}
+                        aria-expanded={showCreateForm}
+                        aria-label={$t('incidents.addTitle') || 'Dodaj incydent'}
+                        title={$t('incidents.addTitle')}
+                    >
+                        <span class="material-symbols-outlined" aria-hidden="true">
+                            {showCreateForm ? 'close' : 'add'}
+                        </span>
+                    </button>
+                {/if}
             </h2>
         </div>
-        {#if !readOnly}
-            <button
-                type="button"
-                class="add-btn"
-                on:click={toggleCreateForm}
-                aria-expanded={showCreateForm}
-                title={$t('incidents.addTitle')}
-            >
-                <span class="material-symbols-outlined" aria-hidden="true">
-                    {showCreateForm ? 'close' : 'add'}
-                </span>
-            </button>
-        {/if}
     </div>
 
     {#if showCreateForm}
-        <form class="create-form" on:submit|preventDefault={handleCreateIncident}>
+        <form class="create-form" on:submit|preventDefault={handleCreateIncident} novalidate>
             <label class="field">
                 <span>{$t('incidents.form.type')}</span>
                 <div class="custom-select custom-select-type">
@@ -326,8 +357,10 @@
                     type="number"
                     min="1"
                     max="86400"
+                    step="1"
                     placeholder={$t('incidents.form.durationPlaceholder')}
                     bind:value={formDurationS}
+                    on:input={() => { if (formError) formError = ''; }}
                 />
             </label>
 
@@ -518,17 +551,14 @@
         justify-content: space-between;
         gap: 8px;
         margin-bottom: 12px;
-        /* Dok (rodzic panelu) ma własny przycisk zwijania w prawym górnym rogu
-           (position: absolute, 26px, 10px od krawędzi) — ten margines chroni
-           add-btn przed wjechaniem pod niego. */
         padding-right: 28px;
         flex-shrink: 0;
     }
 
     .add-btn {
         flex-shrink: 0;
-        width: 28px;
-        height: 28px;
+        width: 24px;
+        height: 24px;
         border-radius: 50%;
         border: 0;
         background: var(--card-bg);
@@ -538,15 +568,16 @@
         justify-content: center;
         cursor: pointer;
         padding: 0;
-        transition: background-color 150ms ease;
+        margin-left: 4px;
+        transition: opacity 150ms ease;
     }
 
     .add-btn:hover {
-        background: var(--card-bg-hover);
+        opacity: 0.7;
     }
 
     .add-btn .material-symbols-outlined {
-        font-size: 18px;
+        font-size: 16px;
     }
 
     .create-form {
@@ -644,7 +675,6 @@
         color: #52606a;
     }
 
-    /* Ukryj domyślne strzałki (spin buttons) dla input[type='number'] */
     .field input[type='number']::-webkit-inner-spin-button,
     .field input[type='number']::-webkit-outer-spin-button {
         -webkit-appearance: none;
@@ -657,7 +687,6 @@
         appearance: textfield;
     }
 
-    /* Custom Dropdown Styling (MapSearch aesthetic) */
     .custom-select {
         position: relative;
         width: 100%;
@@ -695,7 +724,7 @@
         cursor: pointer;
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
-        transition: border-color 200ms ease, background-color 200ms ease;
+        transition: border-color 200ms ease, background-color 200ms ease, opacity 150ms ease;
     }
 
     :global(html.light-mode) .select-trigger,
@@ -858,7 +887,7 @@
         justify-content: center;
         cursor: pointer;
         padding: 0;
-        transition: border-color 200ms ease, background-color 200ms ease, color 200ms ease;
+        transition: border-color 200ms ease, opacity 150ms ease;
     }
 
     :global(html.light-mode) .pick-btn,
@@ -871,7 +900,7 @@
 
     .pick-btn:hover {
         border-color: var(--search-border-focus, rgba(255, 255, 255, 0.65));
-        color: var(--search-text, #f5f7f8);
+        opacity: 0.75;
     }
 
     .pick-btn .material-symbols-outlined {
@@ -883,7 +912,7 @@
         align-items: center;
         gap: 8px;
         padding: 8px 12px;
-        border-radius: 999px;
+        border-radius: 8px;
         background: var(--severity-minor-bg);
         color: var(--severity-minor-color);
         font-size: 0.72rem;
@@ -921,39 +950,41 @@
         cursor: pointer;
         padding: 8px 14px;
         border-radius: 999px;
-        transition: color 150ms ease, background-color 150ms ease;
+        transition: opacity 150ms ease, background-color 150ms ease;
     }
 
     .ghost-btn:hover {
-        color: var(--search-text, #f5f7f8);
+        opacity: 0.7;
         background: var(--search-chip-bg, rgba(255, 255, 255, 0.08));
     }
 
     .submit-btn {
-        background: var(--severity-major-color, #de8489);
-        color: #141414;
+        background: #6cb09f;
+        color: #0e1e19;
         border: 0;
         border-radius: 999px;
         padding: 8px 16px;
         font-size: 0.68rem;
-        font-weight: 400;
+        font-weight: 500;
         letter-spacing: 0.08em;
         text-transform: uppercase;
         cursor: pointer;
-        transition: opacity 150ms ease, transform 100ms ease;
+        transition: opacity 150ms ease;
+    }
+
+    :global(html.light-mode) .submit-btn,
+    :global([data-theme='light']) .submit-btn,
+    :global(.light) .submit-btn {
+        background: #4e9b89;
+        color: #ffffff;
     }
 
     .submit-btn:hover:not(:disabled) {
-        opacity: 0.9;
-        transform: translateY(-1px);
-    }
-
-    .submit-btn:active:not(:disabled) {
-        transform: translateY(0);
+        opacity: 0.75;
     }
 
     .submit-btn:disabled {
-        opacity: 0.4;
+        opacity: 0.35;
         cursor: not-allowed;
     }
 
@@ -965,10 +996,13 @@
         color: var(--severity-major-color);
         text-transform: none;
         letter-spacing: normal;
+        line-height: 1.35;
+        padding: 4px 0;
     }
 
     .create-form .error-icon {
         font-size: 16px;
+        flex-shrink: 0;
     }
 
     .panel-label {
@@ -1061,7 +1095,7 @@
         text-align: left;
         color: inherit;
         box-sizing: border-box;
-        transition: background-color 150ms ease;
+        transition: background-color 150ms ease, opacity 150ms ease;
     }
 
     button.incident {
@@ -1070,6 +1104,7 @@
 
     button.incident:hover {
         background: var(--card-bg-hover);
+        opacity: 0.85;
     }
 
     .active-incident.severity-major {

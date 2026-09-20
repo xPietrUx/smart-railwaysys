@@ -471,6 +471,7 @@
         align-items: flex-start;
         gap: 12px;
         margin-bottom: 14px;
+        padding-right: 32px;
     }
 
     .panel-label {
@@ -502,7 +503,7 @@
         color: var(--panel-muted);
         width: 28px;
         height: 28px;
-        border-radius: 6px;
+        border-radius: 30px;
         display: flex;
         align-items: center;
         justify-content: center;
