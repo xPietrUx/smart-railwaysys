@@ -138,7 +138,7 @@
     $: activeTrainStatus = highlight?.kind === 'train-status' ? highlight.status : null;
     $: incidentsActive = highlight?.kind === 'incidents';
 
-    $: debugMode = $page.url.searchParams.get('debug') === '1';
+    $: debugMode =$page.url.searchParams.get('debug') === '1';
 
     $: runningCount = snapshot.trains.filter((t) => t.status === 'running').length;
     $: dwellingCount = snapshot.trains.filter((t) => t.status === 'dwelling').length;
@@ -282,7 +282,7 @@
                         class:active={incidentsActive}
                         aria-pressed={incidentsActive}
                         on:click={toggleIncidentFilter}
-                        title={incidentsActive ? $t('header.filter.disable') : $t('header.filter.incidents')}
+                        title={incidentsActive ? $t('header.filter.disable') :$t('header.filter.incidents')}
                     >
                         <span class="metric-label">{$t('header.metric.incidents')}</span>
                         <strong>{activeIncidents}</strong>
@@ -374,7 +374,7 @@
         position: relative;
         z-index: 100;
         width: 100%;
-        padding: 10px clamp(16px, 3vw, 48px);
+        padding: 10px clamp(12px, 2vw, 36px);
         box-sizing: border-box;
         pointer-events: none;
     }
@@ -389,7 +389,7 @@
         align-items: center;
         width: 100%;
         min-height: 48px;
-        gap: 12px;
+        gap: 10px;
     }
 
     .site-header.collapsed .nav-bar {
@@ -437,7 +437,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
+        gap: 8px;
         flex: 1;
         min-width: 0;
         opacity: 1;
@@ -458,7 +458,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 10px;
+        gap: 8px;
         flex: 1;
         min-width: 0;
         flex-wrap: wrap;
@@ -475,9 +475,10 @@
     .auxiliary-cluster {
         display: flex;
         align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
+        gap: 6px;
+        flex-wrap: nowrap;
         justify-content: center;
+        flex-shrink: 0;
     }
 
     .metric {
@@ -542,13 +543,13 @@
     .status-strip {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         font-size: 0.72rem;
         font-weight: 300;
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: #97a5ad;
-        padding: 5px 12px;
+        padding: 5px 10px;
         border-radius: 999px;
         background: rgba(255, 255, 255, 0.03);
         white-space: nowrap;
@@ -593,6 +594,7 @@
     .sim-controls {
         display: flex;
         gap: 6px;
+        flex-shrink: 0;
     }
 
     .ctrl-btn,
@@ -631,7 +633,7 @@
     .actions {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         flex-shrink: 0;
         justify-content: flex-end;
     }
@@ -640,7 +642,7 @@
         color: #dddddd;
         background: #1c1c1c;
         text-decoration: none;
-        padding: 7px 12px;
+        padding: 6px 10px;
         border-radius: 8px;
         font-size: 0.7rem;
         font-weight: 500;
@@ -669,7 +671,7 @@
         font-size: 0.7rem;
         font-weight: 300;
         color: #97a5ad;
-        max-width: 130px;
+        max-width: 120px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -678,8 +680,8 @@
     .icon-button {
         display: grid;
         place-items: center;
-        width: 34px;
-        height: 34px;
+        width: 32px;
+        height: 32px;
         padding: 0;
         border: 0;
         background: transparent;
@@ -774,7 +776,7 @@
         color: #52606a;
     }
 
-    @media (max-width: 1200px) {
+    @media (max-width: 1280px) {
         .account-email {
             display: none;
         }
@@ -792,6 +794,10 @@
 
         .metrics-center {
             justify-content: flex-start;
+        }
+
+        .auxiliary-cluster {
+            flex-wrap: wrap;
         }
 
         .actions {
