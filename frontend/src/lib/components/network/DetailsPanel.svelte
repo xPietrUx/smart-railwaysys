@@ -1,5 +1,6 @@
 <script lang="ts">
     import { SvelteMap } from 'svelte/reactivity';
+    import { fade } from 'svelte/transition';
     import { t } from '$lib/i18n';
     import {
         directionStatusLabel,
@@ -90,10 +91,6 @@
         return `${stationName(fromId)} → ${stationName(toId)}`;
     }
 
-    function formatLine(segment: TrackSegment) {
-        return `${$t('details.line')} ${segment.line}`;
-    }
-
     function pickStation(id: string) {
         selected = { kind: 'station', id };
     }
@@ -119,256 +116,261 @@
 </svelte:head>
 
 {#if selected}
-    <div class="panel details">
-        <div class="panel-header">
-            <div>
-                <p class="panel-label">
-                    {#if selectedKind === 'train'}
-                        {$t('details.train')}
-                    {:else if selectedKind === 'segment'}
-                        {$t('details.segment')}
-                    {:else}
-                        {$t('details.station')}
-                    {/if}
-                </p>
-                <h2>
-                    {#if selectedKind === 'station'}
-                        {selectedStation?.name}
-                    {:else if selectedKind === 'segment'}
-                        {selectedSegment?.segmentId}
-                    {:else}
-                        {selectedTrain?.name}
-                    {/if}
-                </h2>
-            </div>
-            <button type="button" class="close" on:click={close} aria-label={$t('details.close')}>
-                <span class="material-symbols-outlined" aria-hidden="true">close</span>
-            </button>
-        </div>
+    <aside
+        class="left-details-container"
+        transition:fade={{ duration: 180 }}
+    >
+        <button
+            type="button"
+            class="close-btn"
+            on:click={close}
+            aria-label={$t('details.close')}
+            title={$t('details.close')}
+        >
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
 
-        {#if selectedKind === 'station' && selectedStation}
-            <div class="detail-grid">
-                <div><span>{$t('details.code')}</span><strong>{selectedStation.code}</strong></div>
-                <div>
-                    <span>{$t('details.type')}</span><strong
-                        >{formatStationType(selectedStation.type, $t)}</strong
-                    >
-                </div>
-                <div>
-                    <span>{$t('details.platforms')}</span><strong>{selectedStation.platforms}</strong>
-                </div>
-                <div><span>{$t('details.tracks')}</span><strong>{selectedStation.tracks}</strong></div>
-                <div>
-                    <span>{$t('details.trainsPerDay')}</span><strong>{selectedStation.dailyTrains}</strong>
-                </div>
-                <div>
-                    <span>{$t('details.connections')}</span><strong
-                        >{degreeByStation.get(selectedStation.id) ?? 0}</strong
-                    >
-                </div>
-            </div>
+        {#key selected.id}
+            <div
+                class="details-content"
+                in:fade={{ duration: 140 }}
+                out:fade={{ duration: 90 }}
+            >
+                {#if selectedKind === 'station' && selectedStation}
+                    <div class="circle-badge">
+                        <span class="badge-main-text">{selectedStation.code || selectedStation.id.slice(0, 3)}</span>
+                    </div>
 
-            {#if (trainsByStation.get(selectedStation.id) ?? []).length > 0}
-                <div class="section">
-                    <h3>{$t('details.trainsAtStation')}</h3>
-                    <ul class="connections">
-                        {#each trainsByStation.get(selectedStation.id) ?? [] as train (train.id)}
-                            <li>
-                                <button
-                                    type="button"
-                                    class="train-chip status-{train.status}"
-                                    on:click={() => pickTrain(train.id)}
-                                >
-                                    <div>
-                                        <strong>{train.name}</strong>
-                                        <span>{trainTypeLabel(train.type, $t)} · {relationLabel(train)}</span>
-                                    </div>
-                                    <small>{trainStatusLabel(train.status, $t)}</small>
-                                </button>
-                            </li>
-                        {/each}
-                    </ul>
-                </div>
-            {/if}
+                    <div class="divider"></div>
 
-            <div class="section">
-                <h3>{$t('details.nearestConnections')}</h3>
-                <ul class="connections">
-                    {#each connectedSegments as segment (segment.segmentId)}
-                        <li>
-                            <button type="button" on:click={() => pickSegment(segment.segmentId)}>
-                                <div>
-                                    <strong>{segment.segmentId}</strong>
-                                    <span>{formatLine(segment)} · {segment.distKm} km</span>
+                    <div class="stats-stream">
+                        <div class="stat-line primary-title">
+                            <strong class="stat-value text-large">{selectedStation.name}</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.station')}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">{formatStationType(selectedStation.type, $t)}</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.type')}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">{selectedStation.platforms}</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.platforms')}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">{selectedStation.tracks}</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.tracks')}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">{selectedStation.dailyTrains}</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.trainsPerDay')}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">{degreeByStation.get(selectedStation.id) ?? 0}</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.connections')}</span>
+                        </div>
+
+                        {#if (trainsByStation.get(selectedStation.id) ?? []).length > 0}
+                            <div class="sub-block">
+                                <span class="sub-label">{$t('details.trainsAtStation')}</span>
+                                <div class="interactive-pills">
+                                    {#each trainsByStation.get(selectedStation.id) ?? [] as train (train.id)}
+                                        <button type="button" class="mini-pill" on:click={() => pickTrain(train.id)}>
+                                            <span>{train.name}</span>
+                                            <small>{trainStatusLabel(train.status, $t)}</small>
+                                        </button>
+                                    {/each}
                                 </div>
-                                <small>
-                                    {stationById.get(segment.source)?.name} → {stationById.get(segment.target)?.name}
-                                </small>
-                            </button>
-                        </li>
-                    {/each}
-                </ul>
-            </div>
-        {:else if selectedKind === 'segment' && selectedSegment}
-            <div class="detail-grid">
-                <div><span>{$t('details.line')}</span><strong>{selectedSegment.line}</strong></div>
-                <div><span>{$t('details.length')}</span><strong>{selectedSegment.distKm} km</strong></div>
-                <div>
-                    <span>{$t('details.travelTime')}</span><strong>{selectedSegment.travelMin} min</strong>
-                </div>
-                <div><span>Vmax</span><strong>{selectedSegment.vmax} km/h</strong></div>
-                <div><span>{$t('details.tracks')}</span><strong>{selectedSegment.railTracks}</strong></div>
-            </div>
+                            </div>
+                        {/if}
 
-            <div class="section">
-                <h3>{$t('details.directionState')}</h3>
-                <div class="direction-grid">
-                    <div class="direction-card status-{selectedSegment.forward.status}">
-                        <span>
-                            {stationById.get(selectedSegment.source)?.name} → {stationById.get(
-                                selectedSegment.target
-                            )?.name}
-                        </span>
-                        <strong>{directionStatusLabel(selectedSegment.forward.status, $t)}</strong>
-                        {#if selectedSegment.forward.restrictedVmax}
-                            <small>{$t('details.upTo', { speed: selectedSegment.forward.restrictedVmax })}</small>
+                        {#if connectedSegments.length > 0}
+                            <div class="sub-block">
+                                <span class="sub-label">{$t('details.nearestConnections')}</span>
+                                <div class="interactive-pills">
+                                    {#each connectedSegments as segment (segment.segmentId)}
+                                        <button type="button" class="mini-pill" on:click={() => pickSegment(segment.segmentId)}>
+                                            <span>{segment.segmentId}</span>
+                                            <small>{segment.distKm} km</small>
+                                        </button>
+                                    {/each}
+                                </div>
+                            </div>
                         {/if}
                     </div>
-                    <div class="direction-card status-{selectedSegment.backward.status}">
-                        <span>
-                            {stationById.get(selectedSegment.target)?.name} → {stationById.get(
-                                selectedSegment.source
-                            )?.name}
-                        </span>
-                        <strong>{directionStatusLabel(selectedSegment.backward.status, $t)}</strong>
-                        {#if selectedSegment.backward.restrictedVmax}
-                            <small>{$t('details.upTo', { speed: selectedSegment.backward.restrictedVmax })}</small
-                            >
+
+                {:else if selectedKind === 'segment' && selectedSegment}
+                    <div class="circle-badge">
+                        <span class="badge-main-text">{selectedSegment.line}</span>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="stats-stream">
+                        <div class="stat-line primary-title">
+                            <strong class="stat-value text-large">{selectedSegment.segmentId}</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.segment')}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">{selectedSegment.distKm} km</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.length')}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">{selectedSegment.travelMin} min</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.travelTime')}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">{selectedSegment.vmax} km/h</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">VMAX</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">{selectedSegment.railTracks}</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.tracks')}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value status-{selectedSegment.forward.status}">
+                                {directionStatusLabel(selectedSegment.forward.status, $t)}
+                            </strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">FORWARD</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value status-{selectedSegment.backward.status}">
+                                {directionStatusLabel(selectedSegment.backward.status, $t)}
+                            </strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">BACKWARD</span>
+                        </div>
+
+                        {#if trainsOnSelectedSegment.length > 0}
+                            <div class="sub-block">
+                                <span class="sub-label">{$t('details.trainsOnSegment')}</span>
+                                <div class="interactive-pills">
+                                    {#each trainsOnSelectedSegment as train (train.id)}
+                                        <button type="button" class="mini-pill" on:click={() => pickTrain(train.id)}>
+                                            <span>{train.name}</span>
+                                            <small>{Math.round(train.progress * 100)}%</small>
+                                        </button>
+                                    {/each}
+                                </div>
+                            </div>
+                        {/if}
+
+                        <div class="sub-block">
+                            <span class="sub-label">{$t('details.connects')}</span>
+                            <div class="interactive-pills">
+                                <button type="button" class="mini-pill" on:click={() => pickStation(selectedSegment?.source ?? '')}>
+                                    <span>{stationById.get(selectedSegment?.source ?? '')?.name}</span>
+                                    <small>{$t('details.stationA')}</small>
+                                </button>
+                                <button type="button" class="mini-pill" on:click={() => pickStation(selectedSegment?.target ?? '')}>
+                                    <span>{stationById.get(selectedSegment?.target ?? '')?.name}</span>
+                                    <small>{$t('details.stationB')}</small>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                {:else if selectedKind === 'train' && selectedTrain}
+                    <div class="circle-badge">
+                        <span class="badge-main-text">{selectedTrain.name.slice(0, 3)}</span>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="stats-stream">
+                        <div class="stat-line primary-title">
+                            <strong class="stat-value text-large">{selectedTrain.name}</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{trainTypeLabel(selectedTrain.type, $t)}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value status-{selectedTrain.status}">
+                                {trainStatusLabel(selectedTrain.status, $t)}
+                            </strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.status')}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">{relationLabel(selectedTrain)}</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">RELACJA</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">
+                                {selectedTrain.status === 'running' ? stationName(selectedTrain.nextStationId) : '—'}
+                            </strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.nextStop')}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">{Math.round(selectedTrain.progress * 100)}%</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">{$t('details.segmentProgress')}</span>
+                        </div>
+
+                        <div class="stat-line">
+                            <strong class="stat-value">{selectedTrain.vmax} km/h</strong>
+                            <span class="stat-dash">—</span>
+                            <span class="stat-label">VMAX</span>
+                        </div>
+
+                        {#if selectedTrainDelayEvent}
+                            <div class="delay-alert">
+                                <strong>! {$t('details.delayedByIncident')}</strong>
+                                <p>{formatEventMessage(selectedTrainDelayEvent, $t, stationName)}</p>
+                            </div>
+                        {/if}
+
+                        {#if selectedTrain.routeStationIds.length > 0}
+                            <div class="sub-block">
+                                <span class="sub-label">TRASA ({selectedTrain.routeStationIds.length})</span>
+                                <div class="route-strip">
+                                    {#each selectedTrain.routeStationIds as stationId, index}
+                                        <button
+                                            type="button"
+                                            class="route-dot-item"
+                                            class:is-active={index === selectedTrain.routeIndex}
+                                            class:is-passed={index < selectedTrain.routeIndex}
+                                            on:click={() => pickStation(stationId)}
+                                            title={stationName(stationId)}
+                                        >
+                                            <span>{stationName(stationId)}</span>
+                                        </button>
+                                    {/each}
+                                </div>
+                            </div>
                         {/if}
                     </div>
-                </div>
+                {/if}
             </div>
-
-            {#if trainsOnSelectedSegment.length > 0}
-                <div class="section">
-                    <h3>{$t('details.trainsOnSegment')}</h3>
-                    <ul class="connections">
-                        {#each trainsOnSelectedSegment as train (train.id)}
-                            <li>
-                                <button
-                                    type="button"
-                                    class="train-chip status-{train.status}"
-                                    on:click={() => pickTrain(train.id)}
-                                >
-                                    <div>
-                                        <strong>{train.name}</strong>
-                                        <span>{trainTypeLabel(train.type, $t)}</span>
-                                    </div>
-                                    <small>{Math.round(train.progress * 100)}%</small>
-                                </button>
-                            </li>
-                        {/each}
-                    </ul>
-                </div>
-            {/if}
-
-            <div class="section">
-                <h3>{$t('details.connects')}</h3>
-                <ul class="connections">
-                    <li>
-                        <button type="button" on:click={() => pickStation(selectedSegment?.source ?? '')}>
-                            <div>
-                                <strong>{stationById.get(selectedSegment?.source ?? '')?.name}</strong>
-                                <span>{selectedSegment?.source}</span>
-                            </div>
-                            <small>{$t('details.stationA')}</small>
-                        </button>
-                    </li>
-                    <li>
-                        <button type="button" on:click={() => pickStation(selectedSegment?.target ?? '')}>
-                            <div>
-                                <strong>{stationById.get(selectedSegment?.target ?? '')?.name}</strong>
-                                <span>{selectedSegment?.target}</span>
-                            </div>
-                            <small>{$t('details.stationB')}</small>
-                        </button>
-                    </li>
-                </ul>
-            </div>
-        {:else if selectedKind === 'train' && selectedTrain}
-            <p class="train-relation">{relationLabel(selectedTrain)}</p>
-
-            <div class="detail-grid">
-                <div>
-                    <span>{$t('details.status')}</span><strong
-                        >{trainStatusLabel(selectedTrain.status, $t)}</strong
-                    >
-                </div>
-                <div>
-                    <span>{$t('details.type')}</span><strong>{trainTypeLabel(selectedTrain.type, $t)}</strong>
-                </div>
-                <div>
-                    <span>{$t('details.nextStop')}</span>
-                    <strong>
-                        {selectedTrain.status === 'running' ? stationName(selectedTrain.nextStationId) : '—'}
-                    </strong>
-                </div>
-                <div>
-                    <span>{$t('details.segmentProgress')}</span><strong
-                        >{Math.round(selectedTrain.progress * 100)}%</strong
-                    >
-                </div>
-                <div><span>Vmax</span><strong>{selectedTrain.vmax} km/h</strong></div>
-                <div>
-                    <span>{$t('details.direction')}</span>
-                    <strong
-                        >{selectedTrain.direction === 'outbound'
-                            ? $t('details.outbound')
-                            : $t('details.return')}</strong
-                    >
-                </div>
-            </div>
-
-            {#if selectedTrainDelayEvent}
-                <div class="delay-card">
-                    <strong class="delay-title">
-                        <span class="material-symbols-outlined inline-icon" aria-hidden="true">warning</span>
-                        {$t('details.delayedByIncident')}
-                    </strong>
-                    <p>{formatEventMessage(selectedTrainDelayEvent, $t, stationName)}</p>
-                </div>
-            {/if}
-
-            {#if selectedTrain.routeStationIds.length > 0}
-                <div class="section">
-                    <h3>{$t('details.route', { destination: stationName(selectedTrainTargetId) })}</h3>
-                    <ol class="route-list">
-                        {#each selectedTrain.routeStationIds as stationId, index (`${index}-${stationId}`)}
-                            <li
-                                class:current={index === selectedTrain.routeIndex}
-                                class:passed={index < selectedTrain.routeIndex}
-                            >
-                                <button type="button" on:click={() => pickStation(stationId)}>
-                                    {stationName(stationId)}
-                                </button>
-                                {#if index === selectedTrain.routeIndex}
-                                    <small>
-                                        {#if selectedTrain.status === 'running'}
-                                            {$t('details.enRouteTo', {
-                                                station: stationName(selectedTrain.nextStationId)
-                                            })}
-                                        {:else}
-                                            {trainStatusLabel(selectedTrain.status, $t)}
-                                        {/if}
-                                    </small>
-                                {/if}
-                            </li>
-                        {/each}
-                    </ol>
-                </div>
-            {/if}
-        {/if}
-    </div>
+        {/key}
+    </aside>
 {/if}
 
 <style>
@@ -376,84 +378,40 @@
         font-family: 'Material Symbols Outlined' !important;
         font-weight: normal;
         font-style: normal;
-        font-size: 19px;
+        font-size: 20px;
         line-height: 1;
-        letter-spacing: normal;
-        text-transform: none;
         display: inline-block;
         white-space: nowrap;
-        word-wrap: normal;
         direction: ltr;
         -webkit-font-smoothing: antialiased;
-        text-rendering: optimizeLegibility;
-        -moz-osx-font-smoothing: grayscale;
-        font-feature-settings: 'liga';
-        font-variation-settings:
-            'FILL' 0,
-            'wght' 200,
-            'GRAD' 0,
-            'opsz' 24;
         user-select: none;
-        vertical-align: middle;
     }
 
-    .panel {
-        --panel-bg: rgba(20, 20, 20, 0.94);
-        --panel-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
-        --panel-border: 1px solid rgba(255, 255, 255, 0.06);
-        --panel-title: #ffffff;
-        --panel-text: #f5f7f8;
-        --panel-muted: #97a5ad;
-        --panel-dim: #55626b;
-        --card-bg: rgba(255, 255, 255, 0.03);
-        --card-bg-hover: rgba(255, 255, 255, 0.06);
-        --relation-bg: rgba(255, 255, 255, 0.04);
-        --bullet-base: rgba(255, 255, 255, 0.2);
-        --bullet-passed: rgba(255, 255, 255, 0.08);
-        --bullet-current: #f5f7f8;
-        --bullet-current-shadow: 0 0 8px rgba(245, 247, 248, 0.6);
-        --delay-bg: rgba(222, 132, 137, 0.1);
-        --delay-color: #de8489;
-        --status-active: #6cb09f;
-        --status-restricted: #f0c29a;
-        --status-blocked: #de8489;
-        --focus-ring: rgba(255, 255, 255, 0.65);
-
-        background: var(--panel-bg);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: var(--panel-border);
-        box-shadow: var(--panel-shadow);
-        border-radius: 14px;
-        padding: 20px;
+    .left-details-container {
+        position: fixed;
+        left: clamp(20px, 4vw, 56px);
+        bottom: 230px;
+        z-index: 80;
+        width: 240px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
         font-family: 'Inter Variable', Inter, sans-serif;
-        color: var(--panel-text);
-        transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+        font-weight: 300;
+        color: #f5f7f8;
+        pointer-events: auto;
+        user-select: none;
     }
 
-    :global(html.light-mode) .panel.details,
-    :global([data-theme='light']) .panel.details,
-    :global(.light) .panel.details {
-        --panel-bg: rgba(244, 245, 243, 0.96);
-        --panel-shadow: 0 20px 48px rgba(0, 0, 0, 0.08);
-        --panel-border: 1px solid rgba(0, 0, 0, 0.08);
-        --panel-title: #111827;
-        --panel-text: #1f2933;
-        --panel-muted: #52606a;
-        --panel-dim: #8c9ba5;
-        --card-bg: rgba(0, 0, 0, 0.03);
-        --card-bg-hover: rgba(0, 0, 0, 0.06);
-        --relation-bg: rgba(0, 0, 0, 0.04);
-        --bullet-base: rgba(0, 0, 0, 0.2);
-        --bullet-passed: rgba(0, 0, 0, 0.08);
-        --bullet-current: #111827;
-        --bullet-current-shadow: 0 0 8px rgba(17, 24, 39, 0.35);
-        --delay-bg: rgba(201, 81, 88, 0.12);
-        --delay-color: #c95158;
-        --status-active: #2e8570;
-        --status-restricted: #c97d39;
-        --status-blocked: #c95158;
-        --focus-ring: rgba(17, 24, 39, 0.65);
+    :global(html.light-mode) .left-details-container {
+        color: #111827;
+    }
+
+    .details-content {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
     }
 
     button:focus {
@@ -461,358 +419,281 @@
     }
 
     button:focus-visible {
-        outline: 2px solid var(--focus-ring);
+        outline: 2px solid rgba(255, 255, 255, 0.65);
         outline-offset: 2px;
     }
 
-    .panel-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 12px;
-        margin-bottom: 14px;
+    :global(html.light-mode) button:focus-visible {
+        outline: 2px solid rgba(17, 24, 39, 0.65);
     }
 
-    .panel-label {
-        margin: 0 0 4px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        font-size: 0.66rem;
-        font-weight: 300;
-        color: var(--panel-muted);
-    }
-
-    h2,
-    h3,
-    p {
-        margin: 0;
-    }
-
-    h2 {
-        font-size: 1.1rem;
-        font-weight: 400;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: var(--panel-title);
-    }
-
-    .close {
-        border: 0;
+    .close-btn {
         background: transparent;
-        color: var(--panel-muted);
-        width: 28px;
-        height: 28px;
-        border-radius: 6px;
+        border: 0;
+        color: #97a5ad;
+        padding: 0;
+        margin-bottom: 14px;
+        cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        cursor: pointer;
-        flex-shrink: 0;
-        transition: color 150ms ease, background-color 150ms ease;
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        transition: color 150ms ease, transform 150ms ease;
     }
 
-    .close .material-symbols-outlined {
-        font-size: 18px;
+    .close-btn:hover {
+        color: #ffffff;
+        transform: scale(1.1);
     }
 
-    .close:hover {
-        color: var(--panel-title);
-        background: var(--card-bg-hover);
+    :global(html.light-mode) .close-btn:hover {
+        color: #111827;
     }
 
-    .detail-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
-    }
-
-    .detail-grid > div {
-        background: var(--card-bg);
-        border-radius: 10px;
-        padding: 10px 12px;
-    }
-
-    .detail-grid span,
-    .connections small {
-        display: block;
-        color: var(--panel-muted);
-        font-size: 0.68rem;
-        font-weight: 300;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-    }
-
-    .detail-grid strong {
-        display: block;
-        margin-top: 4px;
-        font-size: 0.88rem;
-        font-weight: 400;
-        letter-spacing: 0.04em;
-        color: var(--panel-text);
-    }
-
-    .train-relation {
-        margin: 0 0 14px;
-        padding: 10px 12px;
-        border-radius: 10px;
-        background: var(--relation-bg);
-        font-weight: 400;
-        font-size: 0.78rem;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--panel-text);
-    }
-
-    .delay-card {
-        margin-top: 14px;
-        padding: 12px;
-        border-radius: 10px;
-        background: var(--delay-bg);
-    }
-
-    .delay-title {
+    .circle-badge {
+        width: 170px;
+        height: 170px;
+        border-radius: 50%;
+        background: #edece8;
+        color: #111111;
         display: flex;
         align-items: center;
-        gap: 6px;
-        font-size: 0.74rem;
-        font-weight: 400;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--delay-color);
+        justify-content: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        margin-bottom: 20px;
+        transition: background-color 200ms ease, color 200ms ease;
     }
 
-    .inline-icon {
-        font-size: 16px;
+    :global(html.light-mode) .circle-badge {
+        background: #111111;
+        color: #ffffff;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
     }
 
-    .delay-card p {
-        margin: 6px 0 0;
-        font-size: 0.74rem;
+    .badge-main-text {
+        font-family: 'Inter Variable', Inter, sans-serif;
+        font-size: 3.4rem;
         font-weight: 300;
-        letter-spacing: 0.02em;
-        color: var(--panel-text);
-        line-height: 1.4;
+        line-height: 1;
+        letter-spacing: -0.04em;
+        text-transform: uppercase;
     }
 
-    .route-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: grid;
+    .divider {
+        width: 100%;
+        height: 1px;
+        background: rgba(255, 255, 255, 0.15);
+        margin-bottom: 14px;
+    }
+
+    :global(html.light-mode) .divider {
+        background: rgba(0, 0, 0, 0.12);
+    }
+
+    .stats-stream {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 100%;
+        max-height: 44vh;
+        overflow-y: auto;
+        scrollbar-width: none;
+        font-weight: 300;
+    }
+
+    .stats-stream::-webkit-scrollbar {
+        display: none;
+    }
+
+    .stat-line {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    .stat-line.primary-title {
+        margin-bottom: 2px;
+    }
+
+    .stat-value {
+        font-family: 'Inter Variable', Inter, sans-serif;
+        font-size: 0.94rem;
+        font-weight: 300;
+        letter-spacing: -0.01em;
+        color: #ffffff;
+    }
+
+    .stat-value.text-large {
+        font-size: 1.05rem;
+    }
+
+    :global(html.light-mode) .stat-value {
+        color: #111827;
+    }
+
+    .stat-dash {
+        color: #55626b;
+        font-size: 0.72rem;
+        font-weight: 300;
+    }
+
+    .stat-label {
+        font-size: 0.65rem;
+        font-weight: 300;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #8c9ba5;
+    }
+
+    :global(html.light-mode) .stat-label {
+        color: #6b7280;
+    }
+
+    .status-running,
+    .status-active {
+        color: #6cb09f !important;
+    }
+    :global(html.light-mode) .status-running,
+    :global(html.light-mode) .status-active {
+        color: #2e8570 !important;
+    }
+
+    .status-waiting,
+    .status-restricted {
+        color: #f0c29a !important;
+    }
+    :global(html.light-mode) .status-waiting,
+    :global(html.light-mode) .status-restricted {
+        color: #c97d39 !important;
+    }
+
+    .status-derailed,
+    .status-blocked {
+        color: #de8489 !important;
+    }
+    :global(html.light-mode) .status-derailed,
+    :global(html.light-mode) .status-blocked {
+        color: #c95158 !important;
+    }
+
+    .sub-block {
+        margin-top: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .sub-label {
+        font-size: 0.62rem;
+        font-weight: 300;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #55626b;
+    }
+
+    .interactive-pills {
+        display: flex;
+        flex-direction: column;
         gap: 4px;
     }
 
-    .route-list li {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding-left: 14px;
-        position: relative;
-    }
-
-    .route-list li::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        width: 6px;
-        height: 6px;
-        border-radius: 999px;
-        background: var(--bullet-base);
-    }
-
-    .route-list li.passed::before {
-        background: var(--bullet-passed);
-    }
-
-    .route-list li.current::before {
-        background: var(--bullet-current);
-        box-shadow: var(--bullet-current-shadow);
-    }
-
-    .route-list button {
-        background: none;
+    .mini-pill {
+        background: rgba(255, 255, 255, 0.04);
         border: 0;
-        color: var(--panel-muted);
-        font-family: inherit;
-        font-size: 0.76rem;
-        font-weight: 300;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        padding: 4px 6px;
-        border-radius: 4px;
-        cursor: pointer;
-        text-align: left;
-    }
-
-    .route-list li.passed button {
-        color: var(--panel-dim);
-    }
-
-    .route-list li.current button {
-        color: var(--panel-title);
-        font-weight: 400;
-    }
-
-    .route-list button:hover {
-        color: var(--panel-title);
-    }
-
-    .route-list small {
-        color: var(--panel-muted);
-        font-size: 0.68rem;
-        font-weight: 300;
-        letter-spacing: 0.04em;
-        white-space: nowrap;
-    }
-
-    .section {
-        margin-top: 18px;
-    }
-
-    .section h3 {
-        margin-bottom: 10px;
-        font-size: 0.68rem;
-        font-weight: 400;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--panel-muted);
-    }
-
-    .direction-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 8px;
-    }
-
-    .direction-card {
-        border-radius: 10px;
-        padding: 10px 12px;
-        background: var(--card-bg);
-    }
-
-    .direction-card span {
-        display: block;
-        font-size: 0.68rem;
-        font-weight: 300;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--panel-muted);
-    }
-
-    .direction-card strong {
-        display: block;
-        margin-top: 4px;
-        font-size: 0.82rem;
-        font-weight: 400;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: var(--panel-text);
-    }
-
-    .direction-card small {
-        display: block;
-        margin-top: 4px;
-        color: var(--status-restricted);
-        font-size: 0.68rem;
-        font-weight: 300;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-    }
-
-    .direction-card.status-active strong {
-        color: var(--status-active);
-    }
-
-    .direction-card.status-restricted strong {
-        color: var(--status-restricted);
-    }
-
-    .direction-card.status-blocked strong {
-        color: var(--status-blocked);
-    }
-
-    .connections {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-        display: grid;
-        gap: 6px;
-    }
-
-    .connections button {
-        width: 100%;
-        text-align: left;
-        border: 0;
-        background: var(--card-bg);
+        border-radius: 6px;
+        padding: 6px 10px;
         color: inherit;
-        padding: 10px 12px;
-        border-radius: 10px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 12px;
         cursor: pointer;
+        font-family: inherit;
+        font-size: 0.74rem;
+        font-weight: 300;
         transition: background-color 150ms ease;
     }
 
-    .connections button:hover {
-        background: var(--card-bg-hover);
+    .mini-pill:hover {
+        background: rgba(255, 255, 255, 0.08);
     }
 
-    .connections strong {
-        display: block;
-        font-size: 0.78rem;
-        font-weight: 400;
-        letter-spacing: 0.06em;
+    :global(html.light-mode) .mini-pill {
+        background: rgba(0, 0, 0, 0.04);
+    }
+
+    :global(html.light-mode) .mini-pill:hover {
+        background: rgba(0, 0, 0, 0.08);
+    }
+
+    .mini-pill small {
+        color: #8c9ba5;
+        font-size: 0.64rem;
+        font-weight: 300;
         text-transform: uppercase;
-        color: var(--panel-text);
     }
 
-    .connections span {
-        display: block;
-        color: var(--panel-muted);
+    .delay-alert {
+        margin-top: 6px;
+        padding: 8px;
+        border-radius: 6px;
+        background: rgba(222, 132, 137, 0.12);
+        color: #de8489;
         font-size: 0.72rem;
         font-weight: 300;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        margin-top: 2px;
     }
 
-    .train-chip strong {
-        display: block;
-        font-size: 0.78rem;
-        font-weight: 400;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--panel-text);
+    .delay-alert p {
+        margin: 2px 0 0;
+        color: #f5f7f8;
+        font-size: 0.68rem;
+        font-weight: 300;
     }
 
-    .train-chip span {
-        display: block;
-        color: var(--panel-muted);
+    :global(html.light-mode) .delay-alert p {
+        color: #111827;
+    }
+
+    .route-strip {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .route-dot-item {
+        background: none;
+        border: 0;
+        border-radius: 4px;
+        padding: 3px 4px;
+        color: #8c9ba5;
+        text-align: left;
+        font-family: inherit;
         font-size: 0.72rem;
         font-weight: 300;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        margin-top: 2px;
+        cursor: pointer;
+        transition: color 150ms ease;
     }
 
-    .train-chip small {
+    .route-dot-item:hover {
+        color: #ffffff;
+    }
+
+    :global(html.light-mode) .route-dot-item:hover {
+        color: #111827;
+    }
+
+    .route-dot-item.is-active {
+        color: #ffffff;
         font-weight: 400;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        white-space: nowrap;
     }
 
-    .train-chip.status-waiting small {
-        color: var(--status-restricted);
+    :global(html.light-mode) .route-dot-item.is-active {
+        color: #111827;
     }
 
-    .train-chip.status-derailed small {
-        color: var(--status-blocked);
-    }
-
-    .train-chip.status-dwelling small {
-        color: var(--panel-muted);
+    .route-dot-item.is-passed {
+        color: #55626b;
     }
 </style>

@@ -311,13 +311,11 @@
 
     .login:hover {
         opacity: 0.85;
-        transform: translateY(-1px);
     }
 
     .login:active {
-        transform: translateY(0);
+        opacity: 0.1;
     }
-
     .icon-button {
         display: grid;
         place-items: center;
