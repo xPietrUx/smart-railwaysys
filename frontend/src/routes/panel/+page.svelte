@@ -138,7 +138,6 @@
 
 <main class="stage" class:fullscreen-mode={isFullscreen}>
     {#if !isFullscreen}
-        <!-- Nagłówek i wyszukiwarka -->
         <header class="top-region" aria-label={$t('dock.navAria')}>
             <div class="topbar-wrapper">
                 <SimulationHeader
@@ -160,7 +159,6 @@
             </div>
         </header>
 
-        <!-- Szczegóły obiektu po lewej stronie -->
         {#if selected}
             <DetailsPanel
                 graph={liveGraph}
@@ -189,7 +187,6 @@
                     <span class="material-symbols-outlined" aria-hidden="true">warning</span>
                 </button>
 
-                <!-- 2. Panel administracji -->
                 {#if isAdmin}
                     <a
                         href="/admin"
@@ -206,7 +203,6 @@
                     </div>
                 {/if}
 
-                <!-- 3. Scenariusze symulacji -->
                 <button
                     type="button"
                     class="circle-menu-btn"
