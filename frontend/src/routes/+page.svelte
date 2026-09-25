@@ -14,7 +14,7 @@
     type ViewSection = 'jak-to-dziala' | 'o-wa-gone' | 'kontakt';
     let currentView: ViewSection = 'o-wa-gone';
 
-    //  miejsca na grafiki ascii
+    // pliki ascii
     const CUSTOM_ASCII = ['', '', '', ''];
 
     $: features = [
@@ -205,7 +205,7 @@
         {:else if currentView === 'o-wa-gone'}
             <section class="screen-view about-screen">
                 <div class="about-grid">
-                    <!-- Lewa strona: FAQ z dedykowaną tabulacją -->
+                    <!-- Lewa strona: FAQ -->
                     <div class="faq-column">
                         <h2 class="column-title">FAQ</h2>
                         <div class="faq-accordion">
@@ -232,7 +232,7 @@
                         </div>
                     </div>
 
-                    <!-- Prawa strona: Features ze sliderem i miejscem na własne ASCII -->
+                    <!-- Prawa strona: Features ze sliderem -->
                     <div class="features-column">
                         <div class="feature-card">
                             <div class="ascii-container" aria-hidden="true">
@@ -267,6 +267,7 @@
                             <div class="field-wrap">
                                 <input
                                     type="text"
+                                    class:is-error={showNameError}
                                     bind:value={contactName}
                                     on:blur={() => (nameTouched = true)}
                                     placeholder={$t('landing.contact.namePlaceholder')}
@@ -280,13 +281,14 @@
                             <div class="field-wrap">
                                 <input
                                     type="email"
+                                    class:is-error={showEmailError}
                                     bind:value={contactEmail}
                                     on:blur={() => (emailTouched = true)}
                                     placeholder={$t('landing.contact.emailPlaceholder')}
                                     aria-invalid={showEmailError ? 'true' : undefined}
                                 />
                                 {#if showEmailError}
-                                    <span class="field-hint" role="alert">Wprowadź poprawny e-mail</span>
+                                    <span class="field-hint" role="alert">Wprowadź poprawny adres e-mail.</span>
                                 {/if}
                             </div>
                         </div>
@@ -294,6 +296,7 @@
                         <div class="field-wrap">
                             <textarea
                                 rows="12"
+                                class:is-error={showMessageError}
                                 bind:value={contactMessage}
                                 on:blur={() => (messageTouched = true)}
                                 placeholder={$t('landing.contact.messagePlaceholder')}
@@ -380,7 +383,7 @@
         --dot-bg: #e2e2de;
         --footer-color: #4f555b;
         --focus-ring: rgba(255, 255, 255, 0.65);
-        --error-color: #e07a7e;
+        --error-color: #de8489;
         --success-color: #6cb09f;
         --backdrop-bg: rgba(0, 0, 0, 0.75);
     }
@@ -667,8 +670,8 @@
         width: 100%;
         padding: 16px 20px;
         border-radius: 12px;
-        border: 0;
-        box-shadow: none;
+        border: 0 !important;
+        box-shadow: none !important;
         background: var(--input-bg);
         color: var(--text-primary);
         font-family: inherit;
@@ -682,6 +685,20 @@
         min-height: 240px;
     }
 
+    .contact-form input.is-error,
+    .contact-form textarea.is-error {
+        background: rgba(222, 132, 137, 0.12) !important;
+        color: #de8489 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    :global(html.light-mode) .contact-form input.is-error,
+    :global(html.light-mode) .contact-form textarea.is-error {
+        background: rgba(201, 81, 88, 0.12) !important;
+        color: #c95158 !important;
+    }
+
     .contact-form input:focus,
     .contact-form textarea:focus {
         outline: none;
@@ -693,10 +710,28 @@
         outline-offset: 2px;
     }
 
+    .contact-form input.is-error:focus-visible,
+    .contact-form textarea.is-error:focus-visible {
+        outline-color: rgba(222, 132, 137, 0.65);
+    }
+
+    :global(html.light-mode) .contact-form input.is-error:focus-visible,
+    :global(html.light-mode) .contact-form textarea.is-error:focus-visible {
+        outline-color: rgba(201, 81, 88, 0.65);
+    }
+
     .field-hint {
         font-size: 0.72rem;
-        color: var(--error-color);
-        padding-left: 6px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #de8489;
+        padding-left: 4px;
+        margin-top: 4px;
+        font-weight: 400;
+    }
+
+    :global(html.light-mode) .field-hint {
+        color: #c95158;
     }
 
     .form-bottom-row {
