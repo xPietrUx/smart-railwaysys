@@ -2,7 +2,7 @@ import { env as privateEnv } from '$env/dynamic/private';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Cookies, RequestEvent } from '@sveltejs/kit';
 
-export const authApiUrl = () => privateEnv.API_INTERNAL_URL || 'http://localhost:8000';
+export const authApiUrl = () => privateEnv.API_INTERNAL_URL;
 
 // Backend (FastAPI/Pydantic) na błąd walidacji (422) odpowiada `detail` jako
 // tablicą obiektów {loc, msg}, nie stringiem — bez tego mapowania użytkownik
@@ -69,10 +69,12 @@ export async function handleLogin({ request, cookies, url }: RequestEvent) {
 	const body = await response.json().catch(() => ({}));
 
 	if (!response.ok) {
-		let errorMessage = typeof body.detail === 'string' ? body.detail : 'Logowanie nie powiodło się.';
+		let errorMessage =
+			typeof body.detail === 'string' ? body.detail : 'Logowanie nie powiodło się.';
 
 		if ([400, 401, 404, 422].includes(response.status)) {
-			errorMessage = 'Nie istnieje konto przypisane do podanego adresu e-mail lub podane hasło jest nieprawidłowe.';
+			errorMessage =
+				'Nie istnieje konto przypisane do podanego adresu e-mail lub podane hasło jest nieprawidłowe.';
 		}
 
 		return fail(400, { email, error: errorMessage });

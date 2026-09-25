@@ -12,7 +12,7 @@ export const POST = async ({ request, cookies, fetch }) => {
 		return json({ detail: 'Brak autoryzacji.' }, { status: 401 });
 	}
 
-	const ssrBaseUrl = privateEnv.API_INTERNAL_URL || publicEnv.PUBLIC_API_BASE_URL || 'http://localhost:8000';
+	const ssrBaseUrl = privateEnv.API_INTERNAL_URL || publicEnv.PUBLIC_API_BASE_URL;
 	const body = await request.text();
 
 	let response: Response;
@@ -23,7 +23,10 @@ export const POST = async ({ request, cookies, fetch }) => {
 			body
 		});
 	} catch {
-		return json({ detail: 'Nie udało się połączyć z systemem. Spróbuj ponownie.' }, { status: 503 });
+		return json(
+			{ detail: 'Nie udało się połączyć z systemem. Spróbuj ponownie.' },
+			{ status: 503 }
+		);
 	}
 
 	const data = await response.text();

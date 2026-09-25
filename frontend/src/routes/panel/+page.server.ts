@@ -9,7 +9,7 @@ export const load = async ({ fetch, cookies }) => {
 	const isGuest = cookies.get('srs_guest') === '1';
 	if (!token && !isGuest) redirect(303, '/login?next=/panel');
 	// Adres backendu widziany przez przeglądarkę (WebSocket + polling fallback).
-	const apiBaseUrl = publicEnv.PUBLIC_API_BASE_URL || 'http://localhost:8000';
+	const apiBaseUrl = publicEnv.PUBLIC_API_BASE_URL;
 	// Adres backendu widziany z serwera SSR. W Dockerze przeglądarka nie zna hosta
 	// "backend", a kontener frontendu nie zawsze zna "localhost" hosta — dlatego
 	// te dwa adresy muszą być rozdzielone.
