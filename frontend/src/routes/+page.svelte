@@ -2,34 +2,45 @@
     import PublicNav from '$lib/components/site/PublicNav.svelte';
     import AuthCard from '$lib/components/site/AuthCard.svelte';
     import { t } from '$lib/i18n';
-    import { onMount, tick } from 'svelte';
-    import { gsap } from 'gsap';
-    import { ScrollTrigger } from 'gsap/ScrollTrigger';
+    import { tick, onMount } from 'svelte';
+    import { slide } from 'svelte/transition';
+    import { cubicOut } from 'svelte/easing';
+    import { page } from '$app/stores';
     import type { PageData, ActionData } from './$types';
 
     export let data: PageData;
     export let form: ActionData;
 
+    type ViewSection = 'jak-to-dziala' | 'o-wa-gone' | 'kontakt';
+    let currentView: ViewSection = 'o-wa-gone';
+
+    //  miejsca na grafiki ascii
+    const CUSTOM_ASCII = ['', '', '', ''];
+
     $: features = [
         {
             id: 'network',
-            title: $t('landing.features.network.title'),
-            copy: $t('landing.features.network.copy')
+            tag: $t('landing.features.network.title'),
+            copy: $t('landing.features.network.copy'),
+            ascii: CUSTOM_ASCII[0]
         },
         {
             id: 'incidents',
-            title: $t('landing.features.incidents.title'),
-            copy: $t('landing.features.incidents.copy')
+            tag: $t('landing.features.incidents.title'),
+            copy: $t('landing.features.incidents.copy'),
+            ascii: CUSTOM_ASCII[1]
         },
         {
             id: 'timetable',
-            title: $t('landing.features.timetable.title'),
-            copy: $t('landing.features.timetable.copy')
+            tag: $t('landing.features.timetable.title'),
+            copy: $t('landing.features.timetable.copy'),
+            ascii: CUSTOM_ASCII[2]
         },
         {
             id: 'scenarios',
-            title: $t('landing.features.scenarios.title'),
-            copy: $t('landing.features.scenarios.copy')
+            tag: $t('landing.features.scenarios.title'),
+            copy: $t('landing.features.scenarios.copy'),
+            ascii: CUSTOM_ASCII[3]
         }
     ];
 
@@ -49,8 +60,46 @@
         {
             question: $t('landing.faq.q4.question'),
             answer: $t('landing.faq.q4.answer')
+        },
+        {
+            question: 'Jak zintegrować API z zewnętrznym systemem?',
+            answer: 'Oferujemy standardowe endpointy REST oraz WebSocket ze strumieniem zdarzeń w czasie rzeczywistym.'
         }
     ];
+
+    let activeFeature = 0;
+    let openFaqIndex: number | null = 0;
+
+    function nextFeature() {
+        activeFeature = (activeFeature + 1) % features.length;
+    }
+
+    function prevFeature() {
+        activeFeature = (activeFeature - 1 + features.length) % features.length;
+    }
+
+    function toggleFaq(index: number) {
+        openFaqIndex = openFaqIndex === index ? null : index;
+    }
+
+    $: {
+        const hash = $page.url.hash.replace('#', '');
+        if (hash === 'jak-to-dziala' || hash === 'o-wa-gone' || hash === 'kontakt') {
+            currentView = hash as ViewSection;
+        }
+    }
+
+    function handleKeydown(e: KeyboardEvent) {
+        if (currentView === 'o-wa-gone') {
+            if (e.key === 'ArrowRight') nextFeature();
+            if (e.key === 'ArrowLeft') prevFeature();
+        }
+    }
+
+    onMount(() => {
+        window.addEventListener('keydown', handleKeydown);
+        return () => window.removeEventListener('keydown', handleKeydown);
+    });
 
     let showAuthModal = false;
     let isClosingAuthModal = false;
@@ -91,160 +140,8 @@
         if (e.key === 'Escape') {
             e.stopPropagation();
             closeAuthModal();
-            return;
-        }
-        if (e.key === 'Tab' && modalElement) {
-            const focusables = modalElement.querySelectorAll<HTMLElement>(
-                'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-            );
-            if (!focusables.length) return;
-            const first = focusables[0];
-            const last = focusables[focusables.length - 1];
-
-            if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault();
-                last.focus();
-            } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault();
-                first.focus();
-            }
         }
     }
-
-    const expandRatio = 0.52;
-    const duration = 0.6;
-    const ease = 'power3.out';
-    const tilt = 6;
-    const gap = 16;
-    const height = 480;
-
-    let activeFeature = 0;
-    let featurePanelRefs: HTMLElement[] = [];
-    let featureTextRefs: HTMLElement[] = [];
-    let featureTl: gsap.core.Timeline | null = null;
-
-    function applyFeatureLayout() {
-        if (!featurePanelRefs.length) return;
-        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const r = Math.min(Math.max(expandRatio, 0.2), 0.9);
-        const count = features.length;
-        const grow = count > 1 ? (r * (count - 1)) / (1 - r) : 1;
-        const dur = !prefersReduced ? duration : 0;
-
-        featureTl?.kill();
-        featureTl = gsap.timeline();
-
-        featurePanelRefs.forEach((panel, i) => {
-            if (!panel) return;
-            const isActive = i === activeFeature;
-            const text = featureTextRefs[i];
-            const rot = isActive ? 0 : i < activeFeature ? tilt : -tilt;
-
-            featureTl!.to(panel, { flexGrow: isActive ? grow : 1, rotateY: rot, duration: dur, ease }, 0);
-            if (text) {
-                featureTl!.to(text, { opacity: isActive ? 1 : 0, y: isActive ? 0 : 12, duration: dur, ease }, 0);
-            }
-        });
-    }
-
-    function setActiveFeature(index: number) {
-        if (activeFeature !== index) {
-            activeFeature = index;
-            applyFeatureLayout();
-        }
-    }
-
-    function handlePanelKeydown(e: KeyboardEvent, index: number) {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setActiveFeature(index);
-        }
-    }
-
-    let openFaqIndex: number | null = null;
-    let faqAnswerRefs: HTMLElement[] = [];
-
-    function toggleFaq(index: number) {
-        const prevIndex = openFaqIndex;
-        openFaqIndex = openFaqIndex === index ? null : index;
-
-        if (prevIndex !== null && faqAnswerRefs[prevIndex]) {
-            gsap.to(faqAnswerRefs[prevIndex], { height: 0, opacity: 0, duration: 0.4, ease: 'power3.out' });
-        }
-        if (openFaqIndex !== null && faqAnswerRefs[openFaqIndex]) {
-            gsap.fromTo(
-                faqAnswerRefs[openFaqIndex],
-                { height: 0, opacity: 0 },
-                { height: 'auto', opacity: 1, duration: 0.5, ease: 'power3.out' }
-            );
-        }
-    }
-
-    let footerElement: HTMLElement;
-    let scrollProgress = 0;
-    let isHeroVisible = false;
-
-    let heroTrack: HTMLElement;
-    let heroScreen: HTMLElement;
-    let heroScaleBox: HTMLElement;
-    let heroDot: HTMLElement;
-    let heroContent: HTMLElement;
-    let heroHint: HTMLElement;
-
-    onMount(() => {
-        gsap.registerPlugin(ScrollTrigger);
-
-        const updateMetrics = () => {
-            const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-            scrollProgress = maxScroll > 0 ? window.scrollY / maxScroll : 0;
-        };
-
-        window.addEventListener('scroll', updateMetrics, { passive: true });
-        window.addEventListener('resize', updateMetrics, { passive: true });
-        updateMetrics();
-        applyFeatureLayout();
-
-        const st = ScrollTrigger.create({
-            trigger: heroTrack,
-            start: 'top top',
-            end: 'bottom bottom',
-            pin: heroScreen,
-            scrub: true,
-            onUpdate: (self) => {
-                const progress = self.progress;
-
-                gsap.set(heroHint, { opacity: Math.max(0, 1 - progress * 4) });
-
-                const scaleValue = 1 + Math.pow(progress, 2.2) * 180;
-                gsap.set(heroScaleBox, { scale: scaleValue });
-
-                if (progress > 0.05) {
-                    heroDot.style.animationPlayState = 'paused';
-                } else {
-                    heroDot.style.animationPlayState = 'running';
-                }
-
-                if (progress > 0.45) {
-                    isHeroVisible = true;
-                    const textProgress = (progress - 0.45) / 0.55;
-                    gsap.set(heroContent, {
-                        opacity: Math.min(1, textProgress * 1.5),
-                        y: (1 - textProgress) * 40
-                    });
-                } else {
-                    isHeroVisible = false;
-                    gsap.set(heroContent, { opacity: 0, y: 40 });
-                }
-            }
-        });
-
-        return () => {
-            window.removeEventListener('scroll', updateMetrics);
-            window.removeEventListener('resize', updateMetrics);
-            featureTl?.kill();
-            st.kill();
-        };
-    });
 
     let contactName = '';
     let contactEmail = '';
@@ -253,11 +150,11 @@
     let emailTouched = false;
     let messageTouched = false;
     let formSubmittedAttempt = false;
-    let formStatus: 'idle' | 'submitting' | 'success' = 'idle';
+    let formStatus: 'idle' | 'submitting' | 'success' | 'error' = 'idle';
 
     $: isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
     $: isNameValid = contactName.trim().length >= 2;
-    $: isMessageValid = contactMessage.trim().length >= 5;
+    $: isMessageValid = contactMessage.trim().length >= 6;
 
     $: showNameError = (nameTouched || formSubmittedAttempt) && !isNameValid;
     $: showEmailError = (emailTouched || formSubmittedAttempt) && !isEmailValid;
@@ -266,7 +163,12 @@
     function handleSubmitContact(event: SubmitEvent) {
         event.preventDefault();
         formSubmittedAttempt = true;
-        if (!isNameValid || !isEmailValid || !isMessageValid) return;
+
+        if (!isNameValid || !isEmailValid || !isMessageValid) {
+            formStatus = 'error';
+            return;
+        }
+
         formStatus = 'submitting';
         setTimeout(() => {
             formStatus = 'success';
@@ -277,8 +179,10 @@
             emailTouched = false;
             messageTouched = false;
             formSubmittedAttempt = false;
-            setTimeout(() => (formStatus = 'idle'), 4000);
-        }, 1000);
+            setTimeout(() => {
+                if (formStatus === 'success') formStatus = 'idle';
+            }, 4500);
+        }, 800);
     }
 </script>
 
@@ -290,169 +194,148 @@
     <title>{$t('landing.head.title')}</title>
 </svelte:head>
 
-<div class="landing">
+<div class="landing-viewport">
     <PublicNav authenticated={data.authenticated} on:openLogin={(e) => openAuthModal('login', e)} />
 
-    <div class="scroll-dot" style={`--scroll-progress: ${scrollProgress}`} aria-hidden="true"></div>
-
-    <main id="main-content" aria-hidden={showAuthModal}>
-        <section class="hero-scroll-track" bind:this={heroTrack} aria-label={$t('landing.hero.aria')}>
-            <div class="hero-sticky-screen" bind:this={heroScreen}>
-                <div class="hero-dot-scale-box" bind:this={heroScaleBox} aria-hidden="true">
-                    <div class="hero-dot" bind:this={heroDot}></div>
-                </div>
-
-                <div class="hero-scroll-hint" bind:this={heroHint} aria-hidden="true">
-                    <span>{$t('landing.hero.scrollHint')}</span>
-                    <span class="material-symbols-outlined hint-icon">south</span>
-                </div>
-
-                <div class="sim-content" bind:this={heroContent} aria-hidden={!isHeroVisible}>
-                    <p class="sim-eyebrow">{$t('landing.hero.eyebrow')}</p>
-                    <h1 class="sim-title">{$t('landing.hero.title')}</h1>
-                </div>
-            </div>
-        </section>
-
-        <section id="jak-to-dziala" class="features" aria-labelledby="features-heading">
-            <h2 id="features-heading">{$t('landing.features.heading')}</h2>
-
-            <div
-                class="accordion-gallery"
-                style={`gap: ${gap}px; height: ${height}px;`}
-                role="region"
-                aria-label={$t('landing.features.aria')}
-            >
-                {#each features as feature, i}
-                    <div
-                        bind:this={featurePanelRefs[i]}
-                        class="accordion-panel"
-                        class:is-active={i === activeFeature}
-                        on:mouseenter={() => setActiveFeature(i)}
-                        on:focus={() => setActiveFeature(i)}
-                        on:keydown={(e) => handlePanelKeydown(e, i)}
-                        role="button"
-                        tabindex="0"
-                        aria-pressed={i === activeFeature}
-                        aria-label={feature.title}
-                    >
-                        <div class="panel-content">
-                            <div class="panel-number" aria-hidden="true">0{i + 1}</div>
-                            <div bind:this={featureTextRefs[i]} class="label-content">
-                                <h3>{feature.title}</h3>
-                                <p>{feature.copy}</p>
-                            </div>
+    <main class="viewport-stage" aria-hidden={showAuthModal}>
+        {#if currentView === 'jak-to-dziala'}
+            <section class="screen-view empty-screen">
+                <!-- Sekcja pusta / początkowa makiety -->
+            </section>
+        {:else if currentView === 'o-wa-gone'}
+            <section class="screen-view about-screen">
+                <div class="about-grid">
+                    <!-- Lewa strona: FAQ z dedykowaną tabulacją -->
+                    <div class="faq-column">
+                        <h2 class="column-title">FAQ</h2>
+                        <div class="faq-accordion">
+                            {#each faqItems as item, idx}
+                                <div class="faq-card" class:is-expanded={openFaqIndex === idx}>
+                                    <button 
+                                        type="button" 
+                                        class="faq-head" 
+                                        on:click={() => toggleFaq(idx)}
+                                        aria-expanded={openFaqIndex === idx}
+                                    >
+                                        <span>{item.question}</span>
+                                    </button>
+                                    {#if openFaqIndex === idx}
+                                        <div 
+                                            class="faq-body" 
+                                            transition:slide={{ duration: 250, easing: cubicOut }}
+                                        >
+                                            <p>{item.answer}</p>
+                                        </div>
+                                    {/if}
+                                </div>
+                            {/each}
                         </div>
                     </div>
-                {/each}
-            </div>
-        </section>
 
-        <section id="faq" class="faq" aria-labelledby="faq-heading">
-            <p id="faq-heading" class="faq-eyebrow">{$t('landing.faq.heading')}</p>
-            <div class="faq-list">
-                {#each faqItems as item, index}
-                    <div class="faq-item" class:is-open={openFaqIndex === index}>
-                        <button
-                            class="faq-trigger"
-                            type="button"
-                            on:click={() => toggleFaq(index)}
-                            aria-expanded={openFaqIndex === index}
-                            aria-controls={`faq-answer-${index}`}
-                            id={`faq-btn-${index}`}
-                        >
-                            <span class="faq-question">{item.question}</span>
-                            <span class="faq-icon" aria-hidden="true">+</span>
-                        </button>
-                        <div
-                            bind:this={faqAnswerRefs[index]}
-                            id={`faq-answer-${index}`}
-                            role="region"
-                            aria-labelledby={`faq-btn-${index}`}
-                            class="faq-answer-wrapper"
-                        >
-                            <div class="faq-answer-inner">
-                                <p>{item.answer}</p>
+                    <!-- Prawa strona: Features ze sliderem i miejscem na własne ASCII -->
+                    <div class="features-column">
+                        <div class="feature-card">
+                            <div class="ascii-container" aria-hidden="true">
+                                <pre class="ascii-art">{features[activeFeature].ascii}</pre>
                             </div>
+                            
+                            <div class="feature-footer">
+                                <p class="feature-desc">
+                                    <strong>{features[activeFeature].tag}</strong> {features[activeFeature].copy}
+                                </p>
+                            </div>
+
+                            <button 
+                                type="button" 
+                                class="slider-arrow next-btn" 
+                                on:click={nextFeature}
+                                aria-label="Następna funkcja"
+                                title="Następna funkcja"
+                            >
+                                <span class="dot-indicator"></span>
+                            </button>
                         </div>
                     </div>
-                {/each}
-            </div>
-        </section>
+                </div>
+            </section>
+        {:else if currentView === 'kontakt'}
+            <section class="screen-view contact-screen">
+                <div class="contact-card">
+                    <h2 class="column-title">KONTAKT</h2>
+                    <form class="contact-form" on:submit={handleSubmitContact} novalidate>
+                        <div class="form-row">
+                            <div class="field-wrap">
+                                <input
+                                    type="text"
+                                    bind:value={contactName}
+                                    on:blur={() => (nameTouched = true)}
+                                    placeholder={$t('landing.contact.namePlaceholder')}
+                                    aria-invalid={showNameError ? 'true' : undefined}
+                                />
+                                {#if showNameError}
+                                    <span class="field-hint" role="alert">Wpisz min. 2 znaki</span>
+                                {/if}
+                            </div>
 
-        <section id="kontakt" class="contact" aria-labelledby="contact-heading">
-            <p id="contact-heading" class="contact-eyebrow">{$t('landing.contact.heading')}</p>
-            <form class="contact-form" on:submit={handleSubmitContact} novalidate>
-                <div class="form-group">
-                    <label for="contact-name">{$t('landing.contact.name')}</label>
-                    <input
-                        type="text"
-                        id="contact-name"
-                        bind:value={contactName}
-                        on:blur={() => (nameTouched = true)}
-                        placeholder={$t('landing.contact.namePlaceholder')}
-                        aria-invalid={showNameError ? 'true' : undefined}
-                        aria-describedby={showNameError ? 'name-error-msg' : undefined}
-                    />
-                    {#if showNameError}
-                        <span id="name-error-msg" class="field-error-msg" role="alert">
-                            {$t('landing.contact.nameError')}
-                        </span>
-                    {/if}
-                </div>
-                <div class="form-group">
-                    <label for="contact-email">{$t('landing.contact.email')}</label>
-                    <input
-                        type="email"
-                        id="contact-email"
-                        bind:value={contactEmail}
-                        on:blur={() => (emailTouched = true)}
-                        placeholder={$t('landing.contact.emailPlaceholder')}
-                        aria-invalid={showEmailError ? 'true' : undefined}
-                        aria-describedby={showEmailError ? 'email-error-msg' : undefined}
-                    />
-                    {#if showEmailError}
-                        <span id="email-error-msg" class="field-error-msg" role="alert">
-                            {$t('landing.contact.emailError')}
-                        </span>
-                    {/if}
-                </div>
-                <div class="form-group">
-                    <label for="contact-message">{$t('landing.contact.message')}</label>
-                    <textarea
-                        id="contact-message"
-                        rows="5"
-                        bind:value={contactMessage}
-                        on:blur={() => (messageTouched = true)}
-                        placeholder={$t('landing.contact.messagePlaceholder')}
-                        aria-invalid={showMessageError ? 'true' : undefined}
-                        aria-describedby={showMessageError ? 'message-error-msg' : undefined}
-                    ></textarea>
-                    {#if showMessageError}
-                        <span id="message-error-msg" class="field-error-msg" role="alert">
-                            {$t('landing.contact.messageError')}
-                        </span>
-                    {/if}
-                </div>
-                <button type="submit" class="cta cta-primary submit-btn">
-                    <span>
-                        {formStatus === 'submitting'
-                            ? $t('landing.contact.sending')
-                            : formStatus === 'success'
-                              ? $t('landing.contact.success')
-                              : $t('landing.contact.send')}
-                    </span>
-                </button>
-            </form>
-        </section>
+                            <div class="field-wrap">
+                                <input
+                                    type="email"
+                                    bind:value={contactEmail}
+                                    on:blur={() => (emailTouched = true)}
+                                    placeholder={$t('landing.contact.emailPlaceholder')}
+                                    aria-invalid={showEmailError ? 'true' : undefined}
+                                />
+                                {#if showEmailError}
+                                    <span class="field-hint" role="alert">Wprowadź poprawny e-mail</span>
+                                {/if}
+                            </div>
+                        </div>
 
-        <footer bind:this={footerElement}>
-            <div class="footer-inner">
-                <span class="copyright">{$t('landing.footer.rights')}</span>
-                <a href="mailto:kontakt@wagone.pl" class="footer-link">kontakt@wagone.pl</a>
-            </div>
-        </footer>
+                        <div class="field-wrap">
+                            <textarea
+                                rows="12"
+                                bind:value={contactMessage}
+                                on:blur={() => (messageTouched = true)}
+                                placeholder={$t('landing.contact.messagePlaceholder')}
+                                aria-invalid={showMessageError ? 'true' : undefined}
+                            ></textarea>
+                            {#if showMessageError}
+                                <span class="field-hint" role="alert">Wiadomość musi mieć min. 6 znaków</span>
+                            {/if}
+                        </div>
+
+                        <div class="form-bottom-row">
+                            <div class="feedback-area">
+                                {#if formStatus === 'success'}
+                                    <span class="feedback-msg success" role="status">
+                                        <span class="material-symbols-outlined icon-status">check_circle</span>
+                                        {$t('landing.contact.success')}
+                                    </span>
+                                {:else if formStatus === 'error' && (showNameError || showEmailError || showMessageError)}
+                                    <span class="feedback-msg error" role="alert">
+                                        <span class="material-symbols-outlined icon-status">error</span>
+                                        Uzupełnij poprawnie wszystkie pola
+                                    </span>
+                                {/if}
+                            </div>
+
+                            <button 
+                                type="submit" 
+                                class="cta-submit" 
+                                disabled={formStatus === 'submitting'}
+                            >
+                                {formStatus === 'submitting' ? 'WYSYŁANIE...' : 'WYŚLIJ WIADOMOŚĆ'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        {/if}
     </main>
+
+    <footer class="bottom-bar">
+        <span>WA.GONE @2026</span>
+    </footer>
 
     {#if showAuthModal}
         <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
@@ -466,13 +349,13 @@
             on:click={handleBackdropClick}
             on:keydown={handleModalKeydown}
         >
-            <div class="modal-card" class:is-closing={isClosingAuthModal}>
+            <div class="modal-card">
                 <button
                     class="modal-close"
                     type="button"
                     on:click={closeAuthModal}
-                    title={$t('landing.modal.close')}
-                    aria-label={$t('landing.modal.close')}
+                    title="Zamknij"
+                    aria-label="Zamknij"
                 >
                     <span class="material-symbols-outlined" aria-hidden="true">close</span>
                 </button>
@@ -484,473 +367,426 @@
 
 <style>
     :global(:root) {
-        --bg-main: #111111;
-        --bg-panel: rgba(255, 255, 255, 0.03);
-        --bg-faq: rgba(255, 255, 255, 0.03);
-        --bg-input: rgba(255, 255, 255, 0.04);
-        --text-main: #f5f7f8;
-        --text-muted: #97a5ad;
-        --text-eyebrow: #dddddd;
-        --hero-track-bg: #111111;
-        --dot-color: #ffffff;
-        --sim-title-color: #0f172a;
-        --sim-desc-color: #4b5563;
-        --sim-eyebrow-color: #6b7280;
-        --cta-bg: #f4f1eb;
-        --cta-color: #141414;
-        --focus-ring: rgba(255, 255, 255, 0.7);
-        --error-color: #de8489;
+        --viewport-bg: #141414;
+        --card-bg: #111111;
+        --text-primary: #f5f7f8;
+        --text-muted: #838a90;
+        --text-heading: #9ea4aa;
+        --text-strong: #cfd4d8;
+        --ascii-color: #4f5860;
+        --input-bg: #0d0d0d;
+        --btn-submit-bg: #f3eee7;
+        --btn-submit-color: #111111;
+        --dot-bg: #e2e2de;
+        --footer-color: #4f555b;
+        --focus-ring: rgba(255, 255, 255, 0.65);
+        --error-color: #e07a7e;
+        --success-color: #6cb09f;
+        --backdrop-bg: rgba(0, 0, 0, 0.75);
     }
 
-    :global(html.light-mode),
-    :global([data-theme='light']),
-    :global(.light) {
-        --bg-main: #ffffff;
-        --bg-panel: rgba(0, 0, 0, 0.03);
-        --bg-faq: rgba(0, 0, 0, 0.03);
-        --bg-input: #f4f5f6;
-        --text-main: #1f2933;
+    :global(html.light-mode) {
+        --viewport-bg: #f4f5f3;
+        --card-bg: #ffffff;
+        --text-primary: #111827;
         --text-muted: #52606a;
-        --text-eyebrow: #52606a;
-        --hero-track-bg: #ffffff;
-        --dot-color: #111111;
-        --sim-title-color: #ffffff;
-        --sim-desc-color: #4b5563;
-        --sim-eyebrow-color: #6b7280;
-        --cta-bg: #111827;
-        --cta-color: #ffffff;
-        --focus-ring: rgba(17, 24, 39, 0.7);
+        --text-heading: #374151;
+        --text-strong: #1f2937;
+        --ascii-color: #718096;
+        --input-bg: #eaedea;
+        --btn-submit-bg: #111827;
+        --btn-submit-color: #ffffff;
+        --dot-bg: #111827;
+        --footer-color: #94a3b8;
+        --focus-ring: rgba(17, 24, 39, 0.65);
         --error-color: #c95158;
+        --success-color: #2e8570;
+        --backdrop-bg: rgba(0, 0, 0, 0.4);
     }
 
-    :global(html) {
-        scrollbar-width: none;
-    }
-    :global(html::-webkit-scrollbar) {
-        display: none;
-    }
-
-    :global(body) {
+    :global(html, body) {
         margin: 0;
-        background: var(--bg-main);
-        color: var(--text-main);
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden !important;
+        background-color: var(--viewport-bg);
+        color: var(--text-primary);
         font-family: 'Inter Variable', Inter, sans-serif;
-        font-size: 16px;
-        font-weight: 300;
-        overflow-x: hidden;
-        transition: background-color 300ms ease, color 300ms ease;
+        transition: background-color 200ms ease, color 200ms ease;
     }
 
-    button:focus,
-    input:focus,
-    textarea:focus,
-    .accordion-panel:focus {
+    .landing-viewport {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        background: var(--viewport-bg);
+        box-sizing: border-box;
+        overflow: hidden;
+        transition: background-color 200ms ease;
+    }
+
+    .viewport-stage {
+        flex: 1;
+        position: relative;
+        width: 100%;
+        max-width: 1440px;
+        margin: 0 auto;
+        padding: 0 clamp(20px, 4vw, 56px);
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+
+    .screen-view {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .about-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 40px;
+        width: 100%;
+        max-height: 80vh;
+        align-items: center;
+    }
+
+    .column-title {
+        font-size: 0.82rem;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--text-heading);
+        margin: 0 0 24px;
+        text-align: center;
+    }
+
+    .faq-column {
+        display: flex;
+        flex-direction: column;
+        height: 520px;
+    }
+
+    .faq-accordion {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow-y: auto;
+        padding-right: 6px;
+    }
+
+    .faq-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        border: 0;
+        box-shadow: none;
+        overflow: hidden;
+        transition: background-color 200ms ease;
+    }
+
+    .faq-head {
+        width: 100%;
+        background: none;
+        border: 0;
+        color: var(--text-strong);
+        padding: 16px 20px;
+        text-align: left;
+        font-size: 0.85rem;
+        font-family: inherit;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 12px;
+        transition: color 150ms ease, background-color 150ms ease;
+    }
+
+    .faq-head:focus {
         outline: none;
     }
 
-    button:focus-visible,
-    input:focus-visible,
-    textarea:focus-visible,
-    a:focus-visible,
-    .accordion-panel:focus-visible {
+    .faq-head:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: -2px;
+        border-radius: 10px;
+    }
+
+    .faq-head:hover {
+        color: var(--text-primary);
+    }
+
+    .faq-body {
+        padding: 0 20px 18px;
+    }
+
+    .faq-body p {
+        margin: 0;
+        font-size: 0.8rem;
+        line-height: 1.55;
+        color: var(--text-muted);
+    }
+
+    .features-column {
+        height: 520px;
+        display: flex;
+        align-items: center;
+    }
+
+    .feature-card {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        background: var(--card-bg);
+        border-radius: 14px;
+        border: 0;
+        box-shadow: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 32px 36px;
+        box-sizing: border-box;
+        transition: background-color 200ms ease;
+    }
+
+    .ascii-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        overflow: hidden;
+    }
+
+    .ascii-art {
+        margin: 0;
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        font-size: clamp(8px, 0.85vw, 12px);
+        line-height: 1.15;
+        color: var(--ascii-color);
+        white-space: pre;
+        letter-spacing: 0.08em;
+        user-select: none;
+    }
+
+    .feature-footer {
+        width: 100%;
+        margin-top: 16px;
+    }
+
+    .feature-desc {
+        margin: 0;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        color: var(--text-muted);
+    }
+
+    .feature-desc strong {
+        color: var(--text-strong);
+        font-weight: 500;
+    }
+
+    .slider-arrow {
+        position: absolute;
+        top: 50%;
+        right: 18px;
+        transform: translateY(-50%);
+        background: none;
+        border: 0;
+        cursor: pointer;
+        padding: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: opacity 150ms ease;
+    }
+
+    .slider-arrow:focus {
+        outline: none;
+    }
+
+    .slider-arrow:focus-visible {
         outline: 2px solid var(--focus-ring);
         outline-offset: 2px;
     }
 
-    .landing {
-        min-height: 100vh;
-        background: var(--bg-main);
-        transition: background-color 300ms ease;
+    .slider-arrow:hover {
+        opacity: 0.75;
     }
 
-    .scroll-dot {
-        position: fixed;
-        top: calc(50% - 60px);
-        right: clamp(12px, 2vw, 28px);
-        width: 7px;
-        height: 7px;
+    .dot-indicator {
+        width: 10px;
+        height: 10px;
         border-radius: 50%;
-        background: var(--text-main);
-        transform: translateY(calc(var(--scroll-progress) * 120px));
-        pointer-events: none;
-        z-index: 50;
-        transition: background-color 300ms ease;
+        background: var(--dot-bg);
+        transition: background-color 200ms ease, transform 150ms ease;
     }
 
-    .hero-scroll-track {
-        position: relative;
+    .slider-arrow:hover .dot-indicator {
+        transform: scale(1.15);
+    }
+
+    /* === FORMULARZ KONTAKTOWY === */
+    .contact-card {
         width: 100%;
-        height: 250vh;
-        background: var(--hero-track-bg);
-        transition: background-color 300ms ease;
-    }
-
-    .hero-sticky-screen {
-        position: relative;
-        width: 100%;
-        height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-    }
-
-    .hero-dot-scale-box {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 28px;
-        height: 28px;
-        margin-left: -14px;
-        margin-top: -14px;
-        border-radius: 50%;
-        pointer-events: none;
-        z-index: 2;
-        transform-origin: center center;
-        will-change: transform;
-    }
-
-    .hero-dot {
-        width: 100%;
-        height: 100%;
-        border-radius: 50%;
-        background: var(--dot-color);
-        animation: pulse-dot 1.8s ease-in-out infinite;
-        transition: background-color 300ms ease;
-    }
-
-    @keyframes pulse-dot {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.35; }
-    }
-
-    .hero-scroll-hint {
-        position: absolute;
-        bottom: 36px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 6px;
-        font-size: 0.72rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: var(--text-muted);
-        z-index: 3;
-        pointer-events: none;
-    }
-
-    .hint-icon {
-        font-size: 16px !important;
-        animation: bob 1.6s ease-in-out infinite;
-    }
-
-    @keyframes bob {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(5px); }
-    }
-
-    .sim-content {
-        position: relative;
-        z-index: 5;
-        max-width: 820px;
-        padding: 0 24px;
-        text-align: center;
-        opacity: 0;
-        pointer-events: auto;
-    }
-
-    .sim-eyebrow {
-        margin: 0 0 16px;
-        font-size: 0.8rem;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--sim-eyebrow-color);
-        font-weight: 400;
-        transition: color 300ms ease;
-    }
-
-    .sim-title {
-        margin: 0 0 24px;
-        font-size: clamp(2rem, 5vw, 3.6rem);
-        font-weight: 500;
-        line-height: 1.1;
-        letter-spacing: -0.02em;
-        text-transform: uppercase;
-        color: var(--sim-title-color);
-        transition: color 300ms ease;
-    }
-
-    .features {
-        padding: 80px clamp(24px, 8vw, 120px) 110px;
-        background: var(--bg-main);
-        scroll-margin-top: 76px;
-        transition: background-color 300ms ease;
-    }
-
-    .features h2 {
-        margin: 0 auto 60px;
-        text-align: center;
-        font-size: 0.95rem;
-        font-weight: 300;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--text-eyebrow);
-        transition: color 300ms ease;
-    }
-
-    .accordion-gallery {
-        display: flex;
-        flex-direction: row;
-        width: 100%;
-        max-width: 100%;
-        perspective: 1400px;
-    }
-
-    .accordion-panel {
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 0;
-        flex: 1 1 0%;
-        cursor: pointer;
-        overflow: hidden;
-        background: var(--bg-panel);
-        border-radius: 14px;
-        transform-style: preserve-3d;
-        transform-origin: center;
-        will-change: flex-grow, transform;
-        transition: background-color 300ms ease;
-    }
-
-    .panel-content {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        padding: 36px 28px;
+        max-width: 600px;
         box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
     }
 
-    .panel-number {
-        font-size: 0.82rem;
-        letter-spacing: 0.12em;
-        color: var(--text-muted);
-    }
-
-    .label-content {
-        opacity: 0;
+    .contact-form {
         display: flex;
         flex-direction: column;
         gap: 12px;
     }
 
-    .label-content h3 {
-        margin: 0;
-        font-size: 1.25rem;
-        font-weight: 400;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: var(--text-main);
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
     }
 
-    .label-content p {
-        margin: 0;
-        font-size: 0.92rem;
-        color: var(--text-muted);
-        line-height: 1.55;
-        max-width: 40ch;
-    }
-
-    .faq {
-        padding: 90px clamp(24px, 8vw, 120px);
-        background: var(--bg-main);
-        transition: background-color 300ms ease;
-    }
-
-    .faq-eyebrow {
-        text-align: center;
-        margin: 0 0 40px;
-        color: var(--text-eyebrow);
-        letter-spacing: 0.18em;
-        font-size: 0.85rem;
-        text-transform: uppercase;
-    }
-
-    .faq-list {
-        max-width: 800px;
-        margin: 0 auto;
+    .field-wrap {
         display: flex;
         flex-direction: column;
-        gap: 14px;
-    }
-
-    .faq-item {
-        border-radius: 12px;
-        background: var(--bg-faq);
-        overflow: hidden;
-        transition: background-color 300ms ease;
-    }
-
-    .faq-trigger {
+        gap: 4px;
         width: 100%;
-        padding: 20px 26px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: none;
+    }
+
+    .contact-form input,
+    .contact-form textarea {
+        width: 100%;
+        padding: 16px 20px;
+        border-radius: 12px;
         border: 0;
-        color: var(--text-main);
-        font-size: 0.95rem;
-        cursor: pointer;
-        border-radius: 12px;
-    }
-
-    .faq-icon {
-        font-size: 1.4rem;
-        margin-left: 16px;
-        transition: transform 300ms ease;
-    }
-
-    .faq-item.is-open .faq-icon {
-        transform: rotate(45deg);
-    }
-
-    .faq-answer-wrapper {
-        height: 0;
-        opacity: 0;
-        overflow: hidden;
-    }
-
-    .faq-answer-inner {
-        padding: 0 26px 20px;
-    }
-
-    .faq-answer-inner p {
-        margin: 0;
-        color: var(--text-muted);
-        line-height: 1.6;
-        font-size: 0.88rem;
-    }
-
-    .contact {
-        padding: 90px clamp(24px, 8vw, 120px);
-        background: var(--bg-main);
-        transition: background-color 300ms ease;
-    }
-
-    .contact-eyebrow {
-        text-align: center;
-        margin: 0 0 40px;
-        color: var(--text-eyebrow);
-        letter-spacing: 0.18em;
-        font-size: 0.85rem;
-        text-transform: uppercase;
-    }
-
-    .contact-form {
-        max-width: 580px;
-        margin: 0 auto;
-        display: flex;
-        flex-direction: column;
-        gap: 18px;
-    }
-
-    .form-group {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .form-group label {
-        font-size: 0.72rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--text-muted);
-    }
-
-    .form-group input,
-    .form-group textarea {
-        width: 100%;
-        padding: 12px 16px;
-        border-radius: 8px;
-        border: 1px solid transparent;
-        background: var(--bg-input);
-        color: var(--text-main);
+        box-shadow: none;
+        background: var(--input-bg);
+        color: var(--text-primary);
         font-family: inherit;
-        font-size: 0.9rem;
+        font-size: 0.88rem;
         box-sizing: border-box;
-        transition: background-color 300ms ease, color 300ms ease, border-color 300ms ease;
+        transition: background-color 200ms ease, color 200ms ease;
     }
 
-    .form-group input[aria-invalid='true'],
-    .form-group textarea[aria-invalid='true'] {
-        border-color: var(--error-color);
+    .contact-form textarea {
+        resize: none;
+        min-height: 240px;
     }
 
-    .field-error-msg {
-        font-size: 0.74rem;
+    .contact-form input:focus,
+    .contact-form textarea:focus {
+        outline: none;
+    }
+
+    .contact-form input:focus-visible,
+    .contact-form textarea:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+    }
+
+    .field-hint {
+        font-size: 0.72rem;
         color: var(--error-color);
-        letter-spacing: 0.02em;
+        padding-left: 6px;
     }
 
-    .cta {
+    .form-bottom-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 6px;
+        gap: 16px;
+    }
+
+    .feedback-area {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .feedback-msg {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
-        border: 0;
-        border-radius: 8px;
-        padding: 12px 20px;
-        font-size: 0.74rem;
+        gap: 6px;
+        font-size: 0.76rem;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
+        font-weight: 500;
+    }
+
+    .feedback-msg.success {
+        color: var(--success-color);
+    }
+
+    .feedback-msg.error {
+        color: var(--error-color);
+    }
+
+    .icon-status {
+        font-size: 16px;
+    }
+
+    .cta-submit {
+        background: var(--btn-submit-bg);
+        color: var(--btn-submit-color);
+        border: 0;
+        box-shadow: none;
+        border-radius: 10px;
+        padding: 14px 28px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
         cursor: pointer;
-        transition: background-color 300ms ease, color 300ms ease, opacity 150ms ease;
+        font-family: inherit;
+        white-space: nowrap;
+        transition: opacity 150ms ease, background-color 200ms ease, color 200ms ease;
     }
 
-    .cta-primary {
-        background: var(--cta-bg);
-        color: var(--cta-color);
+    .cta-submit:focus {
+        outline: none;
     }
 
-    .cta-primary:hover {
-        opacity: 0.9;
+    .cta-submit:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
     }
 
-    footer {
-        padding: 36px clamp(24px, 8vw, 120px);
-        background: var(--bg-main);
-        border-top: 1px solid rgba(128, 128, 128, 0.15);
-        transition: background-color 300ms ease;
+    .cta-submit:hover:not(:disabled) {
+        opacity: 0.88;
     }
 
-    .footer-inner {
-        max-width: 1200px;
-        margin: 0 auto;
+    .cta-submit:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .bottom-bar {
+        padding: 18px 44px;
         display: flex;
+        justify-content: center;
         align-items: center;
-        justify-content: space-between;
-        gap: 20px;
-    }
-
-    .copyright,
-    .footer-link {
-        color: var(--text-muted);
-        font-size: 0.8rem;
-        text-decoration: none;
-        border-radius: 4px;
+        font-size: 0.68rem;
+        letter-spacing: 0.1em;
+        color: var(--footer-color);
+        flex-shrink: 0;
+        transition: color 200ms ease;
     }
 
     .modal-backdrop {
         position: fixed;
         inset: 0;
         z-index: 200;
-        background: rgba(0, 0, 0, 0.55);
-        backdrop-filter: blur(4px);
+        background: var(--backdrop-bg);
+        backdrop-filter: blur(6px);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -976,15 +812,18 @@
         justify-content: center;
         width: 28px;
         height: 28px;
-        border-radius: 6px;
         cursor: pointer;
-        padding: 0;
-        transition: color 150ms ease, background-color 150ms ease;
+        transition: opacity 150ms ease, color 150ms ease;
+    }
+
+    .modal-close:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+        border-radius: 6px;
     }
 
     .modal-close:hover {
-        color: var(--text-main);
-        background: rgba(255, 255, 255, 0.08);
+        color: var(--text-primary);
     }
 
     .material-symbols-outlined {
@@ -998,7 +837,23 @@
         direction: ltr;
         -webkit-font-smoothing: antialiased;
         font-feature-settings: 'liga';
-        font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
         user-select: none;
+    }
+
+    @media (max-width: 900px) {
+        .about-grid {
+            grid-template-columns: 1fr;
+            max-height: none;
+            overflow-y: auto;
+        }
+
+        .features-column,
+        .faq-column {
+            height: auto;
+        }
+
+        .form-row {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
