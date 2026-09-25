@@ -357,7 +357,6 @@
         --search-chip-hover: rgba(255, 255, 255, 0.14);
         --search-dropdown-bg: rgba(20, 20, 20, 0.96);
         --search-dropdown-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
-        --search-dropdown-border: 1px solid rgba(255, 255, 255, 0.06);
         --search-item-hover: rgba(255, 255, 255, 0.06);
         --search-count-bg: rgba(255, 255, 255, 0.05);
         --search-header: #64748b;
@@ -540,7 +539,6 @@
         list-style: none;
         border-radius: 12px;
         background: var(--search-dropdown-bg);
-        border: var(--search-dropdown-border);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
         box-shadow: var(--search-dropdown-shadow);

@@ -107,9 +107,11 @@
     let triggerElement: HTMLElement | null = null;
     let modalElement: HTMLElement | null = null;
 
-    async function openAuthModal(mode: 'login' | 'register' = 'login', e?: Event) {
-        if (e) {
+    async function openAuthModal(mode: 'login' | 'register' = 'login', e?: CustomEvent | MouseEvent) {
+        if (e && 'preventDefault' in e && typeof e.preventDefault === 'function') {
             e.preventDefault();
+        }
+        if (e && 'currentTarget' in e && e.currentTarget) {
             triggerElement = e.currentTarget as HTMLElement;
         } else {
             triggerElement = document.activeElement as HTMLElement;
@@ -195,7 +197,7 @@
 </svelte:head>
 
 <div class="landing-viewport">
-    <PublicNav authenticated={data.authenticated} on:openLogin={(e) => openAuthModal('login', e)} />
+    <PublicNav authenticated={data.authenticated} on:openLogin={() => openAuthModal('login')} />
 
     <main class="viewport-stage" aria-hidden={showAuthModal}>
         {#if currentView === 'jak-to-dziala'}
@@ -341,11 +343,12 @@
     </footer>
 
     {#if showAuthModal}
-        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div
             class="modal-backdrop"
             class:is-closing={isClosingAuthModal}
             role="dialog"
+            tabindex="-1"
             aria-modal="true"
             aria-label={authMode === 'login' ? 'Logowanie' : 'Rejestracja'}
             bind:this={modalElement}
@@ -826,6 +829,7 @@
         align-items: center;
         justify-content: center;
         padding: 20px;
+        outline: none;
     }
 
     .modal-card {

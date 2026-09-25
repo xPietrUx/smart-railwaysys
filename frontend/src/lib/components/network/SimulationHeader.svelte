@@ -3,7 +3,6 @@
     import { onMount } from 'svelte';
     import { locale, setLocale, t } from '$lib/i18n';
     import type { ConnectionStatus, LiveSnapshot } from '$lib/services/live';
-    import { clearTrains } from '$lib/services/simulation';
     import type { HighlightFilter } from '$lib/types/selection';
     import type { TrainStatus } from '$lib/types/train';
 
@@ -15,7 +14,6 @@
     export let user: { email: string; role: string; permissions: string[] } | null = null;
 
     $: isGuest = user?.role === 'guest';
-    $: isAdmin = user?.permissions?.includes('users.manage') ?? false;
 
     let lightMode = false;
     let isCollapsed = false;
@@ -150,9 +148,6 @@
         ? new Date(snapshot.timestamp * 1000).toLocaleTimeString($locale === 'pl' ? 'pl-PL' : 'en-GB')
         : '—';
 
-    // $t musi być odczytany wprost w tym wyrażeniu (nie przez wywołanie funkcji),
-    // inaczej Svelte nie wykryje zależności od `locale` i etykieta nie przełączy
-    // się na inny język bez zmiany samego statusu połączenia.
     $: connectionStatusLabel =
         status === 'connecting'
             ? $t('connection.connecting')
@@ -183,20 +178,6 @@
     }
 
     $: paused = snapshot.paused;
-
-    let controlBusy = false;
-
-    async function handleClearTrains() {
-        if (controlBusy) return;
-        controlBusy = true;
-        try {
-            await clearTrains(fetch, apiBaseUrl);
-        } catch {
-            // Cicho pomijamy
-        } finally {
-            controlBusy = false;
-        }
-    }
 </script>
 
 <header class="site-header" class:collapsed={isCollapsed}>
@@ -291,20 +272,6 @@
                 </div>
 
                 <div class="auxiliary-cluster">
-                    {#if !readOnly}
-                        <div class="sim-controls">
-                            <button
-                                type="button"
-                                class="ctrl-btn ctrl-danger"
-                                on:click={handleClearTrains}
-                                disabled={controlBusy || snapshot.trains.length === 0}
-                                title={$t('header.clearTrainsTitle')}
-                            >
-                                <span>{$t('header.clearTrains')}</span>
-                            </button>
-                        </div>
-                    {/if}
-
                     <div class="status-strip" title={$t('header.connectionTitle', { time: lastUpdateLabel })}>
                         {#if paused}
                             <span class="status-dot dot-amber"></span>
@@ -325,45 +292,44 @@
             </div>
 
             <div class="actions">
-                <button
-                    class="icon-button"
-                    type="button"
-                    on:click={toggleLanguage}
-                    aria-label={$locale === 'pl' ? 'Zmień język na angielski' : 'Change language to Polish'}
-                    title={$locale === 'pl' ? 'English' : 'Polski'}
-                >
-                    <span class="material-symbols-outlined" aria-hidden="true">language</span>
-                </button>
-                <button
-                    class="icon-button"
-                    type="button"
-                    on:click={toggleLightMode}
-                    aria-label={lightMode ? 'Włącz tryb ciemny' : 'Włącz tryb jasny'}
-                    title={lightMode ? 'Tryb ciemny' : 'Tryb jasny'}
-                >
-                    <span class="material-symbols-outlined" class:is-light={lightMode} aria-hidden="true">
-                        {lightMode ? 'dark_mode' : 'light_mode'}
-                    </span>
-                </button>
+                <div class="user-pill">
+                    <button
+                        class="icon-button"
+                        type="button"
+                        on:click={toggleLanguage}
+                        aria-label={$locale === 'pl' ? 'Zmień język na angielski' : 'Change language to Polish'}
+                        title={$locale === 'pl' ? 'English' : 'Polski'}
+                    >
+                        <span class="material-symbols-outlined" aria-hidden="true">language</span>
+                    </button>
+                    <button
+                        class="icon-button"
+                        type="button"
+                        on:click={toggleLightMode}
+                        aria-label={lightMode ? 'Włącz tryb ciemny' : 'Włącz tryb jasny'}
+                        title={lightMode ? 'Tryb ciemny' : 'Tryb jasny'}
+                    >
+                        <span class="material-symbols-outlined" class:is-light={lightMode} aria-hidden="true">
+                            {lightMode ? 'dark_mode' : 'light_mode'}
+                        </span>
+                    </button>
 
-                {#if user}
-                    {#if isGuest}
-                        <span class="guest-badge">{$t('header.guestBadge')}</span>
-                        <a class="login" href="/login" data-sveltekit-preload-data="off">
-                            {$t('header.login')}
-                        </a>
-                    {:else}
-                        {#if isAdmin}
-                            <a class="login admin-link" href="/admin" data-sveltekit-preload-data="off">
-                                {$t('header.admin')}
+                    <div class="divider"></div>
+
+                    {#if user}
+                        {#if isGuest}
+                            <span class="guest-badge" title="Zalogowano jako Gość">{$t('header.guestBadge')}</span>
+                            <a class="login-action" href="/login" data-sveltekit-preload-data="off">
+                                {$t('header.login')}
                             </a>
+                        {:else}
+                            <span class="account-email" title={user.email}>{user.email}</span>
+                            <form method="POST" action="/wyloguj" style="margin: 0;">
+                                <button class="login-action" type="submit">{$t('header.logout')}</button>
+                            </form>
                         {/if}
-                        <span class="account-email" title={user.email}>{user.email}</span>
-                        <form method="POST" action="/wyloguj" style="margin: 0;">
-                            <button class="login logout-btn" type="submit">{$t('header.logout')}</button>
-                        </form>
                     {/if}
-                {/if}
+                </div>
             </div>
         </div>
     </div>
@@ -461,14 +427,14 @@
         gap: 8px;
         flex: 1;
         min-width: 0;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
     }
 
     .metrics {
         display: flex;
         align-items: center;
         gap: 6px;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         justify-content: center;
     }
 
@@ -591,13 +557,6 @@
         font-size: 0.68rem;
     }
 
-    .sim-controls {
-        display: flex;
-        gap: 6px;
-        flex-shrink: 0;
-    }
-
-    .ctrl-btn,
     .debug-btn {
         padding: 5px 9px;
         border-radius: 7px;
@@ -614,89 +573,57 @@
         transition: background-color 180ms ease, color 180ms ease;
     }
 
-    .ctrl-btn:hover:not(:disabled),
     .debug-btn:hover:not(:disabled) {
         background: rgba(255, 255, 255, 0.08);
         color: #fff;
     }
 
-    .ctrl-btn:disabled {
-        opacity: 0.4;
-        cursor: default;
-    }
-
-    .ctrl-danger:hover:not(:disabled) {
-        background: rgba(222, 132, 137, 0.15);
-        color: #de8489;
-    }
-
     .actions {
         display: flex;
         align-items: center;
-        gap: 6px;
         flex-shrink: 0;
         justify-content: flex-end;
     }
 
-    .login {
-        color: #dddddd;
+    .user-pill {
+        display: flex;
+        align-items: center;
+        gap: 6px;
         background: #1c1c1c;
-        text-decoration: none;
-        padding: 6px 10px;
-        border-radius: 8px;
-        font-size: 0.7rem;
-        font-weight: 500;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        transition: color 200ms ease, background-color 200ms ease, opacity 180ms ease;
-        border: 0;
-        cursor: pointer;
-        font-family: inherit;
-        white-space: nowrap;
+        border-radius: 9px;
+        padding: 4px 6px;
+        transition: background-color 200ms ease;
     }
 
-    .login:hover {
-        opacity: 0.75;
-    }
-
-    .guest-badge {
-        font-size: 0.64rem;
-        color: #97a5ad;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        white-space: nowrap;
-    }
-
-    .account-email {
-        font-size: 0.7rem;
-        font-weight: 300;
-        color: #97a5ad;
-        max-width: 120px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+    .divider {
+        width: 1px;
+        height: 18px;
+        background: rgba(255, 255, 255, 0.1);
+        margin: 0 2px;
     }
 
     .icon-button {
         display: grid;
         place-items: center;
-        width: 32px;
-        height: 32px;
+        width: 28px;
+        height: 28px;
         padding: 0;
         border: 0;
+        border-radius: 6px;
         background: transparent;
         color: #97a5ad;
         cursor: pointer;
         flex-shrink: 0;
-        transition: color 200ms ease;
+        transition: color 200ms ease, background-color 200ms ease;
     }
 
     .icon-button:hover {
         color: #fff;
+        background: rgba(255, 255, 255, 0.05);
     }
 
     .material-symbols-outlined {
-        font-size: 20px;
+        font-size: 19px;
         font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
         transition: transform 300ms ease;
     }
@@ -705,6 +632,49 @@
         transform: rotate(180deg);
     }
 
+    .login-action {
+        color: #dddddd;
+        background: transparent;
+        text-decoration: none;
+        padding: 4px 6px 4px 4px;
+        border-radius: 6px;
+        font-size: 0.68rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        transition: color 150ms ease, opacity 150ms ease;
+        border: 0;
+        cursor: pointer;
+        font-family: inherit;
+        white-space: nowrap;
+    }
+
+    .login-action:hover {
+        color: #ffffff;
+        opacity: 0.8;
+    }
+
+    .guest-badge {
+        font-size: 0.62rem;
+        color: #97a5ad;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+        margin: 0 4px;
+    }
+
+    .account-email {
+        font-size: 0.68rem;
+        font-weight: 300;
+        color: #97a5ad;
+        max-width: 110px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin: 0 4px;
+    }
+
+    /* Tryb Jasny */
     :global(html.light-mode) .collapse-bubble {
         background: rgba(0, 0, 0, 0.04);
         color: #52606a;
@@ -747,29 +717,32 @@
     :global(html.light-mode) .status-time {
         color: #8c9ba5;
     }
-    :global(html.light-mode) .ctrl-btn,
     :global(html.light-mode) .debug-btn {
         background: rgba(0, 0, 0, 0.04);
         color: #52606a;
     }
-    :global(html.light-mode) .ctrl-btn:hover:not(:disabled),
     :global(html.light-mode) .debug-btn:hover:not(:disabled) {
         background: rgba(0, 0, 0, 0.08);
         color: #111827;
     }
-    :global(html.light-mode) .ctrl-danger:hover:not(:disabled) {
-        background: rgba(201, 81, 88, 0.12);
-        color: #c95158;
+    :global(html.light-mode) .user-pill {
+        background: #e5e7eb;
+    }
+    :global(html.light-mode) .divider {
+        background: rgba(0, 0, 0, 0.1);
     }
     :global(html.light-mode) .icon-button {
         color: #52606a;
     }
     :global(html.light-mode) .icon-button:hover {
         color: #111827;
+        background: rgba(0, 0, 0, 0.04);
     }
-    :global(html.light-mode) .login {
-        background: #e5e7eb;
+    :global(html.light-mode) .login-action {
         color: #1f2937;
+    }
+    :global(html.light-mode) .login-action:hover {
+        color: #000000;
     }
     :global(html.light-mode) .guest-badge,
     :global(html.light-mode) .account-email {
@@ -793,6 +766,7 @@
         }
 
         .metrics-center {
+            flex-wrap: wrap;
             justify-content: flex-start;
         }
 
