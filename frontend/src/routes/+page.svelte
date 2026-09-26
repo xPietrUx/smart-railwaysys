@@ -1,14 +1,13 @@
 <script lang="ts">
     import PublicNav from '$lib/components/site/PublicNav.svelte';
     import AuthCard from '$lib/components/site/AuthCard.svelte';
+    import ShapeWaves from '$lib/components/site/ShapeWaves.svelte';
     import { t } from '$lib/i18n';
     import { tick, onMount } from 'svelte';
     import { slide } from 'svelte/transition';
     import { cubicOut } from 'svelte/easing';
     import { page } from '$app/stores';
     import type { PageData, ActionData } from './$types';
-
-    // do webgl
     import { Renderer, Triangle, Program, Mesh, Texture } from 'ogl';
     import { gsap } from 'gsap';
 
@@ -16,9 +15,14 @@
     export let form: ActionData;
 
     type ViewSection = 'jak-to-dziala' | 'o-wa-gone' | 'kontakt';
-    let currentView: ViewSection = 'o-wa-gone';
+    let currentView: ViewSection = 'jak-to-dziala'; 
 
     let isLightMode = false;
+
+    let cursorX = 0;
+    let cursorY = 0;
+    let cursorVisible = false;
+    let cursorHover = false;
 
     $: features = [
         {
@@ -77,14 +81,45 @@
     let activeFeature = 0;
     let openFaqIndex: number | null = 0;
 
-    // webgl setup
+    let displayedTag = '';
+    let displayedCopy = '';
+    let typewriterTimer: ReturnType<typeof setTimeout>;
+
+    function runTypewriter(index: number) {
+        if (!features[index]) return;
+        
+        const targetTag = features[index].tag;
+        const targetCopy = ' ' + features[index].copy;
+        
+        displayedTag = '';
+        displayedCopy = '';
+        clearTimeout(typewriterTimer);
+
+        let tagIndex = 0;
+        let copyIndex = 0;
+
+        const type = () => {
+            if (tagIndex < targetTag.length) {
+                displayedTag += targetTag[tagIndex];
+                tagIndex++;
+                typewriterTimer = setTimeout(type, 30);
+            } else if (copyIndex < targetCopy.length) {
+                displayedCopy += targetCopy[copyIndex];
+                copyIndex++;
+                typewriterTimer = setTimeout(type, 15);
+            }
+        };
+        type();
+    }
+
+    $: runTypewriter(activeFeature);
+
     let engine: any = null;
     let morphContainer: HTMLElement;
     let startX = 0;
     let dragWidth = 1;
     let activeDrag = false;
 
-    // shaders 
     const TRANSITIONS: Record<string, number> = { melt: 0, ripple: 1, shear: 2, swirl: 3 };
 
     const vertexShader = `
@@ -96,6 +131,7 @@
         gl_Position = vec4(position, 0.0, 1.0);
     }`;
 
+    // Zmodyfikowany fragmentShader na "object-fit: contain"
     const fragmentShader = `
     precision highp float;
 
@@ -161,15 +197,16 @@
         return mat2(c, -s, s, c);
     }
 
-    vec2 coverUV(vec2 uv, vec2 res, vec2 img) {
+    // Zamieniona logika z 'cover' na 'contain'
+    vec2 containUV(vec2 uv, vec2 res, vec2 img) {
         float rA = res.x / max(res.y, 1.0);
         float iA = img.x / max(img.y, 1.0);
         vec2 s = vec2(1.0);
         float ratio = rA / max(iA, 0.0001);
         if (ratio > 1.0) {
-            s.y = 1.0 / ratio;
-        } else {
             s.x = ratio;
+        } else {
+            s.y = 1.0 / ratio;
         }
         return (uv - 0.5) * s + 0.5;
     }
@@ -224,31 +261,34 @@
             }
         }
 
-        vec2 sC = coverUV(uvC, uResolution, uCurrentSize);
-        vec2 sN = coverUV(uvN, uResolution, uNextSize);
+        vec2 sC = containUV(uvC, uResolution, uCurrentSize);
+        vec2 sN = containUV(uvN, uResolution, uNextSize);
 
         float ca = uReduce < 0.5 ? uAberration * env * 0.03 : 0.0;
 
-        vec4 texC_g = texture2D(tCurrent, sC);
-        vec4 texN_g = texture2D(tNext, sN);
+        bool oC = sC.x < 0.0 || sC.x > 1.0 || sC.y < 0.0 || sC.y > 1.0;
+        bool oN = sN.x < 0.0 || sN.x > 1.0 || sN.y < 0.0 || sN.y > 1.0;
 
-        vec3 colC = vec3(
-            texture2D(tCurrent, sC + vec2(ca, 0.0)).r,
-            texC_g.g,
-            texture2D(tCurrent, sC - vec2(ca, 0.0)).b
-        );
-        vec3 colN = vec3(
-            texture2D(tNext, sN + vec2(ca, 0.0)).r,
-            texN_g.g,
-            texture2D(tNext, sN - vec2(ca, 0.0)).b
-        );
+        vec4 texC_g = oC ? vec4(0.0) : texture2D(tCurrent, sC);
+        vec4 texN_g = oN ? vec4(0.0) : texture2D(tNext, sN);
+
+        vec2 sCr = sC + vec2(ca, 0.0);
+        vec2 sCb = sC - vec2(ca, 0.0);
+        float rC = (sCr.x < 0.0 || sCr.x > 1.0 || sCr.y < 0.0 || sCr.y > 1.0) ? 0.0 : texture2D(tCurrent, sCr).r;
+        float bC = (sCb.x < 0.0 || sCb.x > 1.0 || sCb.y < 0.0 || sCb.y > 1.0) ? 0.0 : texture2D(tCurrent, sCb).b;
+
+        vec2 sNr = sN + vec2(ca, 0.0);
+        vec2 sNb = sN - vec2(ca, 0.0);
+        float rN = (sNr.x < 0.0 || sNr.x > 1.0 || sNr.y < 0.0 || sNr.y > 1.0) ? 0.0 : texture2D(tNext, sNr).r;
+        float bN = (sNb.x < 0.0 || sNb.x > 1.0 || sNb.y < 0.0 || sNb.y > 1.0) ? 0.0 : texture2D(tNext, sNb).b;
+
+        vec3 colC = vec3(rC, texC_g.g, bC);
+        vec3 colN = vec3(rN, texN_g.g, bN);
 
         vec3 texCol = mix(colC, colN, m);
         float texAlpha = mix(texC_g.a, texN_g.a, m);
 
-        // Blend image dynamically over the exact background color 
         vec3 finalCol = mix(uBgColor, texCol, texAlpha);
-
         gl_FragColor = vec4(finalCol, 1.0);
     }`;
 
@@ -520,6 +560,39 @@
         }
     }
 
+    function initMorph(node: HTMLElement) {
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        engine = new MorphEngine(node, {
+            items: features.map(f => isLightMode ? f.imgLight : f.imgDark),
+            startIndex: activeFeature,
+            reducedMotion,
+            dprCap: 2,
+            getOptions: () => ({
+                transition: 'melt',
+                duration: 1.1,
+                ease: 'power2.inOut',
+                intensity: 0.55,
+                scale: 2.4,
+                aberration: 0.35,
+                drift: 0.4,
+                bgColor: isLightMode ? '#ffffff' : '#111111',
+                loop: true
+            }),
+            onIndexChange: (idx: number) => {
+                activeFeature = idx;
+            }
+        });
+
+        return {
+            destroy() {
+                if (engine) {
+                    engine.destroy();
+                    engine = null;
+                }
+            }
+        };
+    }
+
     function nextFeature() {
         if (engine) engine.next();
         else activeFeature = (activeFeature + 1) % features.length;
@@ -538,6 +611,8 @@
         const hash = $page.url.hash.replace('#', '');
         if (hash === 'jak-to-dziala' || hash === 'o-wa-gone' || hash === 'kontakt') {
             currentView = hash as ViewSection;
+        } else {
+            currentView = 'jak-to-dziala';
         }
     }
 
@@ -588,35 +663,34 @@
         });
         observer.observe(document.documentElement, { attributes: true });
 
-        // morph effect
-        if (morphContainer) {
-            const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            engine = new MorphEngine(morphContainer, {
-                items: features.map(f => isLightMode ? f.imgLight : f.imgDark),
-                startIndex: activeFeature,
-                reducedMotion,
-                dprCap: 2,
-                getOptions: () => ({
-                    transition: 'melt',
-                    duration: 1.1,
-                    ease: 'power2.inOut',
-                    intensity: 0.55,
-                    scale: 2.4,
-                    aberration: 0.35,
-                    drift: 0.4,
-                    bgColor: isLightMode ? '#ffffff' : '#111111',
-                    loop: true
-                }),
-                onIndexChange: (idx: number) => {
-                    activeFeature = idx;
-                }
-            });
+        if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+            const updateCursor = (event: PointerEvent) => {
+                cursorX = event.clientX;
+                cursorY = event.clientY;
+                cursorVisible = true;
+                cursorHover =
+                    event.target instanceof Element &&
+                    Boolean(event.target.closest('a, button, input, textarea, .faq-head, .slider-arrow, .morph-container'));
+            };
+            const hideCursor = () => (cursorVisible = false);
+
+            document.documentElement.classList.add('dot-cursor');
+            window.addEventListener('pointermove', updateCursor);
+            window.addEventListener('mouseleave', hideCursor);
+
+            return () => {
+                window.removeEventListener('keydown', handleKeydown);
+                observer.disconnect();
+                
+                document.documentElement.classList.remove('dot-cursor');
+                window.removeEventListener('pointermove', updateCursor);
+                window.removeEventListener('mouseleave', hideCursor);
+            };
         }
 
         return () => {
             window.removeEventListener('keydown', handleKeydown);
             observer.disconnect();
-            if (engine) engine.destroy();
         };
     });
 
@@ -722,17 +796,52 @@
 </svelte:head>
 
 <div class="landing-viewport">
+    <div
+        class="custom-cursor"
+        class:is-visible={cursorVisible}
+        style="--cursor-x: {cursorX}px; --cursor-y: {cursorY}px"
+        aria-hidden="true"
+    >
+        <span class="cursor-dot" class:is-hovering={cursorHover}></span>
+    </div>
+
     <PublicNav authenticated={data.authenticated} on:openLogin={() => openAuthModal('login')} />
 
-    <main class="viewport-stage" aria-hidden={showAuthModal}>
+    <main class="viewport-stage" class:is-hero={currentView === 'jak-to-dziala'} aria-hidden={showAuthModal}>
         {#if currentView === 'jak-to-dziala'}
-            <section class="screen-view empty-screen">
-                <!-- Sekcja pusta / początkowa makiety -->
+            <section class="screen-view hero-screen">
+                <div class="hero-shape-container">
+                    <ShapeWaves
+                        text="WA.GONE"
+                        fontFamily='"Inter Variable", Inter, sans-serif'
+                        fontWeight={500}
+                        textSize={0.6}
+                        shapes="circles"
+                        cellSize={8}
+                        dotSize={0.84}
+                        color={isLightMode ? "#94a3b8" : "#929292"}
+                        hoverColor={isLightMode ? "#111827" : "#ffffff"}
+                        backgroundColor={isLightMode ? "#f4f5f3" : "#141414"}
+                        speed={2}
+                        scale={0.55}
+                        contrast={1.65}
+                        brightness={0.38}
+                        flow={3}
+                        direction={215}
+                        fade={0.22}
+                        interactive={true}
+                        splashRadius={16}
+                        splashStrength={0.6}
+                        glow={0}
+                        intro={true}
+                        introDuration={1.6}
+                        paused={false}
+                    />
+                </div>
             </section>
         {:else if currentView === 'o-wa-gone'}
             <section class="screen-view about-screen">
                 <div class="about-grid">
-                    <!-- Lewa strona: FAQ -->
                     <div class="faq-column">
                         <h2 class="column-title">FAQ</h2>
                         <div class="faq-accordion">
@@ -759,24 +868,23 @@
                         </div>
                     </div>
 
-                    <!-- Prawa strona: Features ze sliderem Morph -->
                     <div class="features-column">
                         <div class="feature-card">
                             <div 
                                 class="illustration-container morph-container" 
                                 bind:this={morphContainer}
+                                use:initMorph
                                 on:pointerdown={handlePointerDown}
                                 on:pointermove={handlePointerMove}
                                 on:pointerup={handlePointerUp}
                                 on:pointercancel={handlePointerUp}
-                                style="touch-action: pan-y; cursor: {activeDrag ? 'grabbing' : 'grab'};"
+                                style="touch-action: pan-y;"
                             >
-                                <!-- The OGL Canvas will mount here -->
                             </div>
                             
                             <div class="feature-footer">
                                 <p class="feature-desc">
-                                    <strong>{features[activeFeature].tag}</strong> {features[activeFeature].copy}
+                                    <strong>{displayedTag}</strong>{displayedCopy}<span class="cursor" aria-hidden="true">|</span>
                                 </p>
                             </div>
 
@@ -941,6 +1049,60 @@
         --backdrop-bg: rgba(0, 0, 0, 0.4);
     }
 
+    :global(html) {
+        scrollbar-width: none;
+    }
+    :global(html::-webkit-scrollbar) {
+        display: none;
+    }
+
+    :global(html.dot-cursor *:not(input):not(textarea)) {
+        cursor: none !important;
+    }
+
+    .custom-cursor {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 0;
+        height: 0;
+        z-index: 9999;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate3d(var(--cursor-x), var(--cursor-y), 0);
+        transition: opacity 150ms ease;
+        will-change: transform;
+    }
+
+    .custom-cursor.is-visible {
+        opacity: 1;
+    }
+
+    .cursor-dot {
+        display: block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ffffff;
+        transform: translate(-50%, -50%) scale(1);
+        transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), background-color 200ms ease, border-color 200ms ease;
+    }
+
+    :global(html.light-mode) .cursor-dot {
+        background: #111111;
+    }
+
+    .cursor-dot.is-hovering {
+        transform: translate(-50%, -50%) scale(4);
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+    }
+
+    :global(html.light-mode) .cursor-dot.is-hovering {
+        background: rgba(17, 17, 17, 0.1);
+        border: 1px solid rgba(17, 17, 17, 0.3);
+    }
+
     :global(html, body) {
         margin: 0;
         padding: 0;
@@ -978,6 +1140,12 @@
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        transition: max-width 300ms ease, padding 300ms ease;
+    }
+
+    .viewport-stage.is-hero {
+        max-width: 100%;
+        padding: 0;
     }
 
     .screen-view {
@@ -986,6 +1154,20 @@
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+
+    .hero-screen {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .hero-shape-container {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
     }
 
     .about-grid {
@@ -1039,7 +1221,6 @@
         text-align: left;
         font-size: 0.85rem;
         font-family: inherit;
-        cursor: pointer;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -1107,6 +1288,7 @@
     .feature-footer {
         width: 100%;
         margin-top: 16px;
+        min-height: 48px;
     }
 
     .feature-desc {
@@ -1121,6 +1303,20 @@
         font-weight: 500;
     }
 
+    .cursor {
+        display: inline-block;
+        width: 2px;
+        margin-left: 2px;
+        vertical-align: text-bottom;
+        color: var(--text-strong);
+        animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+    }
+
     .slider-arrow {
         position: absolute;
         top: 50%;
@@ -1128,7 +1324,6 @@
         transform: translateY(-50%);
         background: none;
         border: 0;
-        cursor: pointer;
         padding: 10px;
         display: flex;
         align-items: center;
@@ -1162,7 +1357,6 @@
         transform: scale(1.15);
     }
 
-    /* === FORMULARZ KONTAKTOWY === */
     .contact-card {
         width: 100%;
         max-width: 600px;
@@ -1324,7 +1518,6 @@
 
     .cta-submit:disabled {
         opacity: 0.5;
-        cursor: not-allowed;
     }
 
     .bottom-bar {
