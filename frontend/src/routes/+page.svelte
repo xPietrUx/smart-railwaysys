@@ -1,46 +1,57 @@
 <script lang="ts">
     import PublicNav from '$lib/components/site/PublicNav.svelte';
     import AuthCard from '$lib/components/site/AuthCard.svelte';
+    import ShapeWaves from '$lib/components/site/ShapeWaves.svelte';
     import { t } from '$lib/i18n';
     import { tick, onMount } from 'svelte';
     import { slide } from 'svelte/transition';
     import { cubicOut } from 'svelte/easing';
     import { page } from '$app/stores';
     import type { PageData, ActionData } from './$types';
+    import { Renderer, Triangle, Program, Mesh, Texture } from 'ogl';
+    import { gsap } from 'gsap';
 
     export let data: PageData;
     export let form: ActionData;
 
     type ViewSection = 'jak-to-dziala' | 'o-wa-gone' | 'kontakt';
-    let currentView: ViewSection = 'o-wa-gone';
+    let currentView: ViewSection = 'jak-to-dziala'; 
 
-    // pliki ascii
-    const CUSTOM_ASCII = ['', '', '', ''];
+    let isLightMode = false;
+
+    let cursorX = 0;
+    let cursorY = 0;
+    let cursorVisible = false;
+    let cursorHover = false;
 
     $: features = [
         {
             id: 'network',
             tag: $t('landing.features.network.title'),
             copy: $t('landing.features.network.copy'),
-            ascii: CUSTOM_ASCII[0]
+            imgDark: '/features/dot_white_1.png',
+            imgLight: '/features/dot_black_1.png'
         },
         {
             id: 'incidents',
             tag: $t('landing.features.incidents.title'),
             copy: $t('landing.features.incidents.copy'),
-            ascii: CUSTOM_ASCII[1]
+            imgDark: '/features/dot_white_2.png',
+            imgLight: '/features/dot_black_2.png'
         },
         {
             id: 'timetable',
             tag: $t('landing.features.timetable.title'),
             copy: $t('landing.features.timetable.copy'),
-            ascii: CUSTOM_ASCII[2]
+            imgDark: '/features/dot_white_3.png',
+            imgLight: '/features/dot_black_3.png'
         },
         {
             id: 'scenarios',
             tag: $t('landing.features.scenarios.title'),
             copy: $t('landing.features.scenarios.copy'),
-            ascii: CUSTOM_ASCII[3]
+            imgDark: '/features/dot_white_4.png',
+            imgLight: '/features/dot_black_4.png'
         }
     ];
 
@@ -70,12 +81,526 @@
     let activeFeature = 0;
     let openFaqIndex: number | null = 0;
 
+    let displayedTag = '';
+    let displayedCopy = '';
+    let typewriterTimer: ReturnType<typeof setTimeout>;
+
+    function runTypewriter(index: number) {
+        if (!features[index]) return;
+        
+        const targetTag = features[index].tag;
+        const targetCopy = ' ' + features[index].copy;
+        
+        displayedTag = '';
+        displayedCopy = '';
+        clearTimeout(typewriterTimer);
+
+        let tagIndex = 0;
+        let copyIndex = 0;
+
+        const type = () => {
+            if (tagIndex < targetTag.length) {
+                displayedTag += targetTag[tagIndex];
+                tagIndex++;
+                typewriterTimer = setTimeout(type, 30);
+            } else if (copyIndex < targetCopy.length) {
+                displayedCopy += targetCopy[copyIndex];
+                copyIndex++;
+                typewriterTimer = setTimeout(type, 15);
+            }
+        };
+        type();
+    }
+
+    $: runTypewriter(activeFeature);
+
+    let engine: any = null;
+    let morphContainer: HTMLElement;
+    let startX = 0;
+    let dragWidth = 1;
+    let activeDrag = false;
+
+    const TRANSITIONS: Record<string, number> = { melt: 0, ripple: 1, shear: 2, swirl: 3 };
+
+    const vertexShader = `
+    attribute vec2 position;
+    attribute vec2 uv;
+    varying vec2 vUv;
+    void main() {
+        vUv = uv;
+        gl_Position = vec4(position, 0.0, 1.0);
+    }`;
+
+    // Zmodyfikowany fragmentShader na "object-fit: contain"
+    const fragmentShader = `
+    precision highp float;
+
+    uniform sampler2D tCurrent;
+    uniform sampler2D tNext;
+    uniform vec2 uResolution;
+    uniform vec2 uCurrentSize;
+    uniform vec2 uNextSize;
+    uniform float uProgress;
+    uniform float uDir;
+    uniform int uMode;
+    uniform float uIntensity;
+    uniform float uScale;
+    uniform float uAberration;
+    uniform float uDrift;
+    uniform float uTime;
+    uniform float uReduce;
+    uniform vec2 uPointer;
+    uniform vec3 uBgColor;
+
+    varying vec2 vUv;
+
+    const float PI = 3.14159265359;
+
+    float hash11(float p) {
+        p = fract(p * 0.1031);
+        p *= p + 33.33;
+        p *= p + p;
+        return fract(p);
+    }
+
+    float hash21(vec2 p) {
+        vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+        p3 += dot(p3, p3.yzx + 33.33);
+        return fract((p3.x + p3.y) * p3.z);
+    }
+
+    float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        float a = hash21(i);
+        float b = hash21(i + vec2(1.0, 0.0));
+        float c = hash21(i + vec2(0.0, 1.0));
+        float d = hash21(i + vec2(1.0, 1.0));
+        return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+    }
+
+    float fbm(vec2 p) {
+        float v = 0.0;
+        float a = 0.5;
+        for (int i = 0; i < 5; i++) {
+            v += a * noise(p);
+            p *= 2.0;
+            a *= 0.5;
+        }
+        return v;
+    }
+
+    mat2 rot(float a) {
+        float s = sin(a);
+        float c = cos(a);
+        return mat2(c, -s, s, c);
+    }
+
+    // Zamieniona logika z 'cover' na 'contain'
+    vec2 containUV(vec2 uv, vec2 res, vec2 img) {
+        float rA = res.x / max(res.y, 1.0);
+        float iA = img.x / max(img.y, 1.0);
+        vec2 s = vec2(1.0);
+        float ratio = rA / max(iA, 0.0001);
+        if (ratio > 1.0) {
+            s.x = ratio;
+        } else {
+            s.y = 1.0 / ratio;
+        }
+        return (uv - 0.5) * s + 0.5;
+    }
+
+    void main() {
+        float p = clamp(uProgress, 0.0, 1.0);
+        float env = sin(p * PI);
+
+        vec2 uv = vUv;
+
+        uv += vec2(sin(uTime * 0.25 + uv.y * 4.0), cos(uTime * 0.22 + uv.x * 4.0)) * uDrift * 0.008;
+        uv = (uv - 0.5) * (1.0 - uDrift * 0.02 * sin(uTime * 0.4)) + 0.5;
+
+        vec2 uvC = uv;
+        vec2 uvN = uv;
+        float m = smoothstep(0.0, 1.0, p);
+
+        if (uReduce < 0.5) {
+            if (uMode == 3) {
+                vec2 c = uv - 0.5;
+                float r = length(c);
+                float ang = env * uIntensity * 3.5 * (1.0 - r);
+                uvC = rot(ang) * c + 0.5;
+                uvN = rot(-ang) * c + 0.5;
+                m = smoothstep(0.0, 1.0, p);
+            } else if (uMode == 1) {
+                float d = distance(uv, uPointer);
+                float ring = p * 1.6;
+                float wave = sin((d - ring) * 30.0) * env;
+                vec2 dir = normalize(uv - uPointer + 1e-4);
+                vec2 disp = dir * wave * uIntensity * 0.25;
+                uvC = uv + disp;
+                uvN = uv + disp * 0.6;
+                m = 1.0 - smoothstep(ring - 0.03, ring + 0.03, d);
+            } else if (uMode == 2) {
+                float slices = 14.0;
+                float row = floor(uv.y * slices);
+                float rnd = hash11(row);
+                vec2 disp = vec2((rnd - 0.5) * env * uIntensity * 0.6, 0.0);
+                uvC = uv + disp;
+                uvN = uv + disp;
+                float localX = uDir > 0.0 ? uv.x : 1.0 - uv.x;
+                float th = p * 1.5 - 0.25 + (rnd - 0.5) * 0.25;
+                m = 1.0 - smoothstep(th - 0.06, th + 0.06, localX);
+            } else {
+                float nn = fbm(uv * uScale + uTime * 0.03);
+                float warp = fbm(uv * uScale * 1.7 - uTime * 0.02);
+                vec2 g = vec2(nn, warp) - 0.5;
+                uvC = uv + g * uIntensity * 0.5 * p;
+                uvN = uv - g * uIntensity * 0.5 * (1.0 - p);
+                m = smoothstep(nn - 0.15, nn + 0.15, p);
+            }
+        }
+
+        vec2 sC = containUV(uvC, uResolution, uCurrentSize);
+        vec2 sN = containUV(uvN, uResolution, uNextSize);
+
+        float ca = uReduce < 0.5 ? uAberration * env * 0.03 : 0.0;
+
+        bool oC = sC.x < 0.0 || sC.x > 1.0 || sC.y < 0.0 || sC.y > 1.0;
+        bool oN = sN.x < 0.0 || sN.x > 1.0 || sN.y < 0.0 || sN.y > 1.0;
+
+        vec4 texC_g = oC ? vec4(0.0) : texture2D(tCurrent, sC);
+        vec4 texN_g = oN ? vec4(0.0) : texture2D(tNext, sN);
+
+        vec2 sCr = sC + vec2(ca, 0.0);
+        vec2 sCb = sC - vec2(ca, 0.0);
+        float rC = (sCr.x < 0.0 || sCr.x > 1.0 || sCr.y < 0.0 || sCr.y > 1.0) ? 0.0 : texture2D(tCurrent, sCr).r;
+        float bC = (sCb.x < 0.0 || sCb.x > 1.0 || sCb.y < 0.0 || sCb.y > 1.0) ? 0.0 : texture2D(tCurrent, sCb).b;
+
+        vec2 sNr = sN + vec2(ca, 0.0);
+        vec2 sNb = sN - vec2(ca, 0.0);
+        float rN = (sNr.x < 0.0 || sNr.x > 1.0 || sNr.y < 0.0 || sNr.y > 1.0) ? 0.0 : texture2D(tNext, sNr).r;
+        float bN = (sNb.x < 0.0 || sNb.x > 1.0 || sNb.y < 0.0 || sNb.y > 1.0) ? 0.0 : texture2D(tNext, sNb).b;
+
+        vec3 colC = vec3(rC, texC_g.g, bC);
+        vec3 colN = vec3(rN, texN_g.g, bN);
+
+        vec3 texCol = mix(colC, colN, m);
+        float texAlpha = mix(texC_g.a, texN_g.a, m);
+
+        vec3 finalCol = mix(uBgColor, texCol, texAlpha);
+        gl_FragColor = vec4(finalCol, 1.0);
+    }`;
+
+    function makeFallbackTexture(gl: any) {
+        const size = 4;
+        const data = new Uint8Array(size * size * 4);
+        for (let i = 0; i < size * size; i++) {
+            data[i * 4] = 24;
+            data[i * 4 + 1] = 24;
+            data[i * 4 + 2] = 28;
+            data[i * 4 + 3] = 255;
+        }
+        return new Texture(gl, { image: data, width: size, height: size, generateMipmaps: false });
+    }
+
+    function hexToRgb(hex: string) {
+        let h = (hex || '#000000').replace('#', '');
+        if (h.length === 3) h = h.split('').map(c => c + c).join('');
+        const n = parseInt(h, 16);
+        return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+    }
+
+    class MorphEngine {
+        container: any; items: any[]; getOptions: any; onIndexChange: any; reducedMotion: any; current: any; animating: boolean; dragging: boolean; dragDir: number; shownIndex: any; tween: any; renderer: any; gl: any; canvas: any; geometry: any; textures: any[]; sizes: any[]; program: any; mesh: any; boundContextLost: any; resizeObserver: any; boundLoop: any; raf: any;
+        constructor(container: any, { items, startIndex, reducedMotion, getOptions, onIndexChange, dprCap }: any) {
+            this.container = container;
+            this.items = items;
+            this.getOptions = getOptions;
+            this.onIndexChange = onIndexChange;
+            this.reducedMotion = reducedMotion;
+
+            this.current = startIndex;
+            this.animating = false;
+            this.dragging = false;
+            this.dragDir = 0;
+            this.shownIndex = startIndex;
+            this.tween = null;
+
+            this.renderer = new Renderer({
+                alpha: true,
+                antialias: true,
+                dpr: Math.min(window.devicePixelRatio || 1, dprCap)
+            });
+            this.gl = this.renderer.gl;
+            this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
+
+            this.canvas = this.gl.canvas;
+            this.canvas.style.width = '100%';
+            this.canvas.style.height = '100%';
+            this.canvas.style.display = 'block';
+            this.canvas.style.outline = 'none';
+            container.appendChild(this.canvas);
+
+            this.geometry = new Triangle(this.gl);
+
+            this.textures = this.items.map(() => makeFallbackTexture(this.gl));
+            this.sizes = this.items.map(() => [1, 1]);
+
+            const opts = this.getOptions();
+            this.program = new Program(this.gl, {
+                vertex: vertexShader,
+                fragment: fragmentShader,
+                uniforms: {
+                    tCurrent: { value: this.textures[this.current] },
+                    tNext: { value: this.textures[this.current] },
+                    uResolution: { value: [1, 1] },
+                    uCurrentSize: { value: this.sizes[this.current] },
+                    uNextSize: { value: this.sizes[this.current] },
+                    uProgress: { value: 0 },
+                    uDir: { value: 1 },
+                    uMode: { value: TRANSITIONS[opts.transition] ?? 0 },
+                    uIntensity: { value: opts.intensity },
+                    uScale: { value: opts.scale },
+                    uAberration: { value: opts.aberration },
+                    uDrift: { value: opts.drift },
+                    uTime: { value: 0 },
+                    uReduce: { value: reducedMotion ? 1 : 0 },
+                    uPointer: { value: [0.5, 0.5] },
+                    uBgColor: { value: hexToRgb(opts.bgColor) }
+                }
+            });
+
+            this.mesh = new Mesh(this.gl, { geometry: this.geometry, program: this.program });
+
+            this.boundContextLost = this.onContextLost.bind(this);
+            this.canvas.addEventListener('webglcontextlost', this.boundContextLost, false);
+
+            this.resizeObserver = new ResizeObserver(() => this.resize());
+            this.resizeObserver.observe(container);
+            this.resize();
+
+            this.loadTextures();
+
+            this.boundLoop = this.loop.bind(this);
+            this.raf = requestAnimationFrame(this.boundLoop);
+        }
+
+        updateTextures(newUrls: string[]) {
+            this.items = newUrls;
+            this.loadTextures();
+        }
+
+        loadTextures() {
+            this.items.forEach((src, index) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.src = src;
+                img.onload = () => {
+                    const texture = new Texture(this.gl, { generateMipmaps: false });
+                    texture.image = img;
+                    this.textures[index] = texture;
+                    this.sizes[index] = [img.naturalWidth || 1, img.naturalHeight || 1];
+                    if (index === this.current) {
+                        this.program.uniforms.tCurrent.value = texture;
+                        this.program.uniforms.uCurrentSize.value = this.sizes[index];
+                    }
+                };
+            });
+        }
+
+        resize() {
+            const rect = this.container.getBoundingClientRect();
+            const w = Math.max(rect.width, 1);
+            const h = Math.max(rect.height, 1);
+            this.renderer.setSize(w, h);
+            this.program.uniforms.uResolution.value = [this.gl.canvas.width, this.gl.canvas.height];
+        }
+
+        syncOptions() {
+            const opts = this.getOptions();
+            this.program.uniforms.uMode.value = TRANSITIONS[opts.transition] ?? 0;
+            this.program.uniforms.uIntensity.value = opts.intensity;
+            this.program.uniforms.uScale.value = opts.scale;
+            this.program.uniforms.uAberration.value = opts.aberration;
+            this.program.uniforms.uDrift.value = opts.drift;
+            this.program.uniforms.uBgColor.value = hexToRgb(opts.bgColor);
+        }
+
+        loop(t: number) {
+            this.program.uniforms.uTime.value = t * 0.001;
+            if (!this.dragging && !this.animating) this.syncOptions();
+            this.renderer.render({ scene: this.mesh });
+            this.raf = requestAnimationFrame(this.boundLoop);
+        }
+
+        wrap(i: number) {
+            const n = this.items.length;
+            return ((i % n) + n) % n;
+        }
+
+        prepareNext(dir: number) {
+            const target = this.wrap(this.current + dir);
+            this.program.uniforms.tCurrent.value = this.textures[this.current];
+            this.program.uniforms.uCurrentSize.value = this.sizes[this.current];
+            this.program.uniforms.tNext.value = this.textures[target];
+            this.program.uniforms.uNextSize.value = this.sizes[target];
+            this.program.uniforms.uDir.value = dir;
+            return target;
+        }
+
+        goTo(dir: number) {
+            if (this.animating || this.dragging || this.items.length < 2) return;
+            const opts = this.getOptions();
+            if (!opts.loop) {
+                const raw = this.current + dir;
+                if (raw < 0 || raw > this.items.length - 1) return;
+            }
+            this.syncOptions();
+            const target = this.prepareNext(dir);
+            this.animating = true;
+            this.announce(target);
+            const duration = this.reducedMotion ? Math.min(opts.duration, 0.4) : opts.duration;
+            this.tween = gsap.fromTo(
+                this.program.uniforms.uProgress,
+                { value: 0 },
+                { value: 1, duration, ease: opts.ease, onComplete: () => this.commit(target) }
+            );
+        }
+
+        announce(index: number) {
+            if (index === this.shownIndex) return;
+            this.shownIndex = index;
+            if (this.onIndexChange) this.onIndexChange(index);
+        }
+
+        commit(target: number) {
+            this.current = target;
+            this.program.uniforms.tCurrent.value = this.textures[target];
+            this.program.uniforms.uCurrentSize.value = this.sizes[target];
+            this.program.uniforms.uProgress.value = 0;
+            this.animating = false;
+            this.tween = null;
+            this.announce(target);
+        }
+
+        next() { this.goTo(1); }
+        prev() { this.goTo(-1); }
+
+        setPointer(x: number, y: number) {
+            this.program.uniforms.uPointer.value = [x, y];
+        }
+
+        beginDrag() {
+            if (this.animating || this.items.length < 2) return false;
+            this.dragging = true;
+            this.dragDir = 0;
+            this.syncOptions();
+            return true;
+        }
+
+        drag(ndx: number) {
+            if (!this.dragging) return;
+            const opts = this.getOptions();
+            const dir = ndx < 0 ? 1 : -1;
+            if (!opts.loop) {
+                const raw = this.current + dir;
+                if (raw < 0 || raw > this.items.length - 1) {
+                    this.program.uniforms.uProgress.value = 0;
+                    return;
+                }
+            }
+            if (dir !== this.dragDir) {
+                this.dragDir = dir;
+                this.prepareNext(dir);
+            }
+            const progress = Math.min(Math.abs(ndx), 1);
+            this.program.uniforms.uProgress.value = progress;
+            this.announce(progress > 0.5 ? this.wrap(this.current + dir) : this.current);
+        }
+
+        endDrag() {
+            if (!this.dragging) return;
+            this.dragging = false;
+            const p = this.program.uniforms.uProgress.value;
+            if (this.dragDir === 0) return;
+            const target = this.wrap(this.current + this.dragDir);
+            const duration = this.reducedMotion ? 0.3 : 0.5;
+            this.animating = true;
+            if (p > 0.4) {
+                this.announce(target);
+                this.tween = gsap.to(this.program.uniforms.uProgress, {
+                    value: 1, duration, ease: 'power2.out', onComplete: () => this.commit(target)
+                });
+            } else {
+                this.announce(this.current);
+                this.tween = gsap.to(this.program.uniforms.uProgress, {
+                    value: 0, duration, ease: 'power2.out', onComplete: () => {
+                        this.animating = false;
+                        this.tween = null;
+                    }
+                });
+            }
+        }
+
+        onContextLost(e: Event) {
+            e.preventDefault();
+            cancelAnimationFrame(this.raf);
+        }
+
+        destroy() {
+            cancelAnimationFrame(this.raf);
+            if (this.tween) this.tween.kill();
+            this.resizeObserver.disconnect();
+            this.canvas.removeEventListener('webglcontextlost', this.boundContextLost);
+            if (this.program && this.program.program) this.gl.deleteProgram(this.program.program);
+            const ext = this.gl.getExtension('WEBGL_lose_context');
+            if (ext) ext.loseContext();
+            if (this.canvas.parentNode) this.canvas.parentNode.removeChild(this.canvas);
+        }
+    }
+
+    function initMorph(node: HTMLElement) {
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        engine = new MorphEngine(node, {
+            items: features.map(f => isLightMode ? f.imgLight : f.imgDark),
+            startIndex: activeFeature,
+            reducedMotion,
+            dprCap: 2,
+            getOptions: () => ({
+                transition: 'melt',
+                duration: 1.1,
+                ease: 'power2.inOut',
+                intensity: 0.55,
+                scale: 2.4,
+                aberration: 0.35,
+                drift: 0.4,
+                bgColor: isLightMode ? '#ffffff' : '#111111',
+                loop: true
+            }),
+            onIndexChange: (idx: number) => {
+                activeFeature = idx;
+            }
+        });
+
+        return {
+            destroy() {
+                if (engine) {
+                    engine.destroy();
+                    engine = null;
+                }
+            }
+        };
+    }
+
     function nextFeature() {
-        activeFeature = (activeFeature + 1) % features.length;
+        if (engine) engine.next();
+        else activeFeature = (activeFeature + 1) % features.length;
     }
 
     function prevFeature() {
-        activeFeature = (activeFeature - 1 + features.length) % features.length;
+        if (engine) engine.prev();
+        else activeFeature = (activeFeature - 1 + features.length) % features.length;
     }
 
     function toggleFaq(index: number) {
@@ -86,6 +611,8 @@
         const hash = $page.url.hash.replace('#', '');
         if (hash === 'jak-to-dziala' || hash === 'o-wa-gone' || hash === 'kontakt') {
             currentView = hash as ViewSection;
+        } else {
+            currentView = 'jak-to-dziala';
         }
     }
 
@@ -96,10 +623,82 @@
         }
     }
 
+    function handlePointerDown(e: PointerEvent) {
+        if (!morphContainer || !engine) return;
+        const rect = morphContainer.getBoundingClientRect();
+        dragWidth = rect.width || 1;
+        startX = e.clientX;
+        const px = (e.clientX - rect.left) / rect.width;
+        const py = (e.clientY - rect.top) / rect.height;
+        engine.setPointer(px, 1 - py);
+        activeDrag = engine.beginDrag();
+        if (activeDrag && morphContainer.setPointerCapture) {
+            try { morphContainer.setPointerCapture(e.pointerId); } catch {}
+        }
+    }
+
+    function handlePointerMove(e: PointerEvent) {
+        if (!activeDrag || !engine) return;
+        const ndx = (e.clientX - startX) / dragWidth;
+        engine.drag(ndx);
+    }
+
+    function handlePointerUp(e: PointerEvent) {
+        if (!activeDrag || !engine) return;
+        activeDrag = false;
+        engine.endDrag();
+    }
+
     onMount(() => {
         window.addEventListener('keydown', handleKeydown);
-        return () => window.removeEventListener('keydown', handleKeydown);
+        
+        isLightMode = document.documentElement.classList.contains('light-mode');
+        
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class') {
+                    isLightMode = document.documentElement.classList.contains('light-mode');
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+
+        if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+            const updateCursor = (event: PointerEvent) => {
+                cursorX = event.clientX;
+                cursorY = event.clientY;
+                cursorVisible = true;
+                cursorHover =
+                    event.target instanceof Element &&
+                    Boolean(event.target.closest('a, button, input, textarea, .faq-head, .slider-arrow, .morph-container'));
+            };
+            const hideCursor = () => (cursorVisible = false);
+
+            document.documentElement.classList.add('dot-cursor');
+            window.addEventListener('pointermove', updateCursor);
+            window.addEventListener('mouseleave', hideCursor);
+
+            return () => {
+                window.removeEventListener('keydown', handleKeydown);
+                observer.disconnect();
+                
+                document.documentElement.classList.remove('dot-cursor');
+                window.removeEventListener('pointermove', updateCursor);
+                window.removeEventListener('mouseleave', hideCursor);
+            };
+        }
+
+        return () => {
+            window.removeEventListener('keydown', handleKeydown);
+            observer.disconnect();
+        };
     });
+
+    $: currentImages = features.map(f => isLightMode ? f.imgLight : f.imgDark);
+    $: if (engine && currentImages) {
+        engine.updateTextures(currentImages);
+        engine.syncOptions();
+    }
 
     let showAuthModal = false;
     let isClosingAuthModal = false;
@@ -197,17 +796,52 @@
 </svelte:head>
 
 <div class="landing-viewport">
+    <div
+        class="custom-cursor"
+        class:is-visible={cursorVisible}
+        style="--cursor-x: {cursorX}px; --cursor-y: {cursorY}px"
+        aria-hidden="true"
+    >
+        <span class="cursor-dot" class:is-hovering={cursorHover}></span>
+    </div>
+
     <PublicNav authenticated={data.authenticated} on:openLogin={() => openAuthModal('login')} />
 
-    <main class="viewport-stage" aria-hidden={showAuthModal}>
+    <main class="viewport-stage" class:is-hero={currentView === 'jak-to-dziala'} aria-hidden={showAuthModal}>
         {#if currentView === 'jak-to-dziala'}
-            <section class="screen-view empty-screen">
-                <!-- Sekcja pusta / początkowa makiety -->
+            <section class="screen-view hero-screen">
+                <div class="hero-shape-container">
+                    <ShapeWaves
+                        text="WA.GONE"
+                        fontFamily='"Inter Variable", Inter, sans-serif'
+                        fontWeight={500}
+                        textSize={0.6}
+                        shapes="circles"
+                        cellSize={8}
+                        dotSize={0.84}
+                        color={isLightMode ? "#94a3b8" : "#929292"}
+                        hoverColor={isLightMode ? "#111827" : "#ffffff"}
+                        backgroundColor={isLightMode ? "#f4f5f3" : "#141414"}
+                        speed={2}
+                        scale={0.55}
+                        contrast={1.65}
+                        brightness={0.38}
+                        flow={3}
+                        direction={215}
+                        fade={0.22}
+                        interactive={true}
+                        splashRadius={16}
+                        splashStrength={0.6}
+                        glow={0}
+                        intro={true}
+                        introDuration={1.6}
+                        paused={false}
+                    />
+                </div>
             </section>
         {:else if currentView === 'o-wa-gone'}
             <section class="screen-view about-screen">
                 <div class="about-grid">
-                    <!-- Lewa strona: FAQ -->
                     <div class="faq-column">
                         <h2 class="column-title">FAQ</h2>
                         <div class="faq-accordion">
@@ -234,16 +868,23 @@
                         </div>
                     </div>
 
-                    <!-- Prawa strona: Features ze sliderem -->
                     <div class="features-column">
                         <div class="feature-card">
-                            <div class="ascii-container" aria-hidden="true">
-                                <pre class="ascii-art">{features[activeFeature].ascii}</pre>
+                            <div 
+                                class="illustration-container morph-container" 
+                                bind:this={morphContainer}
+                                use:initMorph
+                                on:pointerdown={handlePointerDown}
+                                on:pointermove={handlePointerMove}
+                                on:pointerup={handlePointerUp}
+                                on:pointercancel={handlePointerUp}
+                                style="touch-action: pan-y;"
+                            >
                             </div>
                             
                             <div class="feature-footer">
                                 <p class="feature-desc">
-                                    <strong>{features[activeFeature].tag}</strong> {features[activeFeature].copy}
+                                    <strong>{displayedTag}</strong>{displayedCopy}<span class="cursor" aria-hidden="true">|</span>
                                 </p>
                             </div>
 
@@ -379,7 +1020,6 @@
         --text-muted: #838a90;
         --text-heading: #9ea4aa;
         --text-strong: #cfd4d8;
-        --ascii-color: #4f5860;
         --input-bg: #0d0d0d;
         --btn-submit-bg: #f3eee7;
         --btn-submit-color: #111111;
@@ -398,7 +1038,6 @@
         --text-muted: #52606a;
         --text-heading: #374151;
         --text-strong: #1f2937;
-        --ascii-color: #718096;
         --input-bg: #eaedea;
         --btn-submit-bg: #111827;
         --btn-submit-color: #ffffff;
@@ -408,6 +1047,60 @@
         --error-color: #c95158;
         --success-color: #2e8570;
         --backdrop-bg: rgba(0, 0, 0, 0.4);
+    }
+
+    :global(html) {
+        scrollbar-width: none;
+    }
+    :global(html::-webkit-scrollbar) {
+        display: none;
+    }
+
+    :global(html.dot-cursor *:not(input):not(textarea)) {
+        cursor: none !important;
+    }
+
+    .custom-cursor {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 0;
+        height: 0;
+        z-index: 9999;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate3d(var(--cursor-x), var(--cursor-y), 0);
+        transition: opacity 150ms ease;
+        will-change: transform;
+    }
+
+    .custom-cursor.is-visible {
+        opacity: 1;
+    }
+
+    .cursor-dot {
+        display: block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ffffff;
+        transform: translate(-50%, -50%) scale(1);
+        transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), background-color 200ms ease, border-color 200ms ease;
+    }
+
+    :global(html.light-mode) .cursor-dot {
+        background: #111111;
+    }
+
+    .cursor-dot.is-hovering {
+        transform: translate(-50%, -50%) scale(4);
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+    }
+
+    :global(html.light-mode) .cursor-dot.is-hovering {
+        background: rgba(17, 17, 17, 0.1);
+        border: 1px solid rgba(17, 17, 17, 0.3);
     }
 
     :global(html, body) {
@@ -447,6 +1140,12 @@
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        transition: max-width 300ms ease, padding 300ms ease;
+    }
+
+    .viewport-stage.is-hero {
+        max-width: 100%;
+        padding: 0;
     }
 
     .screen-view {
@@ -455,6 +1154,20 @@
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+
+    .hero-screen {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .hero-shape-container {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
     }
 
     .about-grid {
@@ -508,7 +1221,6 @@
         text-align: left;
         font-size: 0.85rem;
         font-family: inherit;
-        cursor: pointer;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -564,7 +1276,7 @@
         transition: background-color 200ms ease;
     }
 
-    .ascii-container {
+    .illustration-container {
         flex: 1;
         display: flex;
         align-items: center;
@@ -573,20 +1285,10 @@
         overflow: hidden;
     }
 
-    .ascii-art {
-        margin: 0;
-        font-family: 'JetBrains Mono', 'Fira Code', monospace;
-        font-size: clamp(8px, 0.85vw, 12px);
-        line-height: 1.15;
-        color: var(--ascii-color);
-        white-space: pre;
-        letter-spacing: 0.08em;
-        user-select: none;
-    }
-
     .feature-footer {
         width: 100%;
         margin-top: 16px;
+        min-height: 48px;
     }
 
     .feature-desc {
@@ -601,6 +1303,20 @@
         font-weight: 500;
     }
 
+    .cursor {
+        display: inline-block;
+        width: 2px;
+        margin-left: 2px;
+        vertical-align: text-bottom;
+        color: var(--text-strong);
+        animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+    }
+
     .slider-arrow {
         position: absolute;
         top: 50%;
@@ -608,7 +1324,6 @@
         transform: translateY(-50%);
         background: none;
         border: 0;
-        cursor: pointer;
         padding: 10px;
         display: flex;
         align-items: center;
@@ -642,7 +1357,6 @@
         transform: scale(1.15);
     }
 
-    /* === FORMULARZ KONTAKTOWY === */
     .contact-card {
         width: 100%;
         max-width: 600px;
@@ -804,7 +1518,6 @@
 
     .cta-submit:disabled {
         opacity: 0.5;
-        cursor: not-allowed;
     }
 
     .bottom-bar {
