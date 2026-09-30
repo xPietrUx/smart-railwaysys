@@ -4,7 +4,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from neo4j import Driver
 
-from app.api.dependencies import get_driver
+from app.api.dependencies import get_driver, require_permission
 from app.schemas.scenario import (
 	ActiveScenarioInfo,
 	Scenario,
@@ -24,7 +24,11 @@ def get_scenarios(driver: Driver = Depends(get_driver)):
 
 
 @router.post("/api/scenarios", response_model=Scenario, status_code=201)
-def create_scenario(payload: ScenarioCreateRequest, driver: Driver = Depends(get_driver)):
+def create_scenario(
+	payload: ScenarioCreateRequest,
+	_user: dict = Depends(require_permission("timetable.manage")),
+	driver: Driver = Depends(get_driver),
+):
 	with driver.session() as session:
 		try:
 			return scenario_service.create_scenario(
@@ -36,7 +40,10 @@ def create_scenario(payload: ScenarioCreateRequest, driver: Driver = Depends(get
 
 @router.put("/api/scenarios/{scenario_id}", response_model=Scenario)
 def update_scenario(
-	scenario_id: str, payload: ScenarioCreateRequest, driver: Driver = Depends(get_driver)
+	scenario_id: str,
+	payload: ScenarioCreateRequest,
+	_user: dict = Depends(require_permission("timetable.manage")),
+	driver: Driver = Depends(get_driver),
 ):
 	with driver.session() as session:
 		try:
@@ -51,7 +58,11 @@ def update_scenario(
 
 
 @router.delete("/api/scenarios/{scenario_id}", status_code=204)
-def delete_scenario(scenario_id: str, driver: Driver = Depends(get_driver)):
+def delete_scenario(
+	scenario_id: str,
+	_user: dict = Depends(require_permission("timetable.manage")),
+	driver: Driver = Depends(get_driver),
+):
 	with driver.session() as session:
 		if not scenario_service.delete_scenario(session, scenario_id):
 			raise HTTPException(status_code=404, detail="Nie znaleziono scenariusza")
@@ -67,7 +78,10 @@ def _run_scenario_sync(driver: Driver, app_state, scenario_id: str) -> ActiveSce
 
 @router.post("/api/scenarios/{scenario_id}/run", response_model=ActiveScenarioInfo)
 async def run_scenario(
-	scenario_id: str, request: Request, driver: Driver = Depends(get_driver)
+	scenario_id: str,
+	request: Request,
+	_user: dict = Depends(require_permission("simulation.control")),
+	driver: Driver = Depends(get_driver),
 ):
 	# Pod sim_lock, żeby podmiana floty nie przecinała się z tickiem symulacji.
 	app_state = request.app.state

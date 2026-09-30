@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onDestroy, onMount } from 'svelte';
+    import { browser } from '$app/environment';
     import { t } from '$lib/i18n';
     import { createIncident } from '$lib/services/incidents';
     import { eventLabel, formatEventMessage } from '$lib/services/labels';
@@ -65,7 +66,7 @@
     });
     onDestroy(() => {
         clearInterval(interval);
-        window.removeEventListener('click', handleWindowClick);
+        if (browser) window.removeEventListener('click', handleWindowClick);
         if (pickMode) onCancelPick();
     });
 

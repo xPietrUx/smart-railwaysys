@@ -82,7 +82,8 @@ export async function handleLogin({ request, cookies, url }: RequestEvent) {
 
 	setSession(cookies, body.access_token);
 	const next = url.searchParams.get('next');
-	redirect(303, next?.startsWith('/') && !next.startsWith('//') ? next : '/panel');
+	const isSafe = next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') && !next.includes('://');
+	redirect(303, isSafe ? next : '/panel');
 }
 
 export async function handleRegister({ request, cookies }: RequestEvent) {
