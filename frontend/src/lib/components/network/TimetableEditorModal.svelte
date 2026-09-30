@@ -7,9 +7,7 @@
 
     export let apiBaseUrl: string;
     export let graph: NetworkGraph;
-    /** Edytowany scenariusz; null = tworzenie nowego. */
     export let scenario: Scenario | null = null;
-    /** Wywoływane przy zamknięciu; changed=true, gdy coś zapisano/usunięto. */
     export let onClose: (changed: boolean) => void = () => {};
 
     const TRAIN_TYPES: TrainPlanType[] = ['REGIONAL', 'IC', 'FREIGHT'];
@@ -20,17 +18,21 @@
 
     let draftName = scenario?.name ?? '';
     let draftDescription = scenario?.description ?? '';
-    let rows: TrainPlan[] = scenario ? scenario.trains.map((t) => ({ ...t })) : [newRow()];
+    let rows: TrainPlan[] = scenario ? scenario.trains.map((t) => ({ ...t })) : [newRow(1)];
     let saveError = '';
     let saving = false;
     let deleting = false;
     let showConfirmDelete = false;
 
-    function newRow(): TrainPlan {
+    function newRow(trainNumber: number): TrainPlan {
         const first = graph.stations[0]?.id ?? '';
         const second = graph.stations[1]?.id ?? first;
+        
+        const baseName = $t('editor.defaultTrainName');
+        const defaultName = baseName ? `${baseName} ${trainNumber}` : `Pociąg ${trainNumber}`;
+
         return {
-            name: $t('editor.defaultTrainName'),
+            name: defaultName,
             type: 'REGIONAL',
             fromStationId: first,
             toStationId: second,
@@ -40,7 +42,8 @@
 
     function addRow() {
         if (rows.length >= 60) return;
-        rows = [...rows, newRow()];
+        const nextNumber = rows.length + 1;
+        rows = [...rows, newRow(nextNumber)];
     }
 
     function removeRow(index: number) {
@@ -391,7 +394,6 @@
 
     .modal {
         --modal-bg: rgba(20, 20, 20, 0.96);
-        --modal-border: 1px solid rgba(255, 255, 255, 0.06);
         --modal-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
         --modal-title: #ffffff;
         --modal-text: #f5f7f8;
@@ -419,7 +421,6 @@
         display: flex;
         flex-direction: column;
         background: var(--modal-bg);
-        border: var(--modal-border);
         border-radius: 14px;
         box-shadow: var(--modal-shadow);
         font-family: 'Inter Variable', Inter, sans-serif;
@@ -435,7 +436,6 @@
     :global([data-theme='light']) .modal,
     :global(.light) .modal {
         --modal-bg: rgba(244, 245, 243, 0.98);
-        --modal-border: 1px solid rgba(0, 0, 0, 0.08);
         --modal-shadow: 0 24px 60px rgba(0, 0, 0, 0.12);
         --modal-title: #111827;
         --modal-text: #1f2933;
@@ -927,22 +927,16 @@
         letter-spacing: 0.06em;
         text-transform: uppercase;
         cursor: pointer;
-        transition: opacity 160ms ease, transform 120ms ease, box-shadow 160ms ease;
+        opacity: 1;
+        transition: opacity 160ms ease, background-color 160ms ease;
     }
 
     .save-btn:hover:not(:disabled) {
-        opacity: 0.88;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 14px rgba(244, 241, 235, 0.15);
-    }
-
-    :global(html.light-mode) .save-btn:hover:not(:disabled) {
-        box-shadow: 0 4px 14px rgba(17, 24, 39, 0.2);
+        opacity: 0.85;
     }
 
     .save-btn:active:not(:disabled) {
-        transform: translateY(0);
-        opacity: 0.75;
+        opacity: 0.65;
     }
 
     .save-btn:disabled {
@@ -962,13 +956,14 @@
         letter-spacing: 0.06em;
         text-transform: uppercase;
         cursor: pointer;
-        transition: background-color 160ms ease, color 160ms ease, transform 120ms ease;
+        opacity: 1;
+        transition: opacity 160ms ease, background-color 160ms ease, color 160ms ease;
     }
 
     .ghost-btn:hover:not(:disabled) {
         background: var(--ghost-btn-hover);
         color: #ffffff;
-        transform: translateY(-1px);
+        opacity: 0.9;
     }
 
     :global(html.light-mode) .ghost-btn:hover:not(:disabled) {
@@ -976,8 +971,7 @@
     }
 
     .ghost-btn:active:not(:disabled) {
-        transform: translateY(0);
-        background: rgba(255, 255, 255, 0.06);
+        opacity: 0.65;
     }
 
     .ghost-btn:disabled {
@@ -997,16 +991,17 @@
         letter-spacing: 0.06em;
         text-transform: uppercase;
         cursor: pointer;
-        transition: background-color 160ms ease, transform 120ms ease;
+        opacity: 1;
+        transition: opacity 160ms ease, background-color 160ms ease;
     }
 
     .danger-btn:hover:not(:disabled) {
         background: var(--danger-btn-hover);
-        transform: translateY(-1px);
+        opacity: 0.9;
     }
 
     .danger-btn:active:not(:disabled) {
-        transform: translateY(0);
+        opacity: 0.7;
     }
 
     .danger-btn:disabled {
@@ -1071,11 +1066,16 @@
         letter-spacing: 0.06em;
         text-transform: uppercase;
         cursor: pointer;
+        opacity: 1;
         transition: opacity 150ms ease;
     }
 
     .danger-btn-solid:hover:not(:disabled) {
         opacity: 0.85;
+    }
+
+    .danger-btn-solid:active:not(:disabled) {
+        opacity: 0.65;
     }
 
     @media (max-width: 760px) {

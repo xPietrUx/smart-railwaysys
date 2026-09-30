@@ -21,8 +21,7 @@
     export let selected: Selected | null = null;
     export let highlight: HighlightFilter | null = null;
     export let isFullscreen = false;
-    /** Tryb wskazywania celu incydentu na mapie (patrz IncidentFeed) — gdy ustawiony,
-     *  kliknięcia w pasujący typ elementu wołają onPick zamiast normalnego zaznaczania. */
+    
     export let pickMode: 'segment' | 'station' | 'train' | null = null;
     export let onPick: (id: string) => void = () => {};
     export let onCancelPick: () => void = () => {};
