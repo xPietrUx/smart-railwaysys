@@ -1,13 +1,14 @@
 <script lang="ts">
     import PublicNav from '$lib/components/site/PublicNav.svelte';
     import AuthCard from '$lib/components/site/AuthCard.svelte';
+    import { locale } from '$lib/i18n';
     import type { ActionData } from './$types';
 
     export let form: ActionData;
 </script>
 
 <svelte:head>
-    <title>Logowanie — Smart Railway</title>
+    <title>{$locale === 'en' ? 'Sign in' : 'Logowanie'} — Smart Railway</title>
 </svelte:head>
 
 <div class="auth-layout">

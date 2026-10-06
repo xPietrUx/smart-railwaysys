@@ -1,6 +1,6 @@
 <script lang="ts">
     import { page } from '$app/stores';
-    import { onMount } from 'svelte';
+    import { onMount, tick } from 'svelte';
     import { locale, setLocale } from '$lib/i18n';
     import { createEventDispatcher } from 'svelte';
     const dispatch = createEventDispatcher();
@@ -56,87 +56,96 @@
         document.documentElement.classList.toggle('light-mode', lightMode);
     });
 
-    onMount(() => {
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let cleanupNavigationEffects: (() => void) | undefined;
+    let navigationEffectVersion = 0;
 
-        let cancelled = false;
-        let cleanup: (() => void) | undefined;
+    async function setupNavigationEffects() {
+        const version = ++navigationEffectVersion;
+        cleanupNavigationEffects?.();
+        cleanupNavigationEffects = undefined;
 
-        void Promise.all([
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !navElement) return;
+
+        const [gsapModule, splitTextModule, scrambleModule] = await Promise.all([
             import('gsap'),
             import('gsap/SplitText'),
             import('gsap/ScrambleTextPlugin')
-        ]).then(([gsapModule, splitTextModule, scrambleModule]) => {
-            if (cancelled || !navElement) return;
+        ]);
 
-            const { gsap } = gsapModule;
-            const { SplitText } = splitTextModule;
-            const { ScrambleTextPlugin } = scrambleModule;
-            gsap.registerPlugin(SplitText, ScrambleTextPlugin);
+        if (version !== navigationEffectVersion || !navElement) return;
 
-            const effects = [...navElement.querySelectorAll<HTMLElement>('.scrambled-text')].map(
-                (element) => {
-                    const split = SplitText.create(element, {
-                        type: 'chars',
-                        charsClass: 'scrambled-char'
-                    });
+        const { gsap } = gsapModule;
+        const { SplitText } = splitTextModule;
+        const { ScrambleTextPlugin } = scrambleModule;
+        gsap.registerPlugin(SplitText, ScrambleTextPlugin);
 
-                    split.chars.forEach((character) => {
-                        gsap.set(character, { attr: { 'data-content': character.textContent ?? '' } });
-                    });
+        const effects = [...navElement.querySelectorAll<HTMLElement>('.scrambled-text')].map((element) => {
+            const split = SplitText.create(element, {
+                type: 'chars',
+                charsClass: 'scrambled-char'
+            });
 
-                    const handleMove = (event: PointerEvent) => {
-                        const radius = 42;
-                        const duration = 1.2;
+            split.chars.forEach((character) => {
+                gsap.set(character, { attr: { 'data-content': character.textContent ?? '' } });
+            });
 
-                        split.chars.forEach((character) => {
-                            const { left, top, width, height } = character.getBoundingClientRect();
-                            const distance = Math.hypot(
-                                event.clientX - (left + width / 2),
-                                event.clientY - (top + height / 2)
-                            );
+            const handleMove = (event: PointerEvent) => {
+                const radius = 42;
+                const duration = 1.2;
 
-                            if (distance < radius) {
-                                gsap.to(character, {
-                                    overwrite: true,
-                                    duration: duration * (1 - distance / radius),
-                                    scrambleText: {
-                                        text: character.getAttribute('data-content') ?? '',
-                                        chars: '.:',
-                                        speed: 0.5
-                                    },
-                                    ease: 'none'
-                                });
-                            }
+                split.chars.forEach((character) => {
+                    const { left, top, width, height } = character.getBoundingClientRect();
+                    const distance = Math.hypot(
+                        event.clientX - (left + width / 2),
+                        event.clientY - (top + height / 2)
+                    );
+
+                    if (distance < radius) {
+                        gsap.to(character, {
+                            overwrite: true,
+                            duration: duration * (1 - distance / radius),
+                            scrambleText: {
+                                text: character.getAttribute('data-content') ?? '',
+                                chars: '.:',
+                                speed: 0.5
+                            },
+                            ease: 'none'
                         });
-                    };
-
-                    const handleLeave = () => {
-                        gsap.killTweensOf(split.chars);
-                        split.chars.forEach((character) => {
-                            character.textContent = character.getAttribute('data-content') ?? '';
-                        });
-                    };
-
-                    element.addEventListener('pointermove', handleMove);
-                    element.addEventListener('pointerleave', handleLeave);
-                    return { element, split, handleMove, handleLeave };
-                }
-            );
-
-            cleanup = () => {
-                effects.forEach(({ element, split, handleMove, handleLeave }) => {
-                    element.removeEventListener('pointermove', handleMove);
-                    element.removeEventListener('pointerleave', handleLeave);
-                    gsap.killTweensOf(split.chars);
-                    split.revert();
+                    }
                 });
             };
+
+            const handleLeave = () => {
+                gsap.killTweensOf(split.chars);
+                split.chars.forEach((character) => {
+                    character.textContent = character.getAttribute('data-content') ?? '';
+                });
+            };
+
+            element.addEventListener('pointermove', handleMove);
+            element.addEventListener('pointerleave', handleLeave);
+            return { element, split, handleMove, handleLeave };
+        });
+
+        cleanupNavigationEffects = () => {
+            effects.forEach(({ element, split, handleMove, handleLeave }) => {
+                element.removeEventListener('pointermove', handleMove);
+                element.removeEventListener('pointerleave', handleLeave);
+                gsap.killTweensOf(split.chars);
+                split.revert();
+            });
+        };
+    }
+
+    onMount(() => {
+        const unsubscribe = locale.subscribe(() => {
+            void tick().then(setupNavigationEffects);
         });
 
         return () => {
-            cancelled = true;
-            cleanup?.();
+            navigationEffectVersion++;
+            unsubscribe();
+            cleanupNavigationEffects?.();
         };
     });
 </script>
@@ -144,7 +153,7 @@
 <svelte:window on:keydown={handleKeydown} />
 
 <header class="site-header">
-    <a class="brand" href="/" aria-label="Strona główna" tabindex="0">
+    <a class="brand" href="/" aria-label={$locale === 'en' ? 'Home page' : 'Strona główna'} tabindex="0">
         <img src={lightMode ? '/logo/logo_black.png' : '/logo/logo_white.png'} alt="wa.gone" />
     </a>
 
@@ -152,28 +161,32 @@
         class="menu"
         type="button"
         on:click={() => (menuOpen = !menuOpen)}
-        aria-label={menuOpen ? 'Zamknij menu' : 'Otwórz menu'}
+        aria-label={menuOpen
+            ? ($locale === 'en' ? 'Close menu' : 'Zamknij menu')
+            : ($locale === 'en' ? 'Open menu' : 'Otwórz menu')}
         aria-expanded={menuOpen}
         tabindex="0"
     >
         ☰
     </button>
 
-    <nav bind:this={navElement} class:open={menuOpen} aria-label="Główna nawigacja">
-        {#each navItems as item}
-            <a
-                class:active={path === item.href}
-                href={item.href}
-                target={item.target ?? null}
-                rel={item.rel ?? null}
-                aria-label={item.label}
-                aria-current={path === item.href ? 'page' : undefined}
-                on:click={closeMenu}
-                tabindex="0"
-            >
-                <span class="scrambled-text">{item.label}</span>
-            </a>
-        {/each}
+    <nav bind:this={navElement} class:open={menuOpen} aria-label={$locale === 'en' ? 'Main navigation' : 'Główna nawigacja'}>
+        {#key $locale}
+            {#each navItems as item}
+                <a
+                    class:active={path === item.href}
+                    href={item.href}
+                    target={item.target ?? null}
+                    rel={item.rel ?? null}
+                    aria-label={item.label}
+                    aria-current={path === item.href ? 'page' : undefined}
+                    on:click={closeMenu}
+                    tabindex="0"
+                >
+                    <span class="scrambled-text">{item.label}</span>
+                </a>
+            {/each}
+        {/key}
     </nav>
 
     <div class="actions">
@@ -192,8 +205,12 @@
             class="icon-button"
             type="button"
             on:click={toggleLightMode}
-            aria-label={lightMode ? 'Włącz tryb ciemny' : 'Włącz tryb jasny'}
-            title={lightMode ? 'Tryb ciemny' : 'Tryb jasny'}
+            aria-label={lightMode
+                ? ($locale === 'en' ? 'Enable dark mode' : 'Włącz tryb ciemny')
+                : ($locale === 'en' ? 'Enable light mode' : 'Włącz tryb jasny')}
+            title={lightMode
+                ? ($locale === 'en' ? 'Dark mode' : 'Tryb ciemny')
+                : ($locale === 'en' ? 'Light mode' : 'Tryb jasny')}
             tabindex="0"
         >
             <span class="material-symbols-outlined" class:is-light={lightMode} aria-hidden="true">

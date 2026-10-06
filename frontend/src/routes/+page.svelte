@@ -73,12 +73,12 @@
             answer: $t('landing.faq.q4.answer')
         },
         {
-            question: 'Jak zintegrować API z zewnętrznym systemem?',
-            answer: 'Oferujemy standardowe endpointy REST oraz WebSocket ze strumieniem zdarzeń w czasie rzeczywistym.'
+            question: $t('landing.faq.q5.question'),
+            answer: $t('landing.faq.q5.answer')
         },
         {
-            question: 'W jaki sposób mogę się skontaktować?',
-            answer: 'Skontaktuj się z nami pod adresem emali@email.'
+            question: $t('landing.faq.q6.question'),
+            answer: $t('landing.faq.q6.answer')
         }
     ];
 
@@ -855,8 +855,8 @@
                                 type="button" 
                                 class="slider-arrow next-btn" 
                                 on:click={nextFeature}
-                                aria-label="Następna funkcja"
-                                title="Następna funkcja"
+                                aria-label={$t('landing.features.next')}
+                                title={$t('landing.features.next')}
                             >
                                 <span class="dot-indicator"></span>
                             </button>
@@ -889,8 +889,8 @@
                     class="modal-close"
                     type="button"
                     on:click={closeAuthModal}
-                    title="Zamknij"
-                    aria-label="Zamknij"
+                    title={$t('landing.modal.close')}
+                    aria-label={$t('landing.modal.close')}
                 >
                     <span class="material-symbols-outlined" aria-hidden="true">close</span>
                 </button>
