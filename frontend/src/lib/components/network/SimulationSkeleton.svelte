@@ -1,4 +1,8 @@
-<div class="skeleton-wrapper" aria-busy="true" aria-label="Ładowanie systemu">
+<script lang="ts">
+    import { t } from '$lib/i18n';
+</script>
+
+<div class="skeleton-wrapper" aria-busy="true" aria-label={$t('a11y.loading.system')}>
     <!--  pasek nawigacji -->
     <header class="sk-header">
         <div class="sk-bubble"></div>

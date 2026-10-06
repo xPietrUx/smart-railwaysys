@@ -932,8 +932,8 @@
                 type="button"
                 class="ctrl-btn"
                 on:click={() => dispatch('toggleFullscreen')}
-                aria-label={isFullscreen ? 'Wyłącz pełny ekran' : 'Włącz pełny ekran'}
-                title={isFullscreen ? 'Wyłącz pełny ekran' : 'Włącz pełny ekran'}
+                aria-label={isFullscreen ? $t('a11y.fullscreen.exit') : $t('a11y.fullscreen.enter')}
+                title={isFullscreen ? $t('a11y.fullscreen.exit') : $t('a11y.fullscreen.enter')}
             >
                 <span class="material-symbols-outlined ctrl-icon" aria-hidden="true">
                     {isFullscreen ? 'fullscreen_exit' : 'fullscreen'}

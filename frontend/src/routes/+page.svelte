@@ -837,6 +837,8 @@
                                 class="illustration-container morph-container" 
                                 bind:this={morphContainer}
                                 use:initMorph
+                                role="img"
+                                aria-label={$t('landing.features.aria')}
                                 on:pointerdown={handlePointerDown}
                                 on:pointermove={handlePointerMove}
                                 on:pointerup={handlePointerUp}

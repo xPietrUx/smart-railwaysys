@@ -274,13 +274,14 @@
                 activeIndex = 0;
             }}
             on:keydown={handleKeydown}
+            aria-label={$t('search.aria')}
             aria-expanded={open}
             aria-autocomplete="list"
             role="combobox"
             aria-controls="map-search-listbox"
         />
         {#if query !== '' || category !== null}
-            <button type="button" class="clear" title={$t('search.clear')} on:click={clearAll}>
+            <button type="button" class="clear" title={$t('search.clear')} aria-label={$t('search.clear')} on:click={clearAll}>
                 <span class="material-symbols-outlined" aria-hidden="true">close</span>
             </button>
         {/if}
