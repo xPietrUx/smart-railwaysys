@@ -19,8 +19,7 @@
             href: 'https://github.com/xPietrUx/smart-railwaysys#readme', 
             target: '_blank', 
             rel: 'noreferrer' 
-        },
-        { label: $locale === 'en' ? 'Contact' : 'Kontakt', href: '/#kontakt' }
+        }
     ];
 
     $: actionLabel = authenticated 

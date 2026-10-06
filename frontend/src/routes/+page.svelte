@@ -14,7 +14,7 @@
     export let data: PageData;
     export let form: ActionData;
 
-    type ViewSection = 'jak-to-dziala' | 'o-wa-gone' | 'kontakt';
+    type ViewSection = 'jak-to-dziala' | 'o-wa-gone';
     let currentView: ViewSection = 'jak-to-dziala'; 
 
     let isLightMode = false;
@@ -75,6 +75,10 @@
         {
             question: 'Jak zintegrować API z zewnętrznym systemem?',
             answer: 'Oferujemy standardowe endpointy REST oraz WebSocket ze strumieniem zdarzeń w czasie rzeczywistym.'
+        },
+        {
+            question: 'W jaki sposób mogę się skontaktować?',
+            answer: 'Skontaktuj się z nami pod adresem emali@email.'
         }
     ];
 
@@ -609,7 +613,7 @@
 
     $: {
         const hash = $page.url.hash.replace('#', '');
-        if (hash === 'jak-to-dziala' || hash === 'o-wa-gone' || hash === 'kontakt') {
+        if (hash === 'jak-to-dziala' || hash === 'o-wa-gone') {
             currentView = hash as ViewSection;
         } else {
             currentView = 'jak-to-dziala';
@@ -744,47 +748,6 @@
         }
     }
 
-    let contactName = '';
-    let contactEmail = '';
-    let contactMessage = '';
-    let nameTouched = false;
-    let emailTouched = false;
-    let messageTouched = false;
-    let formSubmittedAttempt = false;
-    let formStatus: 'idle' | 'submitting' | 'success' | 'error' = 'idle';
-
-    $: isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
-    $: isNameValid = contactName.trim().length >= 2;
-    $: isMessageValid = contactMessage.trim().length >= 6;
-
-    $: showNameError = (nameTouched || formSubmittedAttempt) && !isNameValid;
-    $: showEmailError = (emailTouched || formSubmittedAttempt) && !isEmailValid;
-    $: showMessageError = (messageTouched || formSubmittedAttempt) && !isMessageValid;
-
-    function handleSubmitContact(event: SubmitEvent) {
-        event.preventDefault();
-        formSubmittedAttempt = true;
-
-        if (!isNameValid || !isEmailValid || !isMessageValid) {
-            formStatus = 'error';
-            return;
-        }
-
-        formStatus = 'submitting';
-        setTimeout(() => {
-            formStatus = 'success';
-            contactName = '';
-            contactEmail = '';
-            contactMessage = '';
-            nameTouched = false;
-            emailTouched = false;
-            messageTouched = false;
-            formSubmittedAttempt = false;
-            setTimeout(() => {
-                if (formStatus === 'success') formStatus = 'idle';
-            }, 4500);
-        }, 800);
-    }
 </script>
 
 <svelte:head>
@@ -899,81 +862,6 @@
                             </button>
                         </div>
                     </div>
-                </div>
-            </section>
-        {:else if currentView === 'kontakt'}
-            <section class="screen-view contact-screen">
-                <div class="contact-card">
-                    <h2 class="column-title">KONTAKT</h2>
-                    <form class="contact-form" on:submit={handleSubmitContact} novalidate>
-                        <div class="form-row">
-                            <div class="field-wrap">
-                                <input
-                                    type="text"
-                                    class:is-error={showNameError}
-                                    bind:value={contactName}
-                                    on:blur={() => (nameTouched = true)}
-                                    placeholder={$t('landing.contact.namePlaceholder')}
-                                    aria-invalid={showNameError ? 'true' : undefined}
-                                />
-                                {#if showNameError}
-                                    <span class="field-hint" role="alert">Wpisz min. 2 znaki</span>
-                                {/if}
-                            </div>
-
-                            <div class="field-wrap">
-                                <input
-                                    type="email"
-                                    class:is-error={showEmailError}
-                                    bind:value={contactEmail}
-                                    on:blur={() => (emailTouched = true)}
-                                    placeholder={$t('landing.contact.emailPlaceholder')}
-                                    aria-invalid={showEmailError ? 'true' : undefined}
-                                />
-                                {#if showEmailError}
-                                    <span class="field-hint" role="alert">Wprowadź poprawny adres e-mail.</span>
-                                {/if}
-                            </div>
-                        </div>
-
-                        <div class="field-wrap">
-                            <textarea
-                                rows="12"
-                                class:is-error={showMessageError}
-                                bind:value={contactMessage}
-                                on:blur={() => (messageTouched = true)}
-                                placeholder={$t('landing.contact.messagePlaceholder')}
-                                aria-invalid={showMessageError ? 'true' : undefined}
-                            ></textarea>
-                            {#if showMessageError}
-                                <span class="field-hint" role="alert">Wiadomość musi mieć min. 6 znaków</span>
-                            {/if}
-                        </div>
-
-                        <div class="form-bottom-row">
-                            <div class="feedback-area">
-                                {#if formStatus === 'success'}
-                                    <span class="feedback-msg success" role="status">
-                                        <span class="material-symbols-outlined icon-status">check_circle</span>
-                                        {$t('landing.contact.success')}
-                                    </span>
-                                {:else if formStatus === 'error' && (showNameError || showEmailError || showMessageError)}
-                                    <span class="feedback-msg error" role="alert">
-                                        <span class="material-symbols-outlined icon-status">error</span>
-                                        Uzupełnij poprawnie wszystkie pola
-                                    </span>
-                                {/if}
-                            </div>
-
-                            <button 
-                                type="submit" 
-                                class="cta-submit" 
-                                disabled={formStatus === 'submitting'}
-                            >
-                                {formStatus === 'submitting' ? 'WYSYŁANIE...' : 'WYŚLIJ WIADOMOŚĆ'}
-                            </button>
-                        </div>
-                    </form>
                 </div>
             </section>
         {/if}
@@ -1357,169 +1245,6 @@
         transform: scale(1.15);
     }
 
-    .contact-card {
-        width: 100%;
-        max-width: 600px;
-        box-sizing: border-box;
-    }
-
-    .contact-form {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .form-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-    }
-
-    .field-wrap {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        width: 100%;
-    }
-
-    .contact-form input,
-    .contact-form textarea {
-        width: 100%;
-        padding: 16px 20px;
-        border-radius: 12px;
-        border: 0 !important;
-        box-shadow: none !important;
-        background: var(--input-bg);
-        color: var(--text-primary);
-        font-family: inherit;
-        font-size: 0.88rem;
-        box-sizing: border-box;
-        transition: background-color 200ms ease, color 200ms ease;
-    }
-
-    .contact-form textarea {
-        resize: none;
-        min-height: 240px;
-    }
-
-    .contact-form input.is-error,
-    .contact-form textarea.is-error {
-        background: rgba(222, 132, 137, 0.12) !important;
-        color: #de8489 !important;
-        border: 0 !important;
-        box-shadow: none !important;
-    }
-
-    :global(html.light-mode) .contact-form input.is-error,
-    :global(html.light-mode) .contact-form textarea.is-error {
-        background: rgba(201, 81, 88, 0.12) !important;
-        color: #c95158 !important;
-    }
-
-    .contact-form input:focus,
-    .contact-form textarea:focus {
-        outline: none;
-    }
-
-    .contact-form input:focus-visible,
-    .contact-form textarea:focus-visible {
-        outline: 2px solid var(--focus-ring);
-        outline-offset: 2px;
-    }
-
-    .contact-form input.is-error:focus-visible,
-    .contact-form textarea.is-error:focus-visible {
-        outline-color: rgba(222, 132, 137, 0.65);
-    }
-
-    :global(html.light-mode) .contact-form input.is-error:focus-visible,
-    :global(html.light-mode) .contact-form textarea.is-error:focus-visible {
-        outline-color: rgba(201, 81, 88, 0.65);
-    }
-
-    .field-hint {
-        font-size: 0.72rem;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: #de8489;
-        padding-left: 4px;
-        margin-top: 4px;
-        font-weight: 400;
-    }
-
-    :global(html.light-mode) .field-hint {
-        color: #c95158;
-    }
-
-    .form-bottom-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-top: 6px;
-        gap: 16px;
-    }
-
-    .feedback-area {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .feedback-msg {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 0.76rem;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        font-weight: 500;
-    }
-
-    .feedback-msg.success {
-        color: var(--success-color);
-    }
-
-    .feedback-msg.error {
-        color: var(--error-color);
-    }
-
-    .icon-status {
-        font-size: 16px;
-    }
-
-    .cta-submit {
-        background: var(--btn-submit-bg);
-        color: var(--btn-submit-color);
-        border: 0;
-        box-shadow: none;
-        border-radius: 10px;
-        padding: 14px 28px;
-        font-size: 0.78rem;
-        font-weight: 600;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        cursor: pointer;
-        font-family: inherit;
-        white-space: nowrap;
-        transition: opacity 150ms ease, background-color 200ms ease, color 200ms ease;
-    }
-
-    .cta-submit:focus {
-        outline: none;
-    }
-
-    .cta-submit:focus-visible {
-        outline: 2px solid var(--focus-ring);
-        outline-offset: 2px;
-    }
-
-    .cta-submit:hover:not(:disabled) {
-        opacity: 0.88;
-    }
-
-    .cta-submit:disabled {
-        opacity: 0.5;
-    }
-
     .bottom-bar {
         padding: 18px 44px;
         display: flex;
@@ -1604,8 +1329,5 @@
             height: auto;
         }
 
-        .form-row {
-            grid-template-columns: 1fr;
-        }
     }
 </style>
