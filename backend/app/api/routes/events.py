@@ -42,6 +42,7 @@ def _trigger_event_sync(driver: Driver, event_type: str | None) -> RailEventNode
 async def trigger_event(
 	request: Request,
 	eventType: str | None = Query(None, description="Wymuś konkretny typ, np. 'line_failure'"),
+	_user: dict = Depends(require_permission("simulation.control")),
 	driver: Driver = Depends(get_driver),
 ):
 	# Debugowy/demonstracyjny wyjątek od "system jest domyślnie autonomiczny" —

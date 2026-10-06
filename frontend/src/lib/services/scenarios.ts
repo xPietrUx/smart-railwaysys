@@ -39,10 +39,10 @@ export async function fetchScenarios(fetchFn: typeof fetch, baseUrl: string): Pr
 
 export async function createScenario(
 	fetchFn: typeof fetch,
-	baseUrl: string,
+	_baseUrl: string,
 	payload: ScenarioPayload
 ): Promise<Scenario> {
-	const response = await fetchFn(`${baseUrl}/api/scenarios`, {
+	const response = await fetchFn('/panel/scenarios', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(payload)
@@ -55,11 +55,11 @@ export async function createScenario(
 
 export async function updateScenario(
 	fetchFn: typeof fetch,
-	baseUrl: string,
+	_baseUrl: string,
 	scenarioId: string,
 	payload: ScenarioPayload
 ): Promise<Scenario> {
-	const response = await fetchFn(`${baseUrl}/api/scenarios/${encodeURIComponent(scenarioId)}`, {
+	const response = await fetchFn(`/panel/scenarios/${encodeURIComponent(scenarioId)}`, {
 		method: 'PUT',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(payload)
@@ -72,10 +72,10 @@ export async function updateScenario(
 
 export async function deleteScenario(
 	fetchFn: typeof fetch,
-	baseUrl: string,
+	_baseUrl: string,
 	scenarioId: string
 ): Promise<void> {
-	const response = await fetchFn(`${baseUrl}/api/scenarios/${encodeURIComponent(scenarioId)}`, {
+	const response = await fetchFn(`/panel/scenarios/${encodeURIComponent(scenarioId)}`, {
 		method: 'DELETE'
 	});
 	if (!response.ok) {
@@ -85,10 +85,10 @@ export async function deleteScenario(
 
 export async function runScenario(
 	fetchFn: typeof fetch,
-	baseUrl: string,
+	_baseUrl: string,
 	scenarioId: string
 ): Promise<ActiveScenarioInfo> {
-	const response = await fetchFn(`${baseUrl}/api/scenarios/${encodeURIComponent(scenarioId)}/run`, {
+	const response = await fetchFn(`/panel/scenarios/${encodeURIComponent(scenarioId)}/run`, {
 		method: 'POST'
 	});
 	if (!response.ok) {
