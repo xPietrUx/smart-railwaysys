@@ -4,7 +4,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from neo4j import Driver
 
-from app.api.dependencies import get_driver
+from app.api.dependencies import get_driver, require_permission
 from app.core import config
 from app.schemas.simulation import SimulationSpeedRequest
 from app.services import scenario_service
@@ -13,7 +13,11 @@ router = APIRouter(tags=["simulation"])
 
 
 @router.post("/api/simulation/speed", status_code=204)
-async def set_simulation_speed(payload: SimulationSpeedRequest, request: Request):
+async def set_simulation_speed(
+	payload: SimulationSpeedRequest,
+	request: Request,
+	_user: dict = Depends(require_permission("simulation.control")),
+):
 	if payload.speed not in config.SIM_SPEED_OPTIONS:
 		allowed = ", ".join(f"{option:g}" for option in config.SIM_SPEED_OPTIONS)
 		raise HTTPException(
@@ -25,7 +29,10 @@ async def set_simulation_speed(payload: SimulationSpeedRequest, request: Request
 
 
 @router.post("/api/simulation/pause", status_code=204)
-async def pause_simulation(request: Request):
+async def pause_simulation(
+	request: Request,
+	_user: dict = Depends(require_permission("simulation.control")),
+):
 	app_state = request.app.state
 	async with app_state.sim_lock:
 		if not scenario_service.pause_simulation(app_state, time.time()):
@@ -33,7 +40,11 @@ async def pause_simulation(request: Request):
 
 
 @router.post("/api/simulation/resume", status_code=204)
-async def resume_simulation(request: Request, driver: Driver = Depends(get_driver)):
+async def resume_simulation(
+	request: Request,
+	_user: dict = Depends(require_permission("simulation.control")),
+	driver: Driver = Depends(get_driver),
+):
 	app_state = request.app.state
 
 	def _resume_sync() -> bool:
@@ -47,7 +58,11 @@ async def resume_simulation(request: Request, driver: Driver = Depends(get_drive
 
 
 @router.post("/api/simulation/trains/clear", status_code=204)
-async def clear_trains(request: Request, driver: Driver = Depends(get_driver)):
+async def clear_trains(
+	request: Request,
+	_user: dict = Depends(require_permission("simulation.control")),
+	driver: Driver = Depends(get_driver),
+):
 	app_state = request.app.state
 
 	def _clear_sync() -> None:

@@ -48,10 +48,15 @@ DEFAULT_ROLES: dict[str, dict] = {
 }
 
 _ROLE_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{1,30}$")
+_EMAIL_RE = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 
 
 def normalize_email(email: str) -> str:
 	return email.strip().lower()
+
+
+def is_valid_email(email: str) -> bool:
+	return bool(_EMAIL_RE.match(email.strip()))
 
 
 # --- Hasła ------------------------------------------------------------------
@@ -65,9 +70,12 @@ def _hash_password(password: str, salt: bytes | None = None) -> str:
 
 def _verify_password(password: str, encoded: str) -> bool:
 	try:
-		_, rounds, salt, expected = encoded.split("$", 3)
+		_, rounds_str, salt, expected = encoded.split("$", 3)
+		rounds = int(rounds_str)
+		if rounds < 1 or rounds > 1_000_000:
+			return False
 		digest = hashlib.pbkdf2_hmac(
-			"sha256", password.encode(), base64.urlsafe_b64decode(salt), int(rounds)
+			"sha256", password.encode(), base64.urlsafe_b64decode(salt), rounds
 		)
 		return hmac.compare_digest(base64.urlsafe_b64encode(digest).decode(), expected)
 	except (ValueError, TypeError):
@@ -102,18 +110,20 @@ def _public_role(role: dict) -> dict:
 
 def create_user(session: Session, email: str, password: str, role: str = DEFAULT_ROLE_NAME) -> dict | None:
 	email = normalize_email(email)
-	if "@" not in email:
+	if not is_valid_email(email):
 		raise ValueError("Podaj poprawny adres e-mail.")
 	if session.run("MATCH (u:User {email: $email}) RETURN u", email=email).single():
 		return None
 	user_id = f"USR_{uuid.uuid4().hex[:12]}"
+	now = time.time()
 	row = session.run(
-		"CREATE (u:User {id: $id, email: $email, password_hash: $password_hash, role: $role, active: true, created_at: $created_at}) RETURN u",
+		"CREATE (u:User {id: $id, email: $email, password_hash: $password_hash, role: $role, active: true, created_at: $created_at, password_updated_at: $password_updated_at}) RETURN u",
 		id=user_id,
 		email=email,
 		password_hash=_hash_password(password),
 		role=role,
-		created_at=time.time(),
+		created_at=now,
+		password_updated_at=now,
 	).single()
 	return dict(row["u"])
 
@@ -167,7 +177,7 @@ def update_user(
 	props: dict = {}
 	if email is not None:
 		email = normalize_email(email)
-		if "@" not in email:
+		if not is_valid_email(email):
 			raise ValueError("Podaj poprawny adres e-mail.")
 		clash = session.run(
 			"MATCH (u:User {email: $email}) WHERE u.id <> $id RETURN u", email=email, id=user_id
@@ -199,10 +209,12 @@ def update_user(
 def set_user_password(session: Session, user_id: str, password: str) -> dict | None:
 	if len(password) < 8:
 		raise ValueError("Hasło musi mieć co najmniej 8 znaków.")
+	now = time.time()
 	row = session.run(
-		"MATCH (u:User {id: $id}) SET u.password_hash = $password_hash RETURN u",
+		"MATCH (u:User {id: $id}) SET u.password_hash = $password_hash, u.password_updated_at = $now RETURN u",
 		id=user_id,
 		password_hash=_hash_password(password),
+		now=now,
 	).single()
 	return dict(row["u"]) if row else None
 
@@ -348,13 +360,15 @@ def ensure_admin_user(session: Session) -> str | None:
 			admin=ADMIN_ROLE_NAME,
 		)
 		return email
+	now = time.time()
 	session.run(
-		"CREATE (u:User {id: $id, email: $email, password_hash: $password_hash, role: $admin, active: true, created_at: $created_at})",
+		"CREATE (u:User {id: $id, email: $email, password_hash: $password_hash, role: $admin, active: true, created_at: $created_at, password_updated_at: $password_updated_at})",
 		id=f"USR_{uuid.uuid4().hex[:12]}",
 		email=email,
 		password_hash=_hash_password(DEFAULT_ADMIN_PASSWORD),
 		admin=ADMIN_ROLE_NAME,
-		created_at=time.time(),
+		created_at=now,
+		password_updated_at=now,
 	)
 	return email
 
@@ -367,13 +381,15 @@ def _encode(data: bytes) -> str:
 
 
 def issue_token(user: dict) -> str:
+	now = int(time.time())
 	payload = _encode(
 		json.dumps(
 			{
 				"sub": user["id"],
 				"email": user["email"],
 				"role": user.get("role") or DEFAULT_ROLE_NAME,
-				"exp": int(time.time()) + AUTH_TOKEN_TTL_SECONDS,
+				"iat": now,
+				"exp": now + AUTH_TOKEN_TTL_SECONDS,
 			},
 			separators=(",", ":"),
 		).encode()

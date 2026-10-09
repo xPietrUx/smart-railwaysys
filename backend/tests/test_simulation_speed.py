@@ -3,6 +3,7 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api.dependencies import require_permission
 from app.api.routes.simulation import router as simulation_router
 
 
@@ -12,6 +13,12 @@ def _build_test_app():
 	app = FastAPI()
 	app.state.sim_lock = asyncio.Lock()
 	app.state.sim_speed = 1.0
+	app.dependency_overrides[require_permission("simulation.control")] = lambda: {
+		"id": "USR_test",
+		"email": "test@smartrailway.pl",
+		"role": "admin",
+		"permissions": ["simulation.control"],
+	}
 	app.include_router(simulation_router)
 	return app
 
