@@ -270,8 +270,8 @@ const handleRoleDeleteForm: SubmitFunction = (params) => {
                     class="btn ghost small icon-btn"
                     type="button"
                     on:click={toggleLightMode}
-                    aria-label={lightMode ? 'Włącz tryb ciemny' : 'Włącz tryb jasny'}
-                    title={lightMode ? 'Tryb ciemny' : 'Tryb jasny'}
+                    aria-label={lightMode ? $t('a11y.theme.enableDark') : $t('a11y.theme.enableLight')}
+                    title={lightMode ? $t('a11y.theme.enableDark') : $t('a11y.theme.enableLight')}
                 >
                     <span class="material-symbols-outlined" class:is-light={lightMode} aria-hidden="true">
                         {lightMode ? 'dark_mode' : 'light_mode'}
@@ -686,10 +686,10 @@ const handleRoleDeleteForm: SubmitFunction = (params) => {
 {#if roleToDelete}
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div class="overlay confirm-overlay" on:click={() => (roleToDelete = null)}>
-        <div class="modal confirm-modal" role="dialog" aria-modal="true" on:click|stopPropagation>
+        <div class="modal confirm-modal" role="dialog" aria-modal="true" tabindex="-1" on:click|stopPropagation>
             <header class="modal-header">
                 <h2>{$locale === 'pl' ? 'Potwierdź usunięcie' : 'Confirm deletion'}</h2>
-                <button class="close-btn" type="button" on:click={() => (roleToDelete = null)}>
+                <button class="close-btn" type="button" on:click={() => (roleToDelete = null)} aria-label={$t('landing.modal.close')}>
                     <span class="material-symbols-outlined" aria-hidden="true">close</span>
                 </button>
             </header>

@@ -390,7 +390,7 @@
 									formDurationS = (formDurationS || 0) + 1;
 									if (formError) formError = '';
 								}}
-								aria-label="Zwiększ czas trwania"
+								aria-label={$t('a11y.duration.increase')}
 								tabindex="-1"
 							>
 								<span class="material-symbols-outlined" aria-hidden="true">arrow_drop_up</span>
@@ -402,7 +402,7 @@
 									formDurationS = Math.max(1, (formDurationS || 0) - 1);
 									if (formError) formError = '';
 								}}
-								aria-label="Zmniejsz czas trwania"
+								aria-label={$t('a11y.duration.decrease')}
 								tabindex="-1"
 							>
 								<span class="material-symbols-outlined" aria-hidden="true">arrow_drop_down</span>

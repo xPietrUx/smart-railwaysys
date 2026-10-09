@@ -29,14 +29,14 @@
 </svelte:head>
 
 <main>
-    <section class="error-card" role="region" aria-labelledby="error-heading">
+    <section class="error-card" aria-labelledby="error-heading">
         <div class="top-actions">
             <button
                 class="icon-button"
                 type="button"
                 on:click={toggleLightMode}
-                aria-label={lightMode ? 'Włącz tryb ciemny' : 'Włącz tryb jasny'}
-                title={lightMode ? 'Tryb ciemny' : 'Tryb jasny'}
+                aria-label={lightMode ? $t('a11y.theme.enableDark') : $t('a11y.theme.enableLight')}
+                title={lightMode ? $t('a11y.theme.enableDark') : $t('a11y.theme.enableLight')}
                 tabindex="0"
             >
                 <span class="material-symbols-outlined" class:is-light={lightMode} aria-hidden="true">

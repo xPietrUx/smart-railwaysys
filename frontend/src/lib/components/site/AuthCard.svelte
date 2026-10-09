@@ -1,6 +1,7 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
     import { enhance } from '$app/forms';
+    import { locale } from '$lib/i18n';
 
     export let mode: 'login' | 'register';
     export let error: string | undefined = undefined;
@@ -20,6 +21,17 @@
 
     let formSubmittedAttempt = false;
     let formStatus: 'idle' | 'submitting' | 'success' = 'idle';
+
+    const englishErrors: Record<string, string> = {
+        'Nie udało się połączyć z systemem. Spróbuj ponownie.': 'Could not connect to the system. Please try again.',
+        'Nie istnieje konto przypisane do podanego adresu e-mail lub podane hasło jest nieprawidłowe.': 'No account matches this email address, or the password is incorrect.',
+        'Logowanie nie powiodło się.': 'Sign-in failed.',
+        'Hasła nie są takie same.': 'Passwords do not match.',
+        'Konto z tym adresem e-mail już istnieje.': 'An account with this email address already exists.',
+        'Nie udało się utworzyć konta.': 'Could not create the account.',
+        'Podaj poprawny adres e-mail (min. 3 znaki).': 'Enter a valid email address (at least 3 characters).',
+        'Hasło musi mieć od 8 do 128 znaków.': 'Password must be between 8 and 128 characters long.'
+    };
 
     $: isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email ?? '').trim());
     $: isPasswordValid = password.length >= 8;
@@ -82,22 +94,26 @@
 </svelte:head>
 
 <section class="card" aria-labelledby="auth-heading">
-    <h1 id="auth-heading">{register ? 'REJESTRACJA' : 'LOGOWANIE'}</h1>
+    <h1 id="auth-heading">{register ? ($locale === 'en' ? 'SIGN UP' : 'REJESTRACJA') : ($locale === 'en' ? 'SIGN IN' : 'LOGOWANIE')}</h1>
     <p class="subtitle">
-        {register ? 'MASZ JUŻ KONTO?' : 'NIE POSIADASZ KONTA?'}
+        {register
+            ? ($locale === 'en' ? 'ALREADY HAVE AN ACCOUNT?' : 'MASZ JUŻ KONTO?')
+            : ($locale === 'en' ? 'DON’T HAVE AN ACCOUNT?' : 'NIE POSIADASZ KONTA?')}
         <button
             type="button"
             class="switch-mode-btn"
             on:click={toggleMode}
         >
-            {register ? 'ZALOGUJ SIĘ' : 'ZAREJESTRUJ SIĘ'}
+            {register
+                ? ($locale === 'en' ? 'SIGN IN' : 'ZALOGUJ SIĘ')
+                : ($locale === 'en' ? 'SIGN UP' : 'ZAREJESTRUJ SIĘ')}
         </button>
     </p>
 
     {#if error}
         <div class="global-err" role="alert" aria-live="assertive">
             <span class="material-symbols-outlined err-icon" aria-hidden="true">error</span>
-            <span>{error}</span>
+            <span>{$locale === 'en' ? (englishErrors[error] ?? error) : error}</span>
         </div>
     {/if}
 
@@ -138,13 +154,13 @@
             </div>
             {#if showEmailError}
                 <span id="email-error" class="field-error-msg" role="alert">
-                    Wprowadź poprawny adres e-mail.
+                    {$locale === 'en' ? 'Enter a valid email address.' : 'Wprowadź poprawny adres e-mail.'}
                 </span>
             {/if}
         </div>
 
         <div class="form-group">
-            <label for="auth-password">HASŁO</label>
+            <label for="auth-password">{$locale === 'en' ? 'PASSWORD' : 'HASŁO'}</label>
             <div class="input-wrapper">
                 <input
                     id="auth-password"
@@ -158,7 +174,7 @@
                     }}
                     class:is-invalid={showPasswordError}
                     class:is-valid={passwordTouched && isPasswordValid}
-                    placeholder="Minimum 8 znaków"
+                    placeholder={$locale === 'en' ? 'Minimum 8 characters' : 'Minimum 8 znaków'}
                     readonly={formStatus !== 'idle'}
                     class:is-readonly={formStatus !== 'idle'}
                     aria-invalid={showPasswordError}
@@ -171,14 +187,14 @@
             </div>
             {#if showPasswordError}
                 <span id="password-error" class="field-error-msg" role="alert">
-                    Hasło musi mieć co najmniej 8 znaków.
+                    {$locale === 'en' ? 'Password must be at least 8 characters long.' : 'Hasło musi mieć co najmniej 8 znaków.'}
                 </span>
             {/if}
         </div>
 
         {#if register}
             <div class="form-group">
-                <label for="auth-confirm">POWTÓRZ HASŁO</label>
+                <label for="auth-confirm">{$locale === 'en' ? 'CONFIRM PASSWORD' : 'POWTÓRZ HASŁO'}</label>
                 <div class="input-wrapper">
                     <input
                         id="auth-confirm"
@@ -193,7 +209,7 @@
                         }}
                         class:is-invalid={showConfirmError}
                         class:is-valid={confirmTouched && isConfirmValid && passwordConfirm.length >= 8}
-                        placeholder="Powtórz hasło"
+                        placeholder={$locale === 'en' ? 'Confirm password' : 'Powtórz hasło'}
                         readonly={formStatus !== 'idle'}
                         class:is-readonly={formStatus !== 'idle'}
                         aria-invalid={showConfirmError}
@@ -206,7 +222,7 @@
                 </div>
                 {#if showConfirmError}
                     <span id="confirm-error" class="field-error-msg" role="alert">
-                        Hasła muszą być identyczne.
+                        {$locale === 'en' ? 'Passwords must match.' : 'Hasła muszą być identyczne.'}
                     </span>
                 {/if}
             </div>
@@ -222,12 +238,12 @@
             >
                 {#if formStatus === 'submitting'}
                     <span class="loading-spinner" aria-hidden="true"></span>
-                    <span>TRWA WYSYŁANIE...</span>
+                    <span>{$locale === 'en' ? 'SUBMITTING...' : 'TRWA WYSYŁANIE...'}</span>
                 {:else if formStatus === 'success'}
                     <span class="material-symbols-outlined btn-icon" aria-hidden="true">check</span>
-                    <span>{register ? 'KONTO UTWORZONE!' : 'ZALOGOWANO!'}</span>
+                    <span>{register ? ($locale === 'en' ? 'ACCOUNT CREATED!' : 'KONTO UTWORZONE!') : ($locale === 'en' ? 'SIGNED IN!' : 'ZALOGOWANO!')}</span>
                 {:else}
-                    <span>{register ? 'STWÓRZ KONTO' : 'ZALOGUJ SIĘ'}</span>
+                    <span>{register ? ($locale === 'en' ? 'CREATE ACCOUNT' : 'STWÓRZ KONTO') : ($locale === 'en' ? 'SIGN IN' : 'ZALOGUJ SIĘ')}</span>
                 {/if}
             </button>
 
@@ -237,7 +253,7 @@
                 on:click={handleGuestSubmit}
                 disabled={formStatus !== 'idle'}
             >
-                KONTYNUUJ<br />JAKO GOŚĆ
+                {$locale === 'en' ? 'CONTINUE' : 'KONTYNUUJ'}<br />{$locale === 'en' ? 'AS GUEST' : 'JAKO GOŚĆ'}
             </button>
         </div>
     </form>

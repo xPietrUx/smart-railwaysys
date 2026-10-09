@@ -224,11 +224,12 @@
                                         bind:value={row.name}
                                         class:cell-error={!row.name.trim()}
                                         placeholder={$t('editor.defaultTrainName')}
+                                        aria-label={$t('editor.name')}
                                     />
                                 </div>
 
                                 <div class="select-cell">
-                                    <select bind:value={row.type}>
+                                    <select bind:value={row.type} aria-label={$t('editor.type')}>
                                         {#each TRAIN_TYPES as trainType (trainType)}
                                             <option value={trainType}>{trainTypeLabel(trainType, $t)}</option>
                                         {/each}
@@ -237,7 +238,7 @@
                                 </div>
 
                                 <div class="select-cell">
-                                    <select bind:value={row.fromStationId} class:cell-error={isSameStation}>
+                                    <select bind:value={row.fromStationId} class:cell-error={isSameStation} aria-label={$t('editor.fromStation')}>
                                         {#each stationOptions as station (station.id)}
                                             <option value={station.id}>{station.name}</option>
                                         {/each}
@@ -246,7 +247,7 @@
                                 </div>
 
                                 <div class="select-cell">
-                                    <select bind:value={row.toStationId} class:cell-error={isSameStation}>
+                                    <select bind:value={row.toStationId} class:cell-error={isSameStation} aria-label={$t('editor.toStation')}>
                                         {#each stationOptions as station (station.id)}
                                             <option value={station.id}>{station.name}</option>
                                         {/each}
@@ -260,8 +261,8 @@
                                         class="stepper-btn"
                                         on:click={() => stepDepart(index, -5)}
                                         disabled={Number(row.departS) <= 0}
-                                        title="Odejmij 5s"
-                                        aria-label="Odejmij 5s"
+                                        title={$t('a11y.depart.subtract')}
+                                        aria-label={$t('a11y.depart.subtract')}
                                     >
                                         <span class="material-symbols-outlined" aria-hidden="true">remove</span>
                                     </button>
@@ -272,6 +273,7 @@
                                         step="5"
                                         bind:value={row.departS}
                                         class="stepper-input"
+                                        aria-label={$t('editor.departAfter')}
                                     />
                                     <span class="stepper-unit">s</span>
                                     <button
@@ -279,8 +281,8 @@
                                         class="stepper-btn"
                                         on:click={() => stepDepart(index, 5)}
                                         disabled={Number(row.departS) >= 600}
-                                        title="Dodaj 5s"
-                                        aria-label="Dodaj 5s"
+                                        title={$t('a11y.depart.add')}
+                                        aria-label={$t('a11y.depart.add')}
                                     >
                                         <span class="material-symbols-outlined" aria-hidden="true">add</span>
                                     </button>
