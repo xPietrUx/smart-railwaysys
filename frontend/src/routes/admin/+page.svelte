@@ -77,6 +77,19 @@
         );
     }
 
+   const permissionLabelsEn: Record<string, string> = {
+    'simulation.view': 'View simulation',
+    'simulation.control': 'Control simulation (pause, speed, trains)',
+    'timetable.manage': 'Manage timetables',
+    'users.manage': 'Manage users',
+    'roles.manage': 'Manage roles and permissions'
+};
+
+$: permissionLabel = (permission: { key: string; label: string }): string =>
+    $locale === 'en'
+        ? (permissionLabelsEn[permission.key] ?? permission.label)
+        : permission.label;
+
     const handleUserUpdate: SubmitFunction = ({ formData }) => {
         const id = formData.get('id')?.toString();
         if (id) submittingUsers = new Set(submittingUsers.add(id));
@@ -567,7 +580,7 @@ const handleRoleDeleteForm: SubmitFunction = (params) => {
                                             <label class="perm perm-create">
                                                 <input type="checkbox" name="permissions" value={p.key} disabled={isCreatingRole} />
                                                 <span class="perm-content">
-                                                    <span>{p.label}</span>
+                                                    <span>{permissionLabel(p)}</span>
                                                     <code>{p.key}</code>
                                                 </span>
                                             </label>
@@ -640,7 +653,7 @@ const handleRoleDeleteForm: SubmitFunction = (params) => {
                                                     disabled={!canManageRoles || r.is_system || isRoleBusy}
                                                 />
                                                 <span class="perm-content">
-                                                    <span>{p.label}</span>
+                                                    <span>{permissionLabel(p)}</span>
                                                     <code>{p.key}</code>
                                                 </span>
                                             </label>
