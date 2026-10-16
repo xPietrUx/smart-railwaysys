@@ -1,0 +1,1090 @@
+\documentclass[twoside]{projektInzynierskiMS1z}
+\usepackage{polski}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage{setspace}
+\usepackage{tikz}
+\usepackage{tikz}
+\usepackage{dirtree}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=black]{hyperref}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, calc}
+\usetikzlibrary{arrows.meta, shapes.geometric}
+%\drukJednostronny
+
+%% naglowek bibliografii po polsku
+\renewcommand{\refname}{Literatura}
+
+%% tytul, promotor i autorzy
+\title{Projekt i implementacja systemu symulacji oraz automatycznego
+zarządzania ruchem kolejowym w środowisku webowym}
+
+\promotor{dr inż. Rafał Brociek}
+\rodzajProm{PROWADZĄCY PRACĘ}
+
+\specjalnosc{Inżynieria Analizy Danych}
+\ustawKierunekW{informatyka}
+\jednostkaUczelni{WYDZIAŁ MATEMATYKI STOSOWANEJ}
+\miasto{GLIWICE}
+\rok{2026}
+
+%% kazdy autor: imie nazwisko, nr albumu, opis wkladu
+\autor{Martyna SZANDAŁA}{311093}{Opis wkładu}
+\autor{Natalia TOMALA}{311109}{Opis wkładu}
+\autor{Piotr DUSIŃSKI}{311489}{Opis wkładu}
+
+%%%%%%%% zestaw komend opcjonalnych
+%\NumeryNaPoczatku
+%\subsectionWzory
+%\sectionWzory
+%\rozdzialy
+%\literowaNumeracjaDodatkow
+%\rzymskaNumeracjaDodatkow
+
+\newtheorem{tw}{Twierdzenie}
+\newtheorem{twa}{Twierdzenie}
+\newtheorem{dd}{Definicja}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%% strona druga -- streszczenia
+\drugaStrona
+
+\strDrNap{Streszczenie}
+
+Przedmiotem niniejszej pracy jest zaprojektowanie oraz implementacja
+wielowarstwowej aplikacji webowej służącej do interaktywnej symulacji
+i monitorowania wirtualnego ruchu kolejowego. Głównym celem projektu było stworzenie narzędzia, które w przystępny sposób obrazuje złożone procesy zarządzania ruchem kolejowym, w tym wyznaczanie tras pociągów, reagowanie na awarie infrastruktury (zamknięcia odcinków, ograniczenia prędkości) oraz automatyczne wyznaczanie objazdów.
+\strDrNap{Słowa kluczowe}
+
+symulacja ruchu kolejowego, aplikacja webowa, baza grafowa, algorytm A*,
+Memgraph, rerouting
+
+\strDrNap{Thesis title}
+
+Design and implementation of a web-based railway traffic simulation
+and automatic management system
+
+\strDrNap{Abstract}
+
+The subject of this thesis is the design and implementation of a multi-layered
+web application for the interactive simulation and monitoring of virtual railway
+traffic. The main goal of the project was to create a tool that illustrates, in an
+accessible way, the complex processes of railway traffic management, including
+train routing, responses to infrastructure failures (track section closures and
+speed restrictions) and automatic rerouting.
+
+\strDrNap{Keywords}
+
+railway traffic simulation, web application, graph database, A* algorithm,
+Memgraph, rerouting
+
+\koniecDrugaStrona
+
+\begin{document}
+
+%% interlinia 1,5 dla tekstu podstawowego (zgodnie z formularzem Z4-PU12)
+\onehalfspacing
+
+%% UWAGA: naglowek "Wstep" (rozdzial 1) jest generowany automatycznie przez
+%% klase zaraz po spisie tresci -- dlatego tu NIE wpisujemy \section{Wstep}.
+%% Ponizszy tekst stanowi tresc wstepu.
+
+Niniejszy projekt inżynierski koncentruje się na opracowaniu i implementacji
+interaktywnej aplikacji webowej służącej do symulacji oraz monitorowania
+wirtualnego ruchu kolejowego. Realizacja projektu obejmowała przygotowanie
+koncepcji logiki biznesowej, zaprojektowanie interfejsu graficznego oraz
+wdrożenie wielowarstwowej architektury systemu. Głównym celem aplikacji jest
+stworzenie środowiska (przypominającego interaktywną makietę kolejową), które
+w sposób przystępny i wizualny obrazuje skomplikowane procesy zarządzania ruchem
+pociągów, takie jak wyznaczanie tras pociągów czy reagowanie na awarie infrastruktury.
+
+W pracy szczegółowo opisano cały proces realizacji projektu -- od analizy
+wymagań funkcjonalnych, przez projektowanie architektury opartej na strukturach
+grafowych i interfejsu, po implementację wybranych algorytmów nawigacyjnych
+i testowanie systemu. Ważnym elementem cyklu życia projektu było zastosowanie
+zwinnych metodyk wytwarzania oprogramowania (ang. \emph{Agile}), co umożliwiło
+elastyczne planowanie i etapowe rozszerzanie skali symulacji. Zrealizowane
+rozwiązanie jest skierowane zarówno do pasjonatów kolejnictwa, jak i studentów
+kierunków związanych z transportem, stanowiąc narzędzie ułatwiające zrozumienie, jak awarie infrastruktury wpływają na ruch pociągów i w jaki sposób wyznaczane są trasy objazdowe. Projekt
+ten stanowi również solidną podstawę do dalszej rozbudowy o zewnętrzne źródła
+danych.
+
+\subsection{Geneza}
+
+W ostatnich latach można zaobserwować silny trend cyfryzacji w sektorze transportu
+publicznego, w tym wdrażanie koncepcji ,,cyfrowych bliźniaków'' (ang. \emph{digital
+twins}) do symulowania zachowań rzeczywistej infrastruktury~\cite{digitaltwin}.
+Wraz z tym zjawiskiem rośnie zapotrzebowanie na narzędzia edukacyjne i analityczne,
+które w czytelny sposób tłumaczą zasady bezpieczeństwa na kolei. Inspiracją do
+stworzenia aplikacji była obserwacja, że procesy decyzyjne dyspozytorów oraz
+mechanizmy zabezpieczające tory są dla przeciętnego pasażera całkowicie niewidoczne,
+a ich zrozumienie z samych podręczników jest trudne. Istniejące na rynku
+i ogólnodostępne rozwiązania posiadają w tym zakresie pewne luki.
+
+Popularne serwisy dla pasażerów (np. Portal Pasażera PKP PLK) skupiają się wyłącznie
+na prezentacji aktualnych opóźnień i rozkładów jazdy, nie dając wglądu w przyczyny
+tych zjawisk ani nie posiadając warstwy symulacyjnej. Z kolei zaawansowane symulatory
+kolejowe (takie jak MaSzyna) kładą nacisk na trójwymiarowy realizm i perspektywę
+maszynisty prowadzącego pojedynczy pojazd. Wymagają one wydajnego sprzętu i nie
+pozwalają na spojrzenie na sieć kolejową z perspektywy makro -- jako na złożony
+system logistyczny. Dostępne amatorskie symulatory urządzeń sterowania ruchem
+(np. ISDR) są natomiast programami komputerowymi o wysokim progu wejścia, opartymi
+na skomplikowanych, technicznych interfejsach odzwierciedlających prawdziwe pulpity
+kostkowe. Brakowało na rynku nowoczesnego, przeglądarkowego narzędzia, które
+łączyłoby rzeczywiste lub symulowane dane z przystępną symulacją na mapie
+dwuwymiarowej.
+
+\subsection{Odniesienie do rynku}
+
+Rynek systemów informatycznych dla kolei (ang. \emph{Railway Management Systems})
+dynamicznie rośnie, co jest napędzane potrzebą modernizacji infrastruktury
+i zwiększania przepustowości linii. Prognozy rynkowe wskazują, że globalna wartość
+tego sektora będzie w najbliższych latach systematycznie rosnąć, wymuszając
+kształcenie nowych kadr w branży logistycznej~\cite{railwaymarket}.
+
+Obecnie na rynku profesjonalnym dominują zaawansowane, zamknięte systemy
+wykorzystywane przez zarządców infrastruktury (np. System Wspomagania Dyżurnego
+Ruchu -- SWDR). Są to jednak narzędzia komercyjne, do których dostęp mają wyłącznie
+uprawnieni pracownicy kolei. Z drugiej strony, w sektorze edukacyjnym i akademickim
+brakuje lekkich, darmowych rozwiązań pozwalających na testowanie scenariuszy
+kryzysowych na torach.
+
+Większość dostępnych projektów akademickich skupia się na suchej analizie danych
+algorytmicznych, pomijając aspekt wizualny. Zrealizowana aplikacja wypełnia tę niszę.
+   Zapewnia ona środowisko symulacyjne oparte na rzeczywistej sieci kolejowej
+   węzła śląskiego (57 stacji i 71 odcinków), w którym każdy może obserwować ruch
+   pociągów, a zalogowany użytkownik może celowo wywoływać awarie i badać reakcję
+   systemu.
+
+\subsection{Cechy wyróżniające aplikację}
+
+Projekt łączy intuicyjny interfejs z zaawansowaną architekturą logiki biznesowej.
+Do głównych cech wyróżniających aplikację na tle prostych wizualizacji należą:
+
+\begin{itemize}
+\item \textbf{Zastosowanie grafowej bazy danych:} Wykorzystanie bazy działającej
+w pamięci (Memgraph) pozwoliło na wysoce wydajne odwzorowanie sieci kolejowej.
+Zapisanie stacji jako węzłów, a torów jako krawędzi, umożliwiło naturalne
+i błyskawiczne operacje na strukturze sieciowej, niezbędne przy symulacjach
+o dużej skali.
+
+\item \textbf{Dynamiczny rerouting z algorytmem A*:} Aplikacja posiada wbudowany
+silnik decyzyjny. Gdy odcinek toru zostaje zamknięty, pociągi, których trasa
+przez niego prowadzi, automatycznie otrzymują trasę alternatywną. Wyznacza ją
+zaimplementowany od podstaw algorytm A*, który szuka trasy o najkrótszym czasie
+przejazdu. Heurystyką jest czas pokonania odległości ortodromicznej (obliczonej
+wzorem Haversine'a) z prędkością maksymalną pociągu. Oszacowanie to nigdy nie
+przekracza rzeczywistego czasu przejazdu, co gwarantuje optymalność wyznaczonej
+trasy.
+
+\item \textbf{Niezależność od zewnętrznych źródeł danych:} W odróżnieniu od
+systemów zależnych od zewnętrznych interfejsów API projekt zrealizowano jako
+autonomiczną piaskownicę. Sieć kolejowa (57 stacji, 71 odcinków) i flota
+52 pociągów zostały wygenerowane z rozkładu jazdy Kolei Śląskich w formacie
+GTFS~\cite{gtfsks} oraz wykazów Regulaminu sieci PKP PLK~\cite{plkregulamin}
+i zapisane jako dane startowe bazy. Zapewnia to powtarzalność testów,
+uniezależnia symulację od dostępności zewnętrznych usług i pozwala etapowo
+rozszerzać zbiór danych.
+
+\item \textbf{Model ruchu i stanów infrastruktury:} System nie tylko przesuwa
+znaczniki na mapie -- każdy pociąg porusza się zgodnie z prędkościami
+maksymalnymi odcinków pochodzącymi z wykazów PKP PLK, a każdy odcinek może być
+czynny, objęty ograniczeniem prędkości lub zamknięty. Zmiana stanu odcinka
+wpływa na ruch pociągów: powoduje zwolnienie, zatrzymanie lub wyznaczenie
+objazdu. Dzięki temu aplikacja stanowi stabilne środowisko do przeprowadzania
+symulacji scenariuszy awaryjnych.
+\end{itemize}
+
+\subsection{Wykorzystanie w praktyce}
+
+Stworzona aplikacja może znaleźć szerokie zastosowanie w wielu realnych scenariuszach
+edukacyjnych, demonstracyjnych i analitycznych, do których należą między innymi:
+
+\begin{itemize}
+\item \textbf{Prowadzenie zajęć z logistyki i transportu:} wizualna demonstracja
+w czasie rzeczywistym, jak zamknięcie odcinka lub ograniczenie prędkości zmienia
+trasy i czasy przejazdu pociągów w sieci.
+
+\item \textbf{Analiza zarządzania kryzysowego typu what-if:} Dzięki funkcji ręcznego zgłaszania awarii, użytkownik zyskuje możliwość obserwacji,
+jak zamknięcie jednego, kluczowego odcinka na Śląsku wpływa na trasy i czasy przejazdu pociągów w całej sieci oraz jak reaguje algorytm wyznaczający objazdy.
+
+\item \textbf{Porównanie kategorii pociągów:} pociągi dalekobieżne (160~km/h),
+regionalne (120~km/h, z doliczanym czasem postojów) i towarowe (80~km/h) mają
+różne parametry, dlatego algorytm A* może wyznaczyć dla nich różne trasy między
+tymi samymi stacjami. Pozwala to pokazać, że najkrótsza trasa nie zawsze jest
+najszybsza.
+
+\item \textbf{Zrozumienie algorytmiki grafowej:} Aplikacja jest doskonałym narzędziem
+dydaktycznym dla studentów informatyki, obrazującym praktyczne użycie bazy Memgraph
+i algorytmu A* na rzeczywistych danych przestrzennych.
+\end{itemize}
+
+Dzięki swojej architekturze opartej na przejrzystym interfejsie graficznym aplikacja
+obniża próg wejścia w złożony świat zarządzania ruchem kolejowym, pozwalając na obrazowe i
+bezpieczne eksperymentowanie zarówno osobom niezwiązanym z koleją, jak i logistykom w uproszczony sposób.
+
+\section{Założenia projektowe aplikacji}
+
+Fazę projektową poprzedziła dogłębna analiza dostępnych rozwiązań
+oraz zdefiniowanie celów systemowych w oparciu o zasady inżynierii
+wymagań~\cite{sommerville2016}. Ponieważ tworzenie zaawansowanego symulatora wymaga
+precyzyjnego zbalansowania wydajności obliczeniowej z realizmem odwzorowania procesów,
+zespół projektowy przyjął zwinne podejście do cyklu wytwarzania oprogramowania
+(ang. \emph{Agile}). Metodyka ta pozwala na iteracyjne dostarczanie kolejnych
+modułów funkcjonalnych oraz elastyczne reagowanie na problemy techniczne pojawiające
+się w trakcie tworzenia projektu~\cite{agilemanifesto}.
+
+Prace projektowe podzielono na etapy, zaczynając od definicji logiki biznesowej
+i wymagań krytycznych, a kończąc na planowaniu modułów opcjonalnych. Taki podział
+jest zgodny z dobrymi praktykami projektowania systemów informatycznych, gdzie
+priorytetyzacja zadań pozwala na zachowanie spójności architektury przy rosnącej
+skali projektu~\cite{martin2017clean}.
+
+\subsection{Klasyfikacja wymagań systemowych}
+
+Proces specyfikacji pozwolił na jasne wyodrębnienie rdzenia systemu (ang. \emph{core})
+od funkcji rozszerzających. Zgodnie z teorią projektowania systemów zorientowanych na
+dane, wymagania podzielono na kategorie uwzględniające ich wpływ na stabilność silnika
+symulacyjnego:
+
+\begin{itemize}
+\item \textbf{Wymagania krytyczne:} Funkcjonalności niezbędne do realizacji
+podstawowego modelu ruchu. Należą do nich: interaktywna wizualizacja węzłów
+i krawędzi sieci, mechanizm zasilania danymi, ruch pociągów po wyznaczonych
+trasach oraz model stanów odcinków (odcinek czynny, z ograniczeniem prędkości
+lub zamknięty). Bez tych elementów system nie mógłby pełnić roli symulatora
+ruchu kolejowego.
+
+\item \textbf{Wymagania rozszerzone:} Moduły podnoszące wartość analityczną projektu,
+takie jak algorytm dynamicznego wyznaczania objazdów (rerouting) oraz moduł zdarzeń losowych wraz z możliwością ręcznego zgłaszania incydentów. Ich implementacja pozwala na symulowanie rzeczywistych problemów występujących w sieciach transportowych,
+wzbogacając znacząco wartość dydaktyczną całego projektu~\cite{sommerville2016}.
+
+\item \textbf{Wymagania opcjonalne:} Funkcje o niższym priorytecie, których realizacja
+jest uzależniona od wydajności końcowej wersji systemu (np. integracja z zewnętrznymi
+interfejsami czy import rozbudowanych rozkładów jazdy). Ograniczenia projektu obejmują
+świadome wykluczenia (np. rezygnacja z renderowania mapy całego kraju), mające na celu
+utrzymanie wysokiej responsywności aplikacji webowej wyłącznie w środowisku przeglądarkowym.
+\end{itemize}
+
+\subsection{Opis kluczowych funkcjonalności systemu}
+
+Na podstawie przeprowadzonej analizy wyodrębniono moduły funkcjonalne stanowiące trzon
+aplikacji. Zespół zdecydował się na architekturę opartą na niezależnym silniku
+symulacyjnym, co wymagało zaprojektowania następujących mechanizmów:
+
+\subsubsection{Silnik symulacyjny i stany odcinków}
+
+Sercem systemu jest moduł, który w stałych odstępach czasu (domyślnie co 1~s)
+przelicza pozycje pociągów. Zastosowano uproszczony model kinematyczny: pociąg
+porusza się po odcinku ze stałą prędkością równą mniejszej z dwóch wartości --
+prędkości maksymalnej odcinka i prędkości maksymalnej pociągu. Postęp pociągu na
+odcinku o długości $L$ [km] w jednym kroku symulacji wynosi
+\begin{equation}
+p_{k+1} = \min\left(1,\; p_k + \frac{v \cdot \Delta t_{\mathrm{sym}}}{3600 \cdot L}\right),
+\qquad v = \min\left(v^{\mathrm{odc}}_{\max},\, v^{\mathrm{poc}}_{\max}\right),
+\end{equation}
+gdzie $v$ wyrażono w km/h, a $\Delta t_{\mathrm{sym}}$ to czas symulowany
+przypadający na jeden krok (iloczyn interwału kroku, skali czasu równej 60 oraz
+wybranego przez użytkownika mnożnika tempa od $0{,}5$ do $2$).
+
+Każda skierowana krawędź grafu ma jeden z trzech stanów: \texttt{active} (ruch
+bez ograniczeń), \texttt{restricted} (ograniczenie prędkości do połowy wartości
+maksymalnej, nie mniej niż 20~km/h) oraz \texttt{blocked} (odcinek zamknięty).
+Stany te ustawiają zdarzenia -- losowe lub zgłoszone ręcznie. Pociąg nie wjeżdża
+na odcinek zamknięty, a jeśli zamknięcie nastąpi w trakcie przejazdu, zostaje
+zatrzymany. Mechanizm ten w uproszczeniu odpowiada zamknięciom torowym stosowanym
+w eksploatacji kolei. Model nie obejmuje natomiast blokady zajętości odstępów,
+która w urządzeniach sterowania ruchem kolejowym (SRK) gwarantuje, że w jednym
+odstępie znajduje się tylko jeden pociąg~\cite{srk}; jej implementację
+przewidziano jako kierunek dalszego rozwoju.
+
+\subsubsection{Dynamiczny rerouting i algorytmy ścieżkowe}
+
+Statyczne przypisanie tras okazało się niewystarczające w warunkach dynamicznych
+awarii. Zastosowano więc mechanizm automatycznego wyznaczania tras alternatywnych
+oparty na algorytmie A*. Jest to algorytm przeszukiwania heurystycznego, który
+przy dopuszczalnej heurystyce gwarantuje znalezienie ścieżki o minimalnym koszcie,
+rozwijając zwykle mniej wierzchołków niż algorytm Dijkstry~\cite{astar1968}.
+
+Kosztem krawędzi $(u,w)$ jest czas przejazdu odcinka o długości $L_{uw}$
+z prędkością $v=\min(v^{\mathrm{odc}}_{\max}, v^{\mathrm{poc}}_{\max})$,
+powiększony dla pociągów regionalnych o 1~min za każdy postój pośredni
+($k_{\mathrm{post}}$). Heurystyka szacuje czas dojazdu ze stacji $n$ do stacji
+docelowej $t$:
+\begin{equation}
+c(u,w) = \frac{60\,L_{uw}}{v} + k_{\mathrm{post}}, \qquad
+h(n) = \frac{60\, d_{\mathrm{hav}}(n, t)}{v^{\mathrm{poc}}_{\max}},
+\end{equation}
+gdzie $d_{\mathrm{hav}}$ to odległość ortodromiczna obliczona wzorem
+Haversine'a~\cite{haversine}. Odcinki zamknięte są pomijane, a na odcinkach
+z ograniczeniem prędkości przyjmowana jest prędkość obniżona.
+
+Heurystyka $h(n)$ jest dopuszczalna, ponieważ długość odcinka mierzona wzdłuż
+toru nie jest mniejsza od odległości ortodromicznej jego końców, a pociąg nie
+może jechać szybciej niż $v^{\mathrm{poc}}_{\max}$. Pierwszy warunek
+zweryfikowano dla wszystkich 71 odcinków sieci -- najmniejszy iloraz długości
+torowej do ortodromicznej wynosi $1{,}001$. Z nierówności trójkąta dla odległości
+ortodromicznej wynika ponadto spójność (monotoniczność) heurystyki.
+
+\subsubsection{Zgłaszanie incydentów i analiza ,,what-if''}
+
+Aby aplikacja miała charakter narzędzia badawczego, oprócz zdarzeń losowych,
+generowanych automatycznie zgodnie z procesem Poissona, wprowadzono możliwość
+ręcznego zgłaszania incydentów (awaria sieci trakcyjnej, wykolejenie,
+ograniczenie prędkości, awaria sterowania ruchem) dla wskazanego odcinka,
+stacji lub pociągu. Funkcja jest dostępna dla użytkowników z uprawnieniem
+\texttt{simulation.control} -- domyślnie dla ról ,,użytkownik'' i
+,,administrator'' -- natomiast gość ma wyłącznie podgląd symulacji. Pozwala to
+na prowadzenie testów scenariuszowych (ang. \emph{what-if}), co jest standardową
+praktyką w projektowaniu systemów krytycznych, pozwalającą na identyfikację tak
+zwanych wąskich gardeł infrastruktury jeszcze przed ich wystąpieniem
+w rzeczywistości~\cite{sommerville2016}.
+
+\section{Instrukcja obsługi programu}
+
+bla bla jadi jadi jada
+% Pierwsze co widzi użyktownik
+\subsection{Strona prezentacyjna} 
+% Faktyczny panel symulacji
+\subsection{Panel symulacyjno-projektowa}
+% Panel do zarządzania użykownikami oraz rolami
+\subsection{Panel administracyjna}
+
+\section{Opis architektury programu}
+W niniejszym rozdziale opisano architekturę aplikacji oraz zastosowane wzorce
+projektowe. Architektura systemu opiera się na trzech głównych warstwach:
+\begin{itemize}
+    \item Warstwa prezentacyjna (ang. \emph{frontend}) -- interfejs użytkownika
+    wraz ze wszystkimi elementami interaktywnymi aplikacji. Za jego
+    pośrednictwem użytkownik wykonuje operacje przewidziane w funkcjonalności
+    programu.
+    \item Warstwa komunikacyjno-zarządzająca (ang. \emph{backend}) -- warstwa
+    działająca po stronie serwera, niewidoczna dla użytkownika końcowego.
+    Odpowiada za logikę aplikacji, komunikację z pozostałymi warstwami,
+    obliczenia oraz uwierzytelnianie i autoryzację.
+    \item Warstwa bazodanowa -- służy do trwałego przechowywania danych
+    aplikacji, m.in. kont użytkowników i ról, struktury sieci kolejowej (stacji
+    i odcinków), stanu pociągów, zdarzeń oraz scenariuszy rozkładów.
+\end{itemize}
+Fundamentem tych warstw jest środowisko kontenerowe, które zapewnia ich izolację
+i komunikację sieciową oraz znacząco ułatwia pracę zespołową. W kolejnych
+podrozdziałach szczegółowo opisano komponenty składające się na całość
+oprogramowania.
+
+% Opisanie dockera i jego sieci-podsieci
+\subsection{Środowisko}
+Powszechnym standardem we współczesnej inżynierii oprogramowania jest dekompozycja aplikacji na niezależne komponenty, uruchamiane w postaci izolowanych kontenerów~\cite{kontener.microsoft}. W niniejszym podrozdziale szczegółowo omówiono architekturę oraz logikę środowiska uruchomieniowego projektu.
+
+\subsubsection{Architektura stosu kontenerowego i segmentacja sieciowa}
+% [X] 1. Usługi: memgraph-db, memgraph-lab, backend, frontend.
+% [X] 2. Dwie sieci wirtualne (frontend-net, backend-net) i rolę backendu (dual-homed).
+% [X] 3. Wewnętrzny DNS Dockera i Service Discovery (komunikacja po nazwach usług).
+% [X] 4. Trwałość danych (Data Persistence) – nazwany wolumen db-data dla bazy grafowej.                   % [X] 5. [RYSUNEK / SCHEMAT ARCHITEKTURY KONTENEROWEJ]   
+
+Architektura została oparta na narzędziu konteneryzacyjnym Docker. Stos usług
+(ang. \emph{Compose stack}) zdefiniowany w pliku \texttt{compose.yaml} obejmuje
+cztery usługi połączone dwiema sieciami wirtualnymi, które izolują od siebie
+poszczególne warstwy. Kontener \texttt{frontend}, działający wyłącznie w sieci
+\texttt{frontend-net}, nie ma bezpośredniego dostępu do bazy danych.
+Pośrednikiem między interfejsem a bazą jest \texttt{backend}, podłączony
+jednocześnie do sieci \texttt{frontend-net} i \texttt{backend-net}. Izolacja ta
+dotyczy komunikacji między kontenerami: w obecnej, deweloperskiej konfiguracji
+porty bazy danych (\texttt{7687}, \texttt{7444}) oraz Memgraph Lab
+(\texttt{3000}) są dodatkowo opublikowane na maszynie hosta, co ułatwia pracę
+programistom. W środowisku produkcyjnym porty te należałoby pozostawić
+niedostępne z zewnątrz. Komunikacja wewnątrz sieci nie wymaga definiowania
+statycznych adresów IP -- środowisko wykorzystuje wbudowany serwer DNS Dockera,
+dzięki czemu usługi odwołują się do siebie po nazwach (np.
+\texttt{backend:8000}). Stos obejmuje następujące usługi:
+\begin{itemize}
+    \item \texttt{memgraph-db} -- baza danych Memgraph uruchamiana z obrazu
+    \texttt{memgraph/memgraph-mage} (Memgraph z biblioteką algorytmów MAGE),
+    działająca w sieci \texttt{backend-net}. Nasłuchuje na portach
+    \texttt{7687} (protokół Bolt) oraz \texttt{7444} (strumień logów dla
+    Memgraph Lab). Nazwę i hasło użytkownika bazy pobiera ze zmiennych
+    zdefiniowanych w pliku \texttt{.env}. Korzysta z nazwanego woluminu
+    \texttt{db-data} zamontowanego w katalogu \texttt{/var/lib/memgraph}, co
+    zapewnia trwałość danych (ang. \emph{data persistence}) i chroni stan grafu
+    przed utratą po usunięciu kontenera.
+    \item \texttt{memgraph-lab} -- graficzne środowisko Memgraph Lab wspierające
+    pracę deweloperską: umożliwia wykonywanie zapytań i prezentuje wyniki,
+    o ile to możliwe, w postaci grafu węzłów i relacji. Jest dostępne przez port
+    \texttt{3000}, działa w sieci \texttt{backend-net} i uruchamiane jest po
+    usłudze \texttt{memgraph-db}, z którą łączy się automatycznie.
+    \item \texttt{backend} -- serwer aplikacji FastAPI podłączony do sieci
+    \texttt{backend-net} i \texttt{frontend-net}, dostępny na porcie
+    \texttt{8000}. Z pliku \texttt{.env} wczytuje dane dostępowe do bazy oraz
+    parametry konta administratora. Uruchamiany jest po usłudze
+    \texttt{memgraph-db}.
+    \item \texttt{frontend} -- aplikacja SvelteKit działająca w sieci
+    \texttt{frontend-net}, dostępna na porcie \texttt{5173} i uruchamiana po
+    usłudze \texttt{backend}. Przeglądarka łączy się z backendem (również przez
+    WebSocket) przez port \texttt{8000} opublikowany na hoście, natomiast
+    renderowanie po stronie serwera (SSR) korzysta z adresu
+    \texttt{backend:8000} wewnątrz sieci Dockera.
+\end{itemize}
+
+Kompletną architekturę stosu kontenerowego wraz z podziałem na sieci i przepływem danych zilustrowano na rysunku~\ref{fig:docker_architektura_full}.
+
+\begin{figure}[p]
+\centering
+\resizebox{0.92\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\sffamily,
+    >=Stealth,
+    % Styl stacji roboczej hosta
+    hostbox/.style={
+        draw=gray!70!black, fill=gray!8, rounded corners=6pt, line width=1.1pt,
+        minimum width=13.5cm, minimum height=1.3cm, align=center
+    },
+    % Styl standardowego kontenera
+    appbox/.style={
+        draw=blue!70!black, fill=white, rounded corners=5pt, line width=1.1pt,
+        minimum width=3.8cm, minimum height=1.7cm, align=center, inner sep=6pt
+    },
+    % Styl backendu (most sieciowy)
+    bridgebox/.style={
+        draw=green!60!black, fill=green!5, rounded corners=6pt, line width=1.3pt,
+        minimum width=5.4cm, minimum height=1.8cm, align=center, inner sep=6pt
+    },
+    % Styl bazy danych
+    dbbox/.style={
+        cylinder, draw=orange!80!black, fill=orange!8, shape border rotate=90, aspect=0.25,
+        minimum width=3.6cm, minimum height=1.8cm, line width=1.2pt, align=center, inner sep=4pt
+    },
+    % Styl wolumenu
+    volbox/.style={
+        cylinder, draw=gray!70!black, fill=gray!15, shape border rotate=90, aspect=0.3,
+        minimum width=2.0cm, minimum height=1.4cm, line width=1pt, align=center, font=\footnotesize
+    },
+    % Etykiety na połączeniach (zabezpieczone białym tłem)
+    edgelbl/.style={
+        font=\scriptsize, fill=white, draw=gray!40, rounded corners=3pt, inner sep=2.5pt, align=center
+    },
+    % Linie połączeń
+    flow/.style={
+        ->, line width=1.1pt, draw=gray!70!black
+    },
+    flowbolt/.style={
+        <->, line width=1.3pt, draw=blue!70!black
+    }
+]
+
+    % -------------------------------------------------------------
+    % 1. RAMKA DOCKERA I SIECI (TŁO)
+    % -------------------------------------------------------------
+    % Główny kontener Docker Compose
+    \draw[fill=gray!2, draw=gray!40, rounded corners=12pt, line width=0.9pt] 
+        (-7.0, -2.0) rectangle (7.0, -15.5);
+    % Tytuł w lewym dolnym rogu (całkowicie wolna przestrzeń!)
+    \node[anchor=south west, font=\footnotesize\bfseries, text=gray!60!black] 
+        at (-6.7, -15.3) {Docker Compose Stack};
+
+    % Sieć: frontend-net (lewa strona)
+    \draw[fill=cyan!4, draw=cyan!70!black, dashed, rounded corners=8pt, line width=1pt] 
+        (-6.6, -2.7) rectangle (-0.3, -9.8);
+    \node[anchor=north west, font=\footnotesize\bfseries, text=cyan!70!black] 
+        at (-6.3, -2.9) {\texttt{frontend-net}};
+
+    % Sieć: backend-net (prawa strona)
+    \draw[fill=purple!4, draw=purple!70!black, dashed, rounded corners=8pt, line width=1pt] 
+        (0.3, -2.7) rectangle (6.6, -15.0);
+    \node[anchor=north east, font=\footnotesize\bfseries, text=purple!70!black] 
+        at (6.3, -2.9) {\texttt{backend-net}};
+
+    % -------------------------------------------------------------
+    % 2. BLOK HOSTA (U GÓRY)
+    % -------------------------------------------------------------
+    \node[hostbox] (host) at (0, 0) {
+        \textbf{\large Stacja robocza hosta / Przeglądarka internetowa} \\[1mm]
+        \footnotesize Połączenia z zewnątrz kierowane do opublikowanych portów maszyny (\texttt{localhost})
+    };
+
+    % -------------------------------------------------------------
+    % 3. KONTENERY
+    % -------------------------------------------------------------
+    % Frontend (w lewej kolumnie)
+    \node[appbox, draw=cyan!80!black] (fe) at (-3.8, -4.8) {
+        \textbf{\large frontend} \\[1mm]
+        \small SvelteKit / Node.js\\
+        \footnotesize Port: \texttt{5173}
+    };
+
+    % Memgraph Lab (w prawej kolumnie)
+    \node[appbox, draw=purple!80!black] (lab) at (3.8, -4.8) {
+        \textbf{\large memgraph-lab} \\[1mm]
+        \small Panel GUI bazy\\
+        \footnotesize Port: \texttt{3000}
+    };
+
+    % Backend (centralny most na granicy sieci)
+    \node[bridgebox] (be) at (0, -8.2) {
+        \textbf{\large backend (FastAPI)} \\[1mm]
+        \small Brama / Most obu sieci\\
+        \footnotesize Port kontenera: \texttt{8000}
+    };
+
+    % Baza danych Memgraph
+    \node[dbbox] (mg) at (2.0, -12.8) {
+        \textbf{\large memgraph-db} \\[1mm]
+        \small Baza grafowa Memgraph\\
+        \footnotesize Porty: \texttt{7687}, \texttt{7444}
+    };
+
+    % Wolumen (z bezpiecznym odstępem)
+    \node[volbox] (vol) at (5.5, -12.8) {
+        \textbf{db-data} \\[1mm]
+        \scriptsize Wolumen
+    };
+
+    % -------------------------------------------------------------
+    % 4. STRZAŁKI POŁĄCZEŃ (CZYSTE KORYTARZE)
+    % -------------------------------------------------------------
+    % Host -> Frontend (etykieta powyżej przerywanej linii sieci!)
+    \draw[flow] (-3.8, -0.65) -- (fe.north)
+        node[pos=0.32, edgelbl] {HTTP :5173};
+
+    % Host -> Backend (centralny korytarz)
+    \draw[flow] (0, -0.65) -- (be.north)
+        node[pos=0.42, edgelbl] {REST / WebSocket :8000};
+
+    % Host -> Memgraph Lab (etykieta powyżej przerywanej linii sieci!)
+    \draw[flow, dashed] (3.8, -0.65) -- (lab.north)
+        node[pos=0.32, edgelbl] {GUI :3000};
+
+    % Frontend -> Backend (SSR)
+    \draw[flow] (fe.south) |- (-2.7, -8.2)
+        node[pos=0.25, left=2pt, edgelbl] {SSR (:8000)};
+
+    % Backend -> Memgraph DB (Poprowadzona środkiem, etykieta w pustej przestrzeni!)
+    \draw[flowbolt] (be.south) -- ++(0, -1.6) -| ([xshift=-10pt]mg.north)
+        node[pos=0.35, above=2pt, edgelbl] {Bolt Cypher :7687};
+
+    % Memgraph Lab -> Memgraph DB (Wchodzi czysto z prawej strony)
+    \draw[flow] (lab.south) -- ++(0, -5.5) -| ([xshift=10pt]mg.north)
+        node[pos=0.25, right=2pt, edgelbl] {Zapytania GUI};
+
+    % Memgraph DB -> Wolumen trwały
+    \draw[flow, dashed] (mg.east) -- (vol.west)
+        node[midway, above=2pt, font=\scriptsize\bfseries] {Zapis};
+
+\end{tikzpicture}%
+}
+\caption{Architektura środowiska kontenerowego Docker Compose. Schemat prezentuje separację sieciową na poziomie \texttt{frontend-net} oraz \texttt{backend-net}, rolę kontenera \texttt{backend} jako punktu styku oraz rozgraniczenie punktów komunikacji dla przeglądarki i mechanizmu Server-Side Rendering (SSR).}
+\label{fig:docker_architektura_full}
+\end{figure}
+
+\newpage
+
+\subsubsection{Obrazy kontenerowe i pliki Dockerfile}
+% [X] 1. Analiza krok po kroku Dockerfile dla frontendu i backendu.
+% [X] 2. Dobre praktyki: użytkownicy bez uprawnień root (node, appuser).
+% [X] 3. Optymalizacja warstw (layer caching) przy instalacji zależności.
+% [X] 4. Zmienne środowiskowe Pythona (wyłączenie .pyc, unbuffered logs). 
+
+Kontenery \texttt{frontend} i \texttt{backend} uruchamiane są z obrazów
+budowanych na podstawie plików \texttt{Dockerfile}, natomiast usługi
+\texttt{memgraph-db} i \texttt{memgraph-lab} korzystają z gotowych, oficjalnych
+obrazów. Instrukcje pliku \texttt{Dockerfile} wykonywane są sekwencyjnie podczas
+budowania obrazu, a każda z nich tworzy kolejną warstwę. Oba obrazy są obecnie
+skonfigurowane do pracy deweloperskiej (serwer Vite oraz Uvicorn z opcją
+\texttt{--reload}), z zachowaniem zasad bezpieczeństwa (brak uprawnień konta
+\texttt{root}) oraz optymalizacji pamięci podręcznej warstw
+(ang. \emph{layer caching}):
+
+\begin{itemize}
+    \item frontend -- obraz składa się kolejno z:
+    \begin{itemize}
+        \item zdefiniowania obrazu bazowego \texttt{node:lts-slim},
+        \item ustawienia katalogu roboczego \texttt{/app} i przekazania go na
+          własność wbudowanemu użytkownikowi \texttt{node},
+        \item skopiowania plików manifestu zależności (\texttt{package.json},
+          \texttt{package-lock.json}) z nadaniem ich własności użytkownikowi
+          \texttt{node} (\texttt{COPY --chown=node:node}),
+        \item przełączenia na użytkownika \texttt{node}, dzięki czemu kolejne
+          kroki i sama aplikacja nie działają z uprawnieniami konta \texttt{root},
+        \item zainstalowania zależności menedżerem pakietów npm (oddzielenie
+          tego kroku od kopiowania kodu źródłowego pozwala wykorzystać pamięć
+          podręczną warstw -- zależności są instalowane ponownie tylko po zmianie
+          plików manifestu),
+        \item skopiowania kodu źródłowego, również z własnością użytkownika
+          \texttt{node},
+        \item ustawienia zmiennej \texttt{PORT} i udokumentowania portu
+          \texttt{5173} (\texttt{EXPOSE}),
+        \item zdefiniowania polecenia startowego uruchamiającego serwer
+          deweloperski Vite (\texttt{npm run dev}) nasłuchujący na wszystkich
+          interfejsach sieciowych.
+    \end{itemize}
+    \item backend -- obraz składa się kolejno z:
+    \begin{itemize}
+        \item zdefiniowania obrazu bazowego \texttt{python:3.12-slim},
+        \item ustawienia zmiennych środowiskowych:
+          \texttt{PYTHONDONTWRITEBYTECODE} (wyłączenie generowania plików
+          \texttt{.pyc}), \texttt{PYTHONUNBUFFERED} (wypisywanie logów bez
+          buforowania), \texttt{PIP\_NO\_CACHE\_DIR} (brak pamięci podręcznej
+          menedżera pip, a więc mniejszy obraz) oraz
+          \texttt{WATCHFILES\_FORCE\_POLLING} (wykrywanie zmian plików przez
+          cykliczne odpytywanie, zapewniające niezawodne działanie opcji
+          \texttt{--reload} w kontenerze),
+        \item ustawienia katalogu roboczego \texttt{/app},
+        \item utworzenia użytkownika \texttt{appuser},
+        \item skopiowania pliku \texttt{requirements.txt} i zainstalowania
+          zależności -- przed skopiowaniem kodu źródłowego, aby warstwa
+          z zależnościami była ponownie wykorzystywana, dopóki plik wymagań się
+          nie zmieni,
+        \item skopiowania kodu źródłowego z nadaniem własności użytkownikowi
+          \texttt{appuser} (\texttt{COPY --chown}),
+        \item przełączenia na użytkownika \texttt{appuser} (zgodnie z zasadą
+          najmniejszych uprawnień),
+        \item udokumentowania portu \texttt{8000} (\texttt{EXPOSE}),
+        \item zdefiniowania polecenia startowego uruchamiającego serwer Uvicorn
+          z opcją \texttt{--reload}.
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Mechanizmy integracji i konfiguracja środowiska deweloperskiego}
+
+% [X] 1. Problem dwóch kontekstów sieciowych (SSR vs WebSocket):
+%    - API_INTERNAL_URL (http://backend:8000 wewnątrz sieci Dockera)                                       %    - PUBLIC_API_BASE_URL (http://localhost:8000 dla przeglądarki)                                        % [X] 2. Automatyzacja pracy z Docker Compose Watch (develop.watch):
+%    - synchronizacja plików w locie,                                                                      %    - automatyczny rebuild po zmianie package.json.                                                       % [X] 3. Kolejność uruchamiania i synchronizacja startu:
+%    - ograniczenia dyrektywy depends_on (kontener wystartował != baza przyjmuje zapytania),               %    - mechanizm retry w backendzie przed seedowaniem grafu.
+
+Oparcie architektury na kontenerach wymagało dostosowania konfiguracji
+środowiska deweloperskiego oraz warstw serwerowej i interfejsowej. Konfiguracja
+Docker Compose obejmuje mechanizmy zapewniające spójność komunikacji sieciowej,
+automatyzację procesu wytwarzania oprogramowania oraz określoną kolejność
+inicjalizacji usług.
+
+\paragraph{Kontekst sieciowy}
+Kluczowym wyzwaniem architektonicznym aplikacji frontendowej opartej na frameworku SvelteKit było złączenie w funkcjonalny sposób procesów wykonywanych po stronie serwera aplikacji oraz elementów renderujących po stronie przeglądarki klienta. Sytuacja ta generuje problem podwójnego kontekstu sieciowego:
+
+\begin{itemize}                                                                                            \item \textbf{Kontekst wewnętrzny kontenera (SSR):} Podczas wykonywania funkcji ładujących na serwerze, proces Node.js działa wewnątrz izolowanej sieci mostkowej Dockera (\texttt{frontend-net}). W tym środowisku zapytania HTTP do backendu muszą być kierowane na adres wykorzystujący wewnętrzny resolver DNS Dockera, tj. \texttt{http://backend:8000}. Odwołanie się z wnętrza kontenera do adresu \texttt{localhost:8000} skutkowałoby błędem połączenia, gdyż adres pętli zwrotnej (ang. \emph{loopback}) odnosiłby się do samego kontenera frontendu, na którym usługa FastAPI nie nasłuchuje.\item \textbf{Kontekst zewnętrzny przeglądarki (CSR i WebSocket):} Kod wykonywany bezpośrednio w przeglądarce użytkownika (np. nawiązywanie stałego połączenia WebSocket dla podglądu symulacji pociągów w czasie rzeczywistym lub rezerwowe odpytywanie REST) działa na maszynie gospodarza. Przeglądarka nie posiada dostępu do wewnętrznej przestrzeni adresowej Dockera i nie rozpoznaje nazwy hosta \texttt{backend}. Wszelkie połączenia klienckie muszą być zatem kierowane na port wyeksponowany na maszynie gospodarza, czyli \texttt{http://localhost:8000} (lub odpowiednio \texttt{ws://localhost:8000/ws/live}). 
+\end{itemize} Problem ten rozwiązano poprzez rozdzielenie konfiguracji na dwie zmienne środowiskowe: \texttt{API\_INTERNAL\_URL} (wykorzystywaną po stronie SSR i zabezpieczoną przed wyciekiem do klienta za pośrednictwem modułu \texttt{\$env/dynamic/private}) oraz \texttt{PUBLIC\_API\_BASE\_URL} (przekazywaną do klienta przez \texttt{\$env/dynamic/public}). Dzięki temu kod frontendu nigdy nie komunikuje się z bazą grafową bezpośrednio -- wszystkie zapytania przechodzą przez backend.  
+
+\paragraph{Automatyzacja cyklu rozwoju oprogramowania za pomocą Docker Compose Watch} W projekcie wykorzystano mechanizm \texttt{develop.watch} wprowadzony w Docker Compose. Zastosowano dwutorową strategię synchronizacji:  
+
+\begin{enumerate} 
+    \item \textbf{Synchronizacja zmian w locie (\texttt{action: sync}):} Wszelkie modyfikacje kodu źródłowego w katalogach \texttt{./frontend} oraz \texttt{./backend} są natychmiast replikowane do ścieżki roboczej kontenera (\texttt{/app}). Z procesu synchronizacji wykluczono pliki generowane i specyficzne dla platformy (\texttt{node\_modules/}, \texttt{.svelte-kit/}, \texttt{.venv/}, \texttt{\_\_pycache\_\_}). Dzięki integracji z mechanizmem \textit{Hot Module Replacement} w serwerze Vite oraz flagą \texttt{--reload} w serwerze Uvicorn, zmiany w interfejsie i logice biznesowej są widoczne w czasie rzeczywistym bez konieczności restartu kontenerów. 
+    \item \textbf{Automatyczna przebudowa obrazu (\texttt{action: rebuild}):}
+    W przypadku modyfikacji pliku definiującego zależności frontendu
+    (\texttt{package.json}) prosta synchronizacja plików jest niewystarczająca.
+    Dyrektywa \texttt{rebuild} automatycznie inicjuje ponowne zbudowanie obrazu
+    kontenera i zaktualizowanie środowiska uruchomieniowego po zapisaniu pliku,
+    co eliminuje konieczność ręcznego wywoływania poleceń budowania przez
+    programistę. W przypadku backendu reguła ta nie została skonfigurowana,
+    dlatego zmiana pliku \texttt{requirements.txt} wymaga ręcznego przebudowania
+    obrazu poleceniem \texttt{docker compose up --build backend}.                    
+\end{enumerate}                       
+
+\paragraph{Kolejność uruchamiania usług i synchronizacja startu}
+Problemem było zapewnienie niezawodnej sekwencji uruchamiania powiązanych usług. W środowiskach kontenerowych typowym błędem jest zakładanie, że dyrektywa \texttt{depends\_on} gwarantuje gotowość usług zależnych. Standardowa dyrektywa \texttt{depends\_on} informuje jedynie demona Dockera o konieczności zainicjowania procesu kontenera bazy danych przed kontenerem backendu. Nie jest to równoważne z gotowością samej aplikacji do obsługi zapytań. Silnik bazy Memgraph po uruchomieniu kontenera wymaga od kilku do kilkunastu sekund na załadowanie modułów analitycznych MAGE, alokację struktur w pamięci RAM i otwarcie portu protokołu Bolt (\texttt{7687}). Próba natychmiastowego wykonania zapytań przez backend prowadziła do błędu \texttt{ServiceUnavailable} i awaryjnego zatrzymania kontenera. Problem wyeliminowano poprzez implementację mechanizmu aktywnego ponawiania prób w cyklu życia aplikacji FastAPI:
+
+\begin{itemize}
+    \item Funkcja \texttt{connect\_with\_retry} w pętli tworzy połączenie
+    i sprawdza jego dostępność; w razie wyjątku \texttt{ServiceUnavailable}
+    ponawia próbę co 2~s, aż baza będzie gotowa.
+    \item Po nawiązaniu połączenia moduł startowy sprawdza liczbę węzłów
+    \texttt{:Station}. Jeżeli baza jest pusta, uruchamiany jest skrypt
+    zasilający (\emph{seed}), który tworzy sieć kolejową oraz flotę pociągów;
+    w przeciwnym razie krok ten jest pomijany, co zapobiega nadpisaniu danych
+    przy kolejnych restartach.
+    \item Następnie przy każdym starcie zakładane są brakujące elementy:
+    startowe scenariusze rozkładów, ograniczenia unikalności (adresy e-mail,
+    nazwy ról), role systemowe oraz konto administratora -- wyłącznie wtedy,
+    gdy jeszcze nie istnieją.
+\end{itemize}
+Dzięki temu środowisko startuje w sposób w pełni autonomiczny, odporny na asynchroniczne opóźnienia rozruchu poszczególnych komponentów.   
+
+\subsection{Warstwa prezentacyjna}
+% Backend oraz to jak cały projekt komunikuję się z sobą
+\subsection{Warstwa komunikacyjno-zarządzająca}
+Warstwa komunikacyjno-zarządzająca (ang. \emph{backend}) stanowi najważniejsze
+ogniwo całej symulacji -- zachodzą w niej procesy decyzyjne i działa w niej
+silnik symulacji. Typowe rozwiązania backendowe opierają się głównie na
+operacjach CRUD, natomiast opisywany komponent łączy cechy bezstanowego
+interfejsu API, asynchronicznego serwera rozgłaszającego stan symulacji oraz
+autonomicznego silnika symulacji. Do zadań tej warstwy należą:
+\begin{itemize}
+    \item koordynacja w czasie rzeczywistym ruchu floty pociągów na podstawie rzeczywistych parametrów infrastruktury kolejowej węzła śląskiego,
+    \item wyznaczanie optymalnych czasowo tras przejazdu oraz automatyczne planowanie objazdów w warunkach dynamicznie zmieniającego się stanu sieci (algorytm $A^*$),
+    \item modelowanie losowych incydentów infrastrukturalnych i taborowych z wykorzystaniem jednorodnego procesu Poissona,
+    \item dwutorowa wymiana danych z klientami: transakcyjna komunikacja sterująca poprzez protokół REST (HTTP) oraz rozgłaszanie stanu symulacji przez strumień WebSocket,
+    \item uwierzytelnianie i autoryzacja użytkowników w oparciu o model kontroli
+    dostępu opartej na rolach (\emph{Role-Based Access Control}, RBAC), w którym
+    użytkownicy (\texttt{:User}) oraz role wraz z listami uprawnień
+    (\texttt{:Role}) przechowywane są jako węzły bazy grafowej.
+\end{itemize}
+
+Czytelność oraz łatwość dodawania nowych rozwiązań były nadrzędnymi celami
+podczas budowania architektury backendu. Układ katalogów i plików
+implementacyjnych przedstawiono na rysunku~\ref{fig:backend_tree}.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}{\textwidth}
+\setlength{\parindent}{0pt}
+\singlespacing
+\footnotesize
+\DTsetlength{0.2em}{1.2em}{0.2em}{0.4pt}{1.6pt}
+\setlength{\DTbaselineskip}{11pt}
+\dirtree{%
+.1 backend/.
+.2 Dockerfile\DTcomment{budowanie obrazu Python 3.12-slim}.
+.2 requirements.txt\DTcomment{zależności Pythona (FastAPI, neo4j, uvicorn\ldots)}.
+.2 pytest.ini\DTcomment{konfiguracja środowiska testowego}.
+.2 README.md\DTcomment{podstawowa dokumentacja backendu}.
+.2 app/.
+.3 main.py\DTcomment{punkt wejścia FastAPI, CORS, routery}.
+.3 core/\DTcomment{moduły jądra systemu}.
+.4 config.py\DTcomment{parametry symulacji, wagi awarii}.
+.4 lifespan.py\DTcomment{cykl życia: start/stop bazy i symulacji}.
+.4 ws\_manager.py\DTcomment{pula połączeń WebSocket i rozgłaszanie}.
+.4 haversine.py\DTcomment{wzór Haversine'a, dopuszczalna heurystyka A*}.
+.3 api/\DTcomment{warstwa transportowa HTTP i WebSocket}.
+.4 dependencies.py\DTcomment{wstrzykiwanie zależności, RBAC}.
+.4 routes/\DTcomment{definicje końcówek API (cienkie kontrolery)}.
+.5 admin.py\DTcomment{zarządzanie użytkownikami i rolami}.
+.5 auth.py\DTcomment{logowanie, rejestracja, sesja gościa, profil /me}.
+.5 events.py\DTcomment{pobieranie zdarzeń, ręczne zgłaszanie incydentów}.
+.5 health.py\DTcomment{prosty healthcheck (/api/hello)}.
+.5 live.py\DTcomment{główny kanał WebSocket (/ws/live)}.
+.5 network.py\DTcomment{graf sieci kolejowej: stacje i odcinki}.
+.5 routing.py\DTcomment{wyznaczanie najszybszej trasy A*}.
+.5 scenarios.py\DTcomment{CRUD scenariuszy i uruchamianie rozkładów}.
+.5 simulation.py\DTcomment{tempo, pauza, reset floty}.
+.5 trains.py\DTcomment{migawka stanu pociągów (rezerwowy REST)}.
+.3 schemas/\DTcomment{kontrakty danych i walidacja Pydantic v2}.
+.4 auth.py\DTcomment{DTO autoryzacji, użytkowników i ról}.
+.4 event.py\DTcomment{DTO zdarzeń losowych i incydentów}.
+.4 network.py\DTcomment{DTO stacji, odcinków i kierunków}.
+.4 routing.py\DTcomment{DTO wyników wyznaczania trasy}.
+.4 scenario.py\DTcomment{DTO planu pociągu i scenariuszy rozkładu}.
+.4 simulation.py\DTcomment{DTO nastaw tempa symulacji}.
+.4 train.py\DTcomment{DTO pociągów i migawki floty}.
+.3 services/\DTcomment{logika biznesowa i algorytmy}.
+.4 auth\_service.py\DTcomment{haszowanie PBKDF2, tokeny HMAC, RBAC}.
+.4 event\_service.py\DTcomment{awarie (proces Poissona)}.
+.4 network\_service.py\DTcomment{odczyt grafu, agregacja odcinków}.
+.4 routing\_service.py\DTcomment{A*: stan odcinków, typ pociągu}.
+.4 scenario\_service.py\DTcomment{rozkłady, falowe wjazdy, pauza}.
+.4 simulation\_engine.py\DTcomment{asynchroniczna pętla symulacji}.
+.4 train\_service.py\DTcomment{ruch, postoje, wykolejenia, rerouting}.
+.2 db/\DTcomment{inicjalizacja i dane początkowe}.
+.3 seed.py\DTcomment{skrypt zasilający bazę węzłami i relacjami}.
+.3 README.md\DTcomment{dokumentacja struktury bazy grafowej}.
+.2 tests/\DTcomment{testy automatyczne pytest (9 modułów)}.
+}
+\end{minipage}
+\caption{Struktura katalogów warstwy backendu}
+\label{fig:backend_tree}
+\end{figure}
+
+\subsubsection{Architektura logiczna, wzorce projektowe i organizacja kodu}
+Warstwa backendu została zrealizowana w oparciu o architekturę warstwową
+(ang. \emph{Layered Architecture}), zgodnie z zasadą separacji odpowiedzialności
+(ang. \emph{Separation of Concerns}). Kod podzielono tak, aby nie powstawały
+zależności cykliczne, a testy jednostkowe były łatwe do przeprowadzenia.
+
+    \paragraph{Separacja odpowiedzialności (Separation of Concerns)}
+    Moduły zlokalizowane w \texttt{app/api/routes} pełnią rolę cienkich
+    kontrolerów. Ich zadaniem jest przyjmowanie żądań HTTP lub ramek WebSocket,
+    walidacja parametrów wejściowych, wywołanie odpowiedniej metody z warstwy
+    logiki biznesowej (\texttt{app/services/}) oraz zwrócenie odpowiedzi
+    z właściwym kodem statusu. W kontrolerach nie implementuje się zapytań do
+    bazy danych ani algorytmów -- cała logika obliczeniowa i zarządzająca
+    znajduje się w warstwie serwisowej.
+    \paragraph{Wzorzec wstrzykiwania zależności (Dependency Injection)}
+    \paragraph{Kontrakty danych i deterministyczna walidacja (Pydantic v2)}
+\subsubsection{Dwutorowy interfejs komunikacyjny (REST API oraz WebSockets)}
+    \paragraph{Sterująco-transakcyjne API REST}
+    \paragraph{Kanał telemetryczny WebSocket i zarządca połączeń}
+    \paragraph{Separacja kontekstów i zabezpieczenie nagłówka Origin}
+\subsubsection{Autonomiczny silnik symulacji i model współbieżności}
+    \paragraph{Cykl życia aplikacji i asynchroniczna pętla symulacji}
+    \paragraph{Izolacja wątkowa (asyncio.to\_thread) i synchronizacja stanowa}
+    \paragraph{Chronologia pojedynczego kroku symulacji (Tick Lifecycle)}
+    \paragraph{Model ruchu pociągów, skala czasu i obsługa pauzy}
+\subsubsection{Algorytm wyznaczania tras (A*) i dynamiczny rerouting}
+    \paragraph{Model grafu i funkcja kosztu rzeczywistego}
+    \paragraph{Dopuszczalna heurystyka ortodromiczna (wzór Haversine'a)}
+    \paragraph{Świadomość kierunkowa oraz filtracja stanowa krawędzi}
+    \paragraph{Dynamiczne przeliczanie tras alternatywnych (rerouting w locie)}
+\subsubsection{Stochastyczny model zakłóceń i obsługa sytuacji kryzysowych}
+    \paragraph{Generowanie zdarzeń losowych w oparciu o proces Poissona}
+    \paragraph{Typologia incydentów i mechanika propagacji skutków}
+    \paragraph{Deterministyczna rezolucja awarii i manualna ingerencja dyspozytorska}
+\subsubsection{Bezpieczeństwo, kontrola dostępu i model RBAC}
+    \paragraph{Kryptograficzna ochrona danych uwierzytelniających (PBKDF2)}
+    \paragraph{Bezstanowe tokeny sesyjne z podpisem HMAC-SHA256}
+    \paragraph{Model RBAC i reguły ochrony przed samoblokadą}
+\subsubsection{Strategia testowania i weryfikacja poprawności systemu}
+    \paragraph{Organizacja zestawu testowego (pytest)}
+    \paragraph{Weryfikacja kluczowych scenariuszy brzegowych i algorytmicznych}
+
+% Opisanie architektury bazy danych
+% Źródła czemu ten rodzaj bazy lepszy, czemu ją wybraliśmy, jak powstała baza, źródła skąd powstawała, 
+\subsection{Warstwa bazodanowa}
+\section{Stos technologiczny}
+W niniejszym rozdziale szczegółowo opisano narzędzia oraz technologie wybrane do
+realizacji projektu interaktywnego symulatora ruchu kolejowego. Dobór stosu
+technologicznego był podyktowany potrzebą zapewnienia wysokiej wydajności obliczeniowej
+systemu, szczególnie w zakresie przetwarzania danych grafowych, oraz koniecznością
+stworzenia responsywnego i intuicyjnego interfejsu użytkownika. Architektura systemu
+została podzielona na niezależne warstwy: kliencką, serwerową oraz bazodanową, co
+pozwala na zachowanie czystości kodu i łatwą rozbudowę poszczególnych modułów
+w przyszłości.
+
+\subsection{Warstwa kliencka}
+
+Warstwa kliencka (ang. \emph{frontend}) odpowiada za wizualizację siatki połączeń
+kolejowych na schematycznej mapie odwzorowującej położenie stacji oraz prezentację stanów pociągów w czasie
+rzeczywistym. Kluczowym wyzwaniem w tej warstwie było zapewnienie płynności animacji
+przy dużej liczbie przemieszczających się obiektów, przy jednoczesnym utrzymaniu
+niskiego zapotrzebowania na zasoby sprzętowe użytkownika.
+
+\subsubsection{Svelte i SvelteKit}
+
+Głównym narzędziem wybranym do budowy interfejsu użytkownika jest kompilator Svelte.
+W odróżnieniu od tradycyjnych bibliotek, Svelte przenosi większość pracy na etap
+budowania aplikacji, generując wysoce zoptymalizowany kod w czystym języku
+JavaScript~\cite{svelte}. Pozwala to na uniknięcie narzutu obliczeniowego związanego
+z ciągłym przeliczaniem wirtualnego modelu obiektu dokumentu (ang. \emph{Virtual
+Document Object Model -- VDOM}). W przypadku symulatora, w którym pozycje wielu
+pociągów muszą być stale aktualizowane z ułamkową precyzją, brak tego narzutu
+drastycznie poprawia płynność działania aplikacji. Jako nadrzędny szkielet
+aplikacyjny (ang. \emph{framework}) zastosowano SvelteKit, co ułatwiło zarządzanie
+architekturą projektu oraz trasowaniem (ang. \emph{routing}).
+
+\subsubsection{Wizualizacja sieci w formacie SVG}
+
+Do wizualizacji sieci kolejowej wykorzystano skalowalną grafikę wektorową
+(ang. \emph{Scalable Vector Graphics} -- SVG)~\cite{svg}, renderowaną
+bezpośrednio przez komponent Svelte (\texttt{NetworkGraph.svelte}), bez
+zewnętrznych bibliotek mapowych. Położenie stacji wyznaczane jest przez liniowe
+przeskalowanie współrzędnych geograficznych do wymiarów obszaru rysowania, co
+zachowuje wzajemny układ stacji. Pozycja pociągu jest interpolowana liniowo
+między stacjami na podstawie wskaźnika postępu przesyłanego z serwera.
+Przesuwanie i przybliżanie widoku zrealizowano samodzielnie z użyciem zdarzeń
+wskaźnika (ang. \emph{pointer events}) i transformacji współrzędnych SVG.
+
+Rezygnacja z mapy podkładowej była świadomą decyzją: schematyczny widok jest
+czytelniejszy przy dużej liczbie znaczników, nie wymaga pobierania kafelków
+z zewnętrznych serwerów i działa bez dostępu do internetu, co jest spójne
+z założeniem autonomicznej piaskownicy. Każdy element sieci (stacja, odcinek,
+pociąg) jest elementem drzewa DOM, dzięki czemu wybór i podświetlanie elementów
+nie wymagają dodatkowej warstwy logiki.
+
+\subsubsection{TypeScript}
+
+Całość logiki po stronie klienta została napisana w języku TypeScript, który wprowadza
+do JavaScriptu silne typowanie statyczne~\cite{typescript}. Ścisła integracja
+TypeScriptu ze środowiskiem Svelte pozwala na rygorystyczne definiowanie struktur
+danych przesyłanych z serwera (np. węzłów grafu, parametrów fizycznych składów).
+Wczesne wykrywanie błędów na etapie kompilacji znacząco zwiększa stabilność kodu
+i ułatwia zarządzanie rosnącą złożonością systemu informatycznego.
+
+\subsubsection{Style interfejsu i Tailwind CSS}
+
+Wygląd interfejsu zdefiniowano głównie w stylach lokalnych komponentów Svelte
+(bloki \texttt{<style>}), których zasięg jest automatycznie ograniczany do
+danego komponentu, dzięki czemu reguły jednego panelu nie wpływają na pozostałe.
+W projekcie skonfigurowano również bibliotekę Tailwind CSS~\cite{tailwind},
+opartą na klasach użytkowych (ang. \emph{utility-first}), wykorzystywaną do
+stylów globalnych oraz pojedynczych elementów.
+
+\subsubsection{Licencje}
+
+Większość wykorzystanych technologii jest udostępniana na licencjach o otwartym
+kodzie źródłowym (ang. \emph{open-source}), w tym na permisywnych licencjach MIT
+(Svelte, SvelteKit, Tailwind CSS, FastAPI) oraz Apache~2.0 (TypeScript,
+sterownik \texttt{neo4j}). Wyjątki stanowią biblioteka animacji GSAP,
+udostępniana bezpłatnie na własnej licencji producenta~\cite{gsaplicense}, oraz
+baza Memgraph w wersji Community, objęta licencją Business Source
+License~1.1~\cite{memgraphlicense}, która pozwala na bezpłatne użycie,
+z ograniczeniami dotyczącymi komercyjnego udostępniania bazy jako usługi.
+Umożliwia to legalne wykorzystanie całego stosu w projekcie akademickim.
+
+\subsection{Warstwa serwerowa}
+
+Warstwa serwerowa (ang. \emph{backend}) stanowi główne centrum obliczeniowe i decyzyjne
+symulatora, realizujące zaawansowaną logikę biznesową, w tym wyznaczanie tras oraz
+symulację ruchu pociągów. Warstwa ta musi jednocześnie wykonywać cykliczne kroki symulacji, obsługiwać
+żądania użytkowników i rozsyłać stan symulacji do wszystkich podłączonych
+przeglądarek. Z tego względu oparto ją na modelu asynchronicznym,
+zoptymalizowanym pod kątem operacji wejścia-wyjścia.
+
+\subsubsection{Python i FastAPI}
+
+Jako główny język programowania po stronie serwera wybrano Pythona, co było podyktowane
+jego wszechstronnością oraz pozycją rynkowego standardu w środowiskach inżynierskich.
+Czytelna składnia i bogata biblioteka standardowa (m.in. moduły \texttt{heapq},
+\texttt{math} i \texttt{asyncio}) pozwoliły zaimplementować algorytm A* oraz
+silnik symulacji samodzielnie, bez zewnętrznych bibliotek grafowych, co daje
+pełną kontrolę nad funkcją kosztu i heurystyką. W roli nadrzędnego szkieletu programistycznego (ang. \emph{framework})
+wykorzystano FastAPI, czyli nowoczesny, wydajny framework oparty na standardzie ASGI. Narzędzie to natywnie obsługuje asynchroniczność oraz
+automatycznie generuje interaktywną dokumentację interfejsu programowania aplikacji
+(ang. \emph{Application Programming Interface -- API}) w standardzie OpenAPI, co znacząco
+usprawniło testowanie komunikacji pomiędzy serwerem a aplikacją kliencką~\cite{fastapi}.
+
+\subsubsection{Warstwa przetwarzania asynchronicznego}
+
+Pozycje pociągów muszą być aktualizowane w stałych odstępach czasu, a serwer
+musi przy tym pozostać responsywny. System wykorzystuje wbudowaną w język Python
+pętlę zdarzeń (ang. \emph{event loop})~\cite{pythonasyncio}, w której działa
+zadanie symulacji uruchamiane co sekundę. Ponieważ sterownik bazy danych działa
+synchronicznie, obliczenia pojedynczego kroku przenoszone są do osobnego wątku
+(\texttt{asyncio.to\_thread}), dzięki czemu nie blokują pętli zdarzeń.
+Aplikacja może zatem jednocześnie obsługiwać żądania użytkowników (np.
+zgłoszenie awarii) i bez przerw przesyłać zaktualizowane pozycje pociągów do
+interfejsu.
+
+\subsection{Warstwa bazodanowa}
+
+Warstwa trwałości danych odpowiada za przechowywanie oraz błyskawiczne udostępnianie
+kluczowych informacji o strukturze sieci kolejowej. Z uwagi na fakt, że mapa połączeń
+transportowych jest w swojej ostatecznej formie złożonym grafem, tradycyjne relacyjne
+bazy danych są mniej odpowiednie ze względu na wysoki koszt obliczeniowy zapytań
+o wielokrotnie zagnieżdżone relacje~\cite{graphdatabases}.
+
+\subsubsection{Memgraph}
+
+Fundamentem systemu zarządzania danymi w projekcie jest grafowa baza danych
+Memgraph~\cite{memgraph}. Przechowuje ona informacje w postaci wierzchołków
+reprezentujących stacje kolejowe oraz krawędzi odzwierciedlających łączące je szlaki,
+co stanowi bardzo naturalne i intuicyjne odwzorowanie fizycznej infrastruktury torowej.
+Kluczową przewagą bazy Memgraph jest jej architektura oparta na przetwarzaniu danych
+w całości w pamięci operacyjnej komputera (ang. \emph{in-memory}). Cała sieć (57 stacji i 142 skierowane relacje \texttt{TRACK}) jest odczytywana
+z bazy przy każdym wyznaczaniu trasy, a samo przeszukiwanie algorytmem A*
+odbywa się w warstwie aplikacji. Memgraph obsługuje język zapytań
+openCypher~\cite{cypher}, w którym warunki takie jak pominięcie zamkniętych
+odcinków wyraża się bezpośrednio w zapytaniu, np.
+\texttt{WHERE r.status IN ['active', 'restricted']}.
+
+\subsection{Konteneryzacja}
+
+W celu zapewnienia wysokiej powtarzalności środowiska uruchomieniowego oraz ułatwienia
+procesu wdrożenia (ang. \emph{deployment}) aplikacji na różnych infrastrukturach
+serwerowych, w projekcie zdecydowano się na zastosowanie technologii konteneryzacji.
+Podejście to pozwala na hermetyczne odizolowanie poszczególnych warstw systemu --
+klienckiej, serwerowej oraz bazodanowej -- od bezpośredniej konfiguracji systemu
+operacyjnego maszyny hosta~\cite{docker}. Dzięki takiemu rozwiązaniu wyeliminowano
+powszechny w inżynierii oprogramowania problem niezgodności wersji bibliotek systemowych
+oraz ułatwiono skalowanie całego rozwiązania. Konteneryzacja sprzyja również utrzymaniu
+czystości w środowisku deweloperskim, gdyż wszystkie niezbędne zależności są instalowane
+wyłącznie wewnątrz odizolowanych jednostek, co gwarantuje spójność działania aplikacji
+niezależnie od platformy, na której zostanie uruchomiona.
+
+\subsubsection{Docker}
+
+Podstawowym narzędziem wykorzystanym do wirtualizacji na poziomie systemu operacyjnego
+jest Docker. Pozwala on na zamknięcie każdej części aplikacji w niezależnym, lekkim
+środowisku uruchomieniowym zwanym kontenerem (ang. \emph{container}). W kontekście symulatora kolejowego przygotowano własne obrazy
+(ang. \emph{images}) dla aplikacji serwerowej napisanej w języku Python oraz
+warstwy klienckiej opartej na technologii Svelte; każdy z nich zawiera komplet
+bibliotek i narzędzi niezbędnych do pracy danego modułu. Baza danych Memgraph
+i narzędzie Memgraph Lab uruchamiane są z gotowych, oficjalnych obrazów. Wykorzystanie Dockera pozwala
+na szybkie odtworzenie całego stosu technologicznego na dowolnym urządzeniu, co jest
+kluczowe podczas pracy zespołowej oraz przy późniejszych testach integracyjnych systemu.
+Dodatkowo, mechanizm warstwowości obrazów Dockerowych optymalizuje czas budowania
+aplikacji, co znacząco przyspiesza proces iteracyjnego wprowadzania poprawek w logice symulacji ruchu czy algorytmach dynamicznego wyznaczania objazdów.
+
+\subsubsection{Docker Compose}
+
+Do zarządzania architekturą składającą się z wielu współpracujących ze sobą kontenerów
+wykorzystano narzędzie Docker Compose. Umożliwia ono zdefiniowanie całej infrastruktury
+projektowej w postaci pojedynczego, deklaratywnego pliku konfiguracyjnego, co stanowi
+realizację nowoczesnego paradygmatu infrastruktury jako kodu (ang. \emph{Infrastructure
+as Code -- IaC})~\cite{infrastructureascode}. W pliku tym precyzyjnie określono zależności pomiędzy poszczególnymi usługami,
+mapowanie portów sieciowych, dwie izolowane sieci wewnętrzne oraz nazwany
+wolumin danych (ang. \emph{volume}), który zapewnia trwałość informacji
+przechowywanych w bazie Memgraph nawet po usunięciu kontenera. Podział na sieci
+sprawia, że interfejs użytkownika nie komunikuje się z bazą danych
+bezpośrednio, lecz wyłącznie za pośrednictwem aplikacji serwerowej.
+Uruchomienie całego systemu symulacyjnego sprowadza się do wykonania jednego
+polecenia (\texttt{docker compose up}), co znacząco obniża próg wejścia dla
+nowych osób pracujących nad projektem i minimalizuje ryzyko błędów
+konfiguracyjnych.
+
+\dodatkowo{Podsumowanie}
+
+% TODO: 2-3 akapity: co zrealizowano, czy cele z rozdziału 2 zostały osiągnięte,
+% najważniejsze wyniki (57 stacji, 71 odcinków, 52 pociągi, A*, zdarzenia losowe).
+
+\subsection*{Kierunki dalszego rozwoju}
+\addcontentsline{toc}{subsection}{Kierunki dalszego rozwoju}
+
+Zrealizowany system stanowi podstawę do dalszej rozbudowy. Najważniejsze
+kierunki rozwoju obejmują:
+
+\begin{itemize}
+\item blokadę zajętości odcinków (rezerwację odcinka dla jednego pociągu,
+  odpowiednik samoczynnej blokady liniowej) wraz z rozstrzyganiem pierwszeństwa
+  na odcinkach jednotorowych,
+\item priorytety kategorii pociągów, np. ustępowanie pociągu towarowego
+  pociągowi dalekobieżnemu na stacji z torem dodatkowym,
+\item model dynamiki z przyspieszaniem i hamowaniem, wykorzystujący zapisane
+  już parametry składów (\texttt{accel}, \texttt{decel}, masa),
+\item model rozkładu jazdy z propagacją opóźnień i wskaźnikiem punktualności,
+\item mapę podkładową, np. Leaflet~\cite{leaflet} z kafelkami
+  OpenStreetMap~\cite{openstreetmap}.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%% bibliografia -- recznie, wg Wzoru A (formularz Z4-PU12)
+%% UWAGA: daty dostepu do stron WWW oraz dane pozycji nalezy zweryfikowac.
+\begin{thebibliography}{30}
+
+\bibitem{leaflet} Agafonkin V., Leaflet -- a JavaScript library for interactive maps, \url{https://leafletjs.com/} (dostęp: 30.06.2026).
+
+\bibitem{agilemanifesto} Beck K. i in., Manifesto for Agile Software Development, 2001, \url{https://agilemanifesto.org/} (dostęp: 30.06.2026).
+
+\bibitem{srk} Dąbrowa-Bajon M., Podstawy sterowania ruchem kolejowym. Funkcje, wymagania, zarys techniki, Oficyna Wydawnicza Politechniki Warszawskiej, Warszawa 2014.
+
+\bibitem{docker} Docker Inc., Docker Documentation, \url{https://docs.docker.com/} (dostęp: 30.06.2026).
+
+\bibitem{digitaltwin} Errandonea I., Beltrán S., Arrizabalaga S., Digital Twin for maintenance: A literature review, Computers in Industry, vol. 123, 2020, str. 103316.
+
+\bibitem{gsaplicense} GreenSock, GSAP Standard License, \url{https://gsap.com/community/standard-license/} (dostęp: 28.09.2026).
+
+\bibitem{astar1968} Hart P.E., Nilsson N.J., Raphael B., A Formal Basis for the Heuristic Determination of Minimum Cost Paths, IEEE Transactions on Systems Science and Cybernetics, vol. 4, nr 2, 1968, str. 100--107.
+
+\bibitem{gtfsks} Koleje Śląskie sp. z o.o., Rozkład jazdy w formacie GTFS, wersja 2026.166 (kopia lustrzana: repozytorium gtfs-proxies/24-Koleje-Slaskie), 2026.
+
+\bibitem{martin2017clean} Martin R.C., Clean Architecture: A Craftsman's Guide to Software Structure and Design, Prentice Hall, Boston 2017.
+
+\bibitem{memgraphlicense} Memgraph, Business Source License 1.1, \url{https://github.com/memgraph/memgraph/blob/master/licenses/BSL.txt} (dostęp: 28.09.2026).
+
+\bibitem{memgraph} Memgraph, Memgraph Documentation, \url{https://memgraph.com/docs} (dostęp: 30.06.2026).
+
+\bibitem{kontener.microsoft} Microsoft, Co to jest kontener?, \url{https://azure.microsoft.com/pl-pl/resources/cloud-computing-dictionary/what-is-a-container} (dostęp: 11.09.2026).
+
+\bibitem{typescript} Microsoft, TypeScript Documentation, \url{https://www.typescriptlang.org/docs/} (dostęp: 30.06.2026).
+
+\bibitem{railwaymarket} Mordor Intelligence, Railway Management System Market -- Growth, Trends and Forecasts, Mordor Intelligence, 2024, \url{https://www.mordorintelligence.com/} (dostęp: 30.06.2026).
+
+\bibitem{infrastructureascode} Morris K., Infrastructure as Code: Managing Servers in the Cloud, wyd. 2, O'Reilly Media, Sebastopol 2020.
+
+\bibitem{cypher} Neo4j, Cypher Query Language Reference, \url{https://neo4j.com/docs/cypher-manual/} (dostęp: 30.06.2026).
+
+\bibitem{openstreetmap} OpenStreetMap contributors, OpenStreetMap, \url{https://www.openstreetmap.org/} (dostęp: 30.06.2026).
+
+\bibitem{plkregulamin} PKP Polskie Linie Kolejowe S.A., Regulamin sieci 2025/2026, załączniki 1, 2.1, 2.4, 2.6 i 2.18, \url{https://www.plk-sa.pl/} (dostęp: 30.08.2026).
+
+\bibitem{pythonasyncio} Python Software Foundation, asyncio -- Asynchronous I/O. Python Documentation, \url{https://docs.python.org/3/library/asyncio.html} (dostęp: 30.06.2026).
+
+\bibitem{fastapi} Ramírez S., FastAPI Documentation, \url{https://fastapi.tiangolo.com/} (dostęp: 30.06.2026).
+
+\bibitem{graphdatabases} Robinson I., Webber J., Eifrem E., Graph Databases: New Opportunities for Connected Data, wyd. 2, O'Reilly Media, Sebastopol 2015.
+
+\bibitem{haversine} Sinnott R.W., Virtues of the Haversine, Sky and Telescope, vol. 68, nr 2, 1984, str. 159.
+
+\bibitem{sommerville2016} Sommerville I., Software Engineering, wyd. 10, Pearson, Boston 2016.
+
+\bibitem{svelte} Svelte, Svelte Documentation, \url{https://svelte.dev/docs} (dostęp: 30.06.2026).
+
+\bibitem{tailwind} Tailwind Labs, Tailwind CSS Documentation, \url{https://tailwindcss.com/docs} (dostęp: 30.06.2026).
+
+\bibitem{svg} W3C, Scalable Vector Graphics (SVG) 2, \url{https://www.w3.org/TR/SVG2/} (dostęp: 28.09.2026).
+
+\end{thebibliography}
+
+\end{document}
