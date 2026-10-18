@@ -1,0 +1,45 @@
+RAPORT KONTROLI JAKOSCI BAZY
+============================================================
+Wezlow            : 57
+Odcinkow          : 71
+Relacji pociagow  : 52
+Laczna dlugosc    : 931.4 km
+
+POKRYCIE ZRODLOWE
+  stacje/wspolrzedne   : {'measured': 57}
+  odcinki/dlugosc      : {'measured': 71}
+  odcinki/vmax         : {'measured': 66, 'derived': 5}
+  odcinki/rail_tracks  : measured=71, brak=0
+  odcinki/klasa PLK    : 66
+  stacje/typ z PLK 2.6 : 57/57
+  stacje/perony z 2.18 : 55/57
+  relacje              : {'measured': 42, 'modeled': 10}
+
+DANE Z WYKAZOW PLK (Regulamin sieci 2025/2026, stan 30.08.2026)
+  vmax (EZT/wagon/towar) <- zal. 2.1
+  rail_tracks (tory N/P) <- zal. 2.1
+  klasa odcinka          <- zal. 2.4
+  typ punktu, peron      <- zal. 2.6
+  liczba peronow, torow  <- zal. 2.18
+
+POLA WCIAZ BEZ POKRYCIA
+  brak — wszystkie parametry infrastruktury pochodza ze zrodel
+  (2 stacje graniczne poza siecia PLK: perony szacowane)
+
+SPOJNOSC: skladowych = 1
+MOSTY (odcinki bez objazdu): 15 z 71 = 21%
+    Bielsko-Biała Gł. — Łodygowice
+    Bielsko-Biała Gł. — Kęty
+    Chałupki — Rudyszwałd
+    Chałupki — Bohumin
+    Czechowice-Dziedzice — Bielsko-Biała Gł.
+    Goleszów — Wisła Głębce
+    Jaworzno Szczakowa — Balin
+    Kalety — Kłobuck
+    Kłobuck — Działoszyn
+    Rybnik Towarowy — Rybnik
+    Tychy — Tychy Lodowisko
+    Węgierska Górka — Zwardoń
+    Zwardoń — Skalite Serafinov
+    Łodygowice — Żywiec
+    Żywiec — Węgierska Górka
