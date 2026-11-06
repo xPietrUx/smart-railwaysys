@@ -24,6 +24,10 @@ export const POST: RequestHandler = async ({ params, cookies, fetch }) => {
 		);
 	}
 
+	if (response.status === 204) {
+		return new Response(null, { status: 204 });
+	}
+
 	const data = await response.text();
 	return new Response(data, {
 		status: response.status,

@@ -141,11 +141,8 @@
                 </text>
             {/each}
 
-            <circle
-                cx={CX}
-                cy={CY}
-                r={CORE_R}
-                class="core"
+            <g
+                class="core-btn"
                 role="button"
                 tabindex={readOnly ? -1 : 0}
                 aria-disabled={readOnly}
@@ -153,16 +150,30 @@
                 on:click={togglePause}
                 on:keydown={(event) => activateOnKey(event, togglePause)}
             >
-                <title>{paused ? $t('header.resumeTitle') : $t('header.pauseTitle')}</title>
-            </circle>
+                <circle
+                    cx={CX}
+                    cy={CY}
+                    r={CORE_R}
+                    class="core"
+                >
+                    <title>{paused ? $t('header.resumeTitle') : $t('header.pauseTitle')}</title>
+                </circle>
 
-            <foreignObject x={CX - 12} y={CY - 12} width="24" height="24" style="overflow: visible;">
-                <div xmlns="http://www.w3.org/1999/xhtml" class="core-center-content">
-                    <span class="material-symbols-outlined core-icon" aria-hidden="true">
-                        {paused ? 'play_arrow' : 'pause'}
-                    </span>
-                </div>
-            </foreignObject>
+                <foreignObject
+                    x={CX - 12}
+                    y={CY - 12}
+                    width="24"
+                    height="24"
+                    class="core-foreign"
+                    style="overflow: visible; pointer-events: none;"
+                >
+                    <div xmlns="http://www.w3.org/1999/xhtml" class="core-center-content">
+                        <span class="material-symbols-outlined core-icon" aria-hidden="true">
+                            {paused ? 'play_arrow' : 'pause'}
+                        </span>
+                    </div>
+                </foreignObject>
+            </g>
         </svg>
     </div>
 
@@ -281,7 +292,8 @@
     }
 
     .read-only .wedge,
-    .read-only .core {
+    .read-only .core,
+    .read-only .core-btn {
         pointer-events: none;
         cursor: default;
     }
@@ -337,6 +349,24 @@
         fill: var(--wedge-label-lit-paused);
     }
 
+    .core-btn {
+        cursor: pointer;
+        outline: none;
+    }
+
+    .core-btn:focus {
+        outline: none;
+    }
+
+    .core-btn:focus-visible .core {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+    }
+
+    .core-btn:hover .core {
+        fill: var(--core-hover);
+    }
+
     .core {
         fill: var(--core-fill);
         cursor: pointer;
@@ -359,6 +389,10 @@
         fill: var(--core-hover);
     }
 
+    .core-foreign {
+        pointer-events: none;
+    }
+
     .core-center-content {
         width: 24px;
         height: 24px;
@@ -366,6 +400,7 @@
         align-items: center;
         justify-content: center;
         pointer-events: none;
+        user-select: none;
     }
 
     .core-icon {
@@ -373,6 +408,8 @@
         color: var(--core-icon);
         line-height: 1;
         transition: color 150ms ease;
+        pointer-events: none;
+        user-select: none;
     }
 
     .paused .core-icon {
